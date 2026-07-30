@@ -1,0 +1,88 @@
+#
+# ASTRA — certification environment
+#
+# ─────────────────────────────────────────────────────────────────────────────
+#  THIS FILE IS INCOMPLETE BY DESIGN. LOADING IT WILL FAIL UNTIL A SAFETY
+#  ENGINEER SUPPLIES THE VALUES BELOW.
+#
+#  Every safety threshold is commented out rather than pre-filled. That is
+#  deliberate and is the single most important property of this file.
+#
+#  A certification configuration that shipped with plausible-looking numbers
+#  would let a certification run proceed under thresholds that nobody chose and
+#  nobody signed off, and the resulting figures would enter a report carrying
+#  the authority of a certified run. Assumption A-4 states that these parameters
+#  have no defensible default; this file is where that assumption is enforced
+#  rather than merely recorded.
+#
+#  Attempting to load this environment as shipped raises a ConfigurationError
+#  naming every missing field. Verify with:
+#
+#      astra config show --environment certification
+#
+#  That failure is the expected behaviour and is exercised by the test suite.
+#
+#  ── To complete this file ───────────────────────────────────────────────────
+#  Uncomment each parameter and record, in the commit message or an
+#  accompanying record: the value chosen, the runs or analysis it was derived
+#  from, and who approved it. A value here without that provenance is not a
+#  certified value, whatever this file says.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+
+schema_version = 1
+environment = "certification"
+
+[estimation]
+# Mahalanobis threshold above which the innovation monitor raises a sensor
+# fault. Derive from the innovation distribution measured over the certification
+# corpus; state the false-positive rate accepted.
+# innovation_gate_gamma =
+# Process-noise diagonals. Q governs how fast the filter trusts measurements
+# over its own model, so it sets the state estimate all three gates read.
+# Derive from the tuning runs against ground truth and record the corpus used.
+# fast_process_noise =
+# slow_process_noise =
+
+[trust]
+# Conformal coverage 1 − ε targeted by the Trust Module. Must be justified
+# against the per-class empirical coverage actually achieved, not assumed.
+# coverage_level =
+
+[gate]
+# Conformal significance level ε, and the MMD value above which covariate shift
+# is declared and ε is tightened.
+# significance_epsilon =
+# mmd_threshold =
+
+[shield]
+# The three hard bounds. These are legal and physical limits for the certified
+# operational design domain, not tuning parameters; they must come from the ODD
+# definition and the vehicle's braking characterisation.
+# legal_speed_limit_kmh =
+# friction_margin =
+# minimum_stopping_distance_m =
+# d_avail: the clear distance ahead the ODD guarantees. A certified ODD
+# parameter, not a perception output -- see the schema docstring.
+# assured_clear_distance_m =
+
+[failsafe]
+# θ1 < θ2 < θ3. Must be strictly increasing — the schema enforces the ordering,
+# because out-of-order thresholds would make a state unreachable and silently
+# remove a step from the graduated response.
+# ood_threshold_degraded =
+# ood_threshold_limp =
+# ood_threshold_halt =
+# degraded_speed_cap_kmh =
+# limp_speed_cap_kmh =
+
+[arbitration]
+# τ, the calibration admissibility threshold, and δ_CDI, the divergence limit
+# above which a staged calibration switch rolls back.
+# trust_threshold_tau =
+# divergence_limit_delta =
+
+[observability]
+log_level = "INFO"
+# Certification evidence must survive an abnormal termination.
+fsync_each_record = true

@@ -1,0 +1,32 @@
+ASTRA — Autonomous Safety, Trust, and Runtime Architecture
+==========================================================
+
+Origin
+------
+Developed in the Department of Computer Science and Engineering, B.M.S. College
+of Engineering, Bengaluru, under the guidance of Dr. Chaitra R.
+
+Authors: Sushanth C., Tanay S. Huddar, Tarun Gowda V., T. Tilak Reddy.
+
+Status
+------
+Unpublished, confidential, proprietary. See LICENSE.
+
+An intended patent filing covers the architecture implemented here. Until that
+filing is confirmed complete, this repository must remain private and must not
+be demonstrated, described in detail, or distributed outside the project team
+without a non-disclosure agreement in place. This mirrors the open item
+recorded in the project's Prototype & Demo Plan, which gates any external or
+company-facing demonstration on the filing status.
+
+Third-party components
+----------------------
+This distribution contains no third-party source code. Runtime dependencies are
+declared in pyproject.toml and are obtained from the Python Package Index under
+their own licences. A dependency licence inventory is required before any
+external distribution; it is tracked as Phase 8 work in docs/ROADMAP.md.
+
+Safety
+------
+This is a research prototype and is not certified for use in any safety-related
+system. See the SAFETY NOTICE in LICENSE.

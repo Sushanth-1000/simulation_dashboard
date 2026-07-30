@@ -1,0 +1,78 @@
+#
+# ASTRA — packaged defaults
+#
+# This file contains ONLY values that are safe to default. The test applied to
+# every line here is: "if this value were wrong, would the consequence be an
+# inconvenience or an unsound safety claim?" Inconvenience may be defaulted;
+# an unsound safety claim may not.
+#
+# Consequently there is no epsilon, no gamma, no tau, no delta_CDI, no theta,
+# and no shield bound in this file. Those have no defensible default (assumption
+# A-4): the source documents never assign them values, because they can only be
+# fixed empirically once the pipeline runs. A missing one is a startup failure,
+# which is the intended behaviour — a run under an invented safety threshold
+# would produce numbers that look meaningful and are not.
+#
+# Every value below is overridable per environment in `environments/<env>.toml`
+# and per deployment via `ASTRA_*` environment variables.
+#
+
+schema_version = 1
+
+# --------------------------------------------------------------------------- #
+# L1 — shared sensor bus
+# --------------------------------------------------------------------------- #
+[sensing]
+# FR1 states the 50 ms staleness rule explicitly, so unlike the empirical
+# thresholds this one is a documented requirement and may be defaulted.
+staleness_budget_ms = 50.0
+
+# --------------------------------------------------------------------------- #
+# L2 — dual-rate UKF
+# --------------------------------------------------------------------------- #
+[estimation]
+# 20 Hz sets the control tick and therefore the 50 ms period the end-to-end
+# budget is measured against.
+fast_rate_hz = 20.0
+# 1 Hz is the deployment rate; the prototype runs 0.1 Hz. Both are configuration
+# rather than a contradiction between the source documents (finding R-5).
+slow_rate_hz = 1.0
+# innovation_gate_gamma: intentionally absent — safety threshold (A-4).
+
+# --------------------------------------------------------------------------- #
+# L3 — conformal Trust Module
+# --------------------------------------------------------------------------- #
+[trust]
+ensemble_size = 10
+# The validation plan calls for at least 500 calibration samples per context.
+minimum_calibration_samples = 500
+# coverage_level: intentionally absent — safety threshold (A-4).
+
+# --------------------------------------------------------------------------- #
+# L6 — statistical gate
+# --------------------------------------------------------------------------- #
+[gate]
+mmd_window = 100
+# significance_epsilon, mmd_threshold: intentionally absent (A-4).
+
+# --------------------------------------------------------------------------- #
+# L9 — runtime calibration management
+# --------------------------------------------------------------------------- #
+[arbitration]
+# The architecture fixes these three: 50% of the nearest certified maximum
+# speed, ±15° steering, and no lane changes during bounded safe exploration.
+exploration_speed_fraction = 0.5
+exploration_steering_limit_deg = 15.0
+exploration_permits_lane_change = false
+# trust_threshold_tau, divergence_limit_delta: intentionally absent (A-4).
+
+# --------------------------------------------------------------------------- #
+# Observability
+# --------------------------------------------------------------------------- #
+[observability]
+log_directory = "var/runs"
+log_level = "INFO"
+# Bounded rather than unbounded: a stalled writer must surface as a reported
+# drop, not as unbounded memory growth on a real-time system.
+audit_queue_size = 10000
+fsync_each_record = false

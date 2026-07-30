@@ -1,0 +1,92 @@
+#
+# ASTRA — continuous integration
+#
+# Runs the same quality gate as `make check`, in the same order. If this file
+# and the Makefile ever disagree about what "passing" means, the gate has
+# stopped being a gate, so every step below names the same command a developer
+# runs locally.
+#
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push to the same branch supersedes the run in flight.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Fail rather than silently building a wheel from source if a lockfile entry
+  # is unavailable for the runner.
+  UV_FROZEN: "1"
+
+jobs:
+  quality-gate:
+    name: Quality gate (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      # Run the whole matrix even when one interpreter fails: knowing a failure
+      # is 3.13-specific rather than universal is most of the diagnosis.
+      fail-fast: false
+      matrix:
+        # 3.12 is the declared floor (ADR-0003). 3.13 runs as an early warning
+        # for the interpreter the project will move to, since assumption A-6
+        # flags the ML stack's version support as a live Phase 4 risk.
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install the project and all dependency groups
+        run: uv sync --all-groups --python ${{ matrix.python-version }}
+
+      # The gate, step by step rather than via `make check`, so that a failure
+      # is attributed to a named check in the GitHub UI instead of to one opaque
+      # `make` invocation.
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Lint
+        run: uv run ruff check --output-format=github .
+
+      - name: Type check
+        run: uv run mypy
+
+      - name: Architecture fitness contracts
+        # The console script, never `python -m importlinter.cli`: that module
+        # has no __main__ guard and exits 0 having checked nothing.
+        run: uv run lint-imports
+
+      - name: Tests and coverage gate
+        run: uv run pytest --cov=astra --cov-report=term-missing --cov-report=xml
+
+      - name: Self-report
+        # `astra doctor` exits non-zero if the installation could not start a
+        # run, which makes it a genuine smoke test of the composition root and
+        # not merely a nice printout.
+        run: uv run astra doctor
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: coverage.xml
+          if-no-files-found: ignore

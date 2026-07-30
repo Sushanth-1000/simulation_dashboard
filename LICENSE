@@ -1,0 +1,43 @@
+ASTRA — Autonomous Safety, Trust, and Runtime Architecture
+Copyright (c) 2026 Sushanth C., Tanay S. Huddar, Tarun Gowda V., T. Tilak Reddy,
+and B.M.S. College of Engineering, Department of Computer Science and Engineering.
+
+ALL RIGHTS RESERVED. UNPUBLISHED PROPRIETARY WORK.
+
+This software and its associated documentation, design records, calibration
+schemas and test artefacts (collectively, the "Work") are confidential and
+proprietary to the copyright holders. The Work is unpublished and is not
+licensed for use, copying, modification, distribution, public performance,
+public display, or the creation of derivative works by any party, except under
+a separate written agreement signed by the copyright holders.
+
+Receipt or possession of the Work does not convey any right to reproduce or
+disclose its contents, or to manufacture, use, or sell anything it may
+describe.
+
+PATENT NOTICE
+-------------
+The architecture described by this Work is the subject of an intended patent
+filing. Nothing in this notice grants, expressly or by implication, estoppel or
+otherwise, any licence or right under any patent, patent application, trademark
+or other intellectual property right of the copyright holders. Public
+disclosure of the Work prior to the completion of that filing may prejudice
+patent rights in one or more jurisdictions; recipients must treat the Work as
+confidential.
+
+NO WARRANTY
+-----------
+THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS IN THE WORK.
+
+SAFETY NOTICE
+-------------
+The Work is a research prototype. It has not been qualified, assessed or
+certified under ISO 26262, ISO 21448, ISO/SAE 21434 or any other functional
+safety, cybersecurity or regulatory standard. It must not be deployed in, or
+relied upon by, any system where a failure could result in injury, loss of
+life, environmental harm or property damage.

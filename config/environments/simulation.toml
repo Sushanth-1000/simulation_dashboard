@@ -1,0 +1,60 @@
+#
+# ASTRA — simulation environment
+#
+# ─────────────────────────────────────────────────────────────────────────────
+#  PROVISIONAL VALUES. NOT CERTIFIED. NOT EVIDENCE.
+#
+#  The operating point used for simulator runs and the validation scenarios.
+#  As with `development.toml`, every safety threshold here is a placeholder
+#  pending empirical determination (assumption A-4). Numbers produced under this
+#  file are simulation measurements and must always be reported as such — the
+#  honesty boundaries require the software/hardware and simulated/real
+#  distinctions to be stated explicitly every time a figure is quoted.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+
+schema_version = 1
+environment = "simulation"
+
+[estimation]
+# The prototype runs the slow filter at 0.1 Hz rather than the 1 Hz deployment
+# rate (finding R-5): a simulated run is too short for a 1 Hz filter to
+# accumulate a meaningful degradation estimate.
+slow_rate_hz = 0.1
+innovation_gate_gamma = 7.5
+# PROVISIONAL, as in development.toml. Highway motion is smoother than urban,
+# so the positional process noise is tighter here.
+fast_process_noise = [0.02, 0.02, 0.05, 0.005, 0.30]
+slow_process_noise = [1e-5, 1e-6, 1e-5]
+
+[trust]
+coverage_level = 0.95
+
+[gate]
+significance_epsilon = 0.05
+mmd_threshold = 0.08
+
+[shield]
+# Highway operating point, matching the first phase of the validation drive.
+legal_speed_limit_kmh = 120.0
+friction_margin = 0.80
+minimum_stopping_distance_m = 5.0
+# d_avail: the clear distance ahead the ODD assures. PROVISIONAL.
+assured_clear_distance_m = 150.0
+
+[failsafe]
+ood_threshold_degraded = 5
+ood_threshold_limp = 12
+ood_threshold_halt = 20
+degraded_speed_cap_kmh = 60.0
+limp_speed_cap_kmh = 20.0
+
+[arbitration]
+trust_threshold_tau = 0.70
+divergence_limit_delta = 0.20
+
+[observability]
+log_level = "INFO"
+# Simulation runs are the source of the evidence pack, so records are synced as
+# they are written: a crashed run must not lose the ticks that preceded it.
+fsync_each_record = true

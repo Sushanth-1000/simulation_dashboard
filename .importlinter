@@ -1,0 +1,190 @@
+# ---------------------------------------------------------------------------
+# ASTRA architecture fitness contracts
+# ---------------------------------------------------------------------------
+# These contracts are a *design* artefact, which is why they live in their own
+# reviewable file rather than inside pyproject.toml with the tool settings.
+# They turn the module dependency graph and several separation invariants into
+# build failures. The implementation plan is explicit that the invariants must
+# be checked by code and not asserted in a comment; this file is where that
+# happens for everything expressible as an import relationship.
+#
+# Run with:  lint-imports
+# ---------------------------------------------------------------------------
+
+[importlinter]
+root_package = astra
+include_external_packages = True
+
+# ---------------------------------------------------------------------------
+# The module dependency graph
+# ---------------------------------------------------------------------------
+# Strictly acyclic and strictly downward. `kernel` sits at the bottom and
+# imports nothing from astra; `bootstrap` sits at the top and may import
+# anything. Layers are listed highest-first, which is import-linter's
+# convention.
+#
+# The payoff of the bottom layer having no dependencies is concrete: an offline
+# evidence-analysis tool, a certification script or the dashboard process can
+# import ASTRA's vocabulary and contracts without installing NumPy, PyTorch or
+# a simulator.
+[importlinter:contract:layers]
+name = Module layering is acyclic and downward
+type = layers
+layers =
+    astra.bootstrap
+    astra.runtime
+    astra.layers
+    astra.replay | astra.config | astra.observability | astra.invariants
+    astra.ports
+    astra.contracts
+    astra.kernel
+
+# ---------------------------------------------------------------------------
+# The kernel is dependency-free
+# ---------------------------------------------------------------------------
+# The kernel may use the standard library and nothing else. A third-party
+# import here would propagate to every consumer of the vocabulary and would
+# break the offline-importability property above.
+#
+# NumPy and FilterPy are named explicitly from Phase 2 onward. They are now real
+# project dependencies of the estimation layer, which makes them the realistic
+# way the kernel's independence would be lost -- a single convenience import of
+# `numpy` into `kernel/matrix.py` would silently require every offline evidence
+# tool and certification script to install the numerical stack.
+[importlinter:contract:kernel-independence]
+name = The kernel imports no third-party package
+type = forbidden
+source_modules =
+    astra.kernel
+forbidden_modules =
+    pydantic
+    pydantic_settings
+    numpy
+    filterpy
+allow_indirect_imports = False
+
+# The contracts are the records offline tools read back out of an evidence
+# archive, so they must stay importable without the numerical stack too. The
+# NumPy seam is `SymmetricMatrix.to_rows`, and it is deliberately on the kernel
+# side of the boundary.
+[importlinter:contract:contracts-independence]
+name = The contracts import no numerical package
+type = forbidden
+source_modules =
+    astra.contracts
+forbidden_modules =
+    numpy
+    filterpy
+allow_indirect_imports = False
+
+# ---------------------------------------------------------------------------
+# The simulator never reaches the core (ADR-0003, NFR5)
+# ---------------------------------------------------------------------------
+# The whole of astra is forbidden from importing the simulator client. CARLA
+# 0.9.14's Python client supports interpreters up to 3.8 while this project
+# targets 3.12 (finding R-6); isolating it behind a port is what keeps that
+# unresolved question a deployment detail rather than an architectural one.
+# The eventual adapter is the single permitted exception and will be added to
+# `source_modules`' exclusions when it exists.
+[importlinter:contract:simulator-isolation]
+name = No simulator import anywhere in the core
+type = forbidden
+source_modules =
+    astra
+forbidden_modules =
+    carla
+
+# ---------------------------------------------------------------------------
+# SI-1: sensor opacity
+# ---------------------------------------------------------------------------
+# Only L2 consumes L1's records. Once the layer packages exist, the source list
+# grows to name each layer above L2 explicitly; today the enforceable statement
+# is that nothing in the kernel or in the invariant catalogue depends on the
+# sensing contract, since both must remain valid without any notion of a sensor.
+[importlinter:contract:si-1-sensor-opacity]
+name = SI-1 the kernel and invariants do not depend on sensing contracts
+type = forbidden
+source_modules =
+    astra.kernel
+    astra.invariants
+forbidden_modules =
+    astra.contracts.sensing
+
+# ---------------------------------------------------------------------------
+# SI-3 / R-3: the deterministic gate is independent of every other gate
+# ---------------------------------------------------------------------------
+# The Hard Safety Shield's authority rests entirely on its bounds failing for a
+# reason no other gate shares: they fail only if the UKF state is wrong. A
+# shield that imported the twin, the statistical gate or the fail-safe machine
+# would inherit their failure modes and the independence claim would be false.
+#
+# The fail-safe machine is named here as well as the future gates, and that is
+# the part enforceable today: a shield that could read the FSM state could make
+# its verdict depend on the posture the verdict itself produces.
+[importlinter:contract:si-3-shield-independence]
+name = SI-3 the deterministic shield imports no other gate and no FSM
+type = forbidden
+source_modules =
+    astra.layers.l7_shield
+forbidden_modules =
+    astra.layers.l8_failsafe
+    astra.layers.l1_sensing
+    astra.replay
+allow_indirect_imports = False
+
+# ---------------------------------------------------------------------------
+# The fail-safe machine judges verdicts, not gates
+# ---------------------------------------------------------------------------
+# L8 escalates on the aggregate verdict alone. If it imported a gate it could
+# weight one gate's veto differently from another's, which would give that gate
+# more authority than the others and contradict SI-3's unconditional-veto
+# symmetry.
+[importlinter:contract:l8-judges-verdicts-only]
+name = The fail-safe machine imports no gate implementation
+type = forbidden
+source_modules =
+    astra.layers.l8_failsafe
+forbidden_modules =
+    astra.layers.l7_shield
+    astra.layers.l2_estimation
+    astra.layers.l1_sensing
+allow_indirect_imports = False
+
+# ---------------------------------------------------------------------------
+# SI-5: the one-way Core-A to Core-B channel
+# ---------------------------------------------------------------------------
+# Core-A may write a proposal into Core-B and may read nothing back. The layer
+# packages that this contract will name (astra.layers.l4_proposer as the source;
+# l5_twin, l6_statistical_gate, l7_shield and l8_failsafe as forbidden) arrive
+# in Phase 3 and Phase 4. Until they exist, import-linter would fail on unknown
+# modules, so the contract is written here, commented, rather than omitted and
+# forgotten -- it is activated by deleting the comment markers once the modules
+# land.
+#
+# [importlinter:contract:si-5-one-way-core-channel]
+# name = SI-5 Core-A cannot import any Core-B module
+# type = forbidden
+# source_modules =
+#     astra.layers.l4_proposer
+# forbidden_modules =
+#     astra.layers.l5_twin
+#     astra.layers.l6_statistical_gate
+#     astra.layers.l7_shield
+#     astra.layers.l8_failsafe
+# allow_indirect_imports = False
+
+# ---------------------------------------------------------------------------
+# SI-10: evidence non-influence
+# ---------------------------------------------------------------------------
+# Evidence gathered during bounded safe exploration feeds the offline
+# certification pipeline and must not reach a gate. Observability is the
+# evidence side of that boundary, so nothing it contains may be imported by the
+# contracts or ports that the gates are written against.
+[importlinter:contract:si-10-evidence-non-influence]
+name = SI-10 contracts and ports do not import the evidence machinery
+type = forbidden
+source_modules =
+    astra.contracts
+    astra.ports
+forbidden_modules =
+    astra.observability

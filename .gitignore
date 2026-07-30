@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+# Tooling caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+.import_linter_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+# ASTRA runtime output — audit logs are evidence, but are per-run and not source
+var/
+# Local environment
+.env
+# Editor and OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp

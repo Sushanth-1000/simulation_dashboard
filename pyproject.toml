@@ -1,0 +1,276 @@
+#
+# ASTRA — Autonomous Safety, Trust, and Runtime Architecture
+# Project definition, dependency declaration and tool configuration.
+#
+# This file is the single source of truth for how ASTRA is built, linted,
+# type-checked and tested. Every tool that participates in the quality gate is
+# configured here rather than in a per-tool dotfile, so that a reviewer can
+# audit the entire engineering standard of the project from one artefact.
+# The two deliberate exceptions are `.importlinter` (the architecture fitness
+# contracts, which are a *design* artefact and deserve their own reviewable
+# file) and `.pre-commit-config.yaml` (whose schema is owned by pre-commit).
+#
+
+# --------------------------------------------------------------------------- #
+# Build system
+# --------------------------------------------------------------------------- #
+# Hatchling is chosen over setuptools and poetry-core because it is PEP 517 /
+# PEP 621 native, requires no `setup.py` or `setup.cfg`, and reads the metadata
+# below verbatim without a second dialect. setuptools still carries a large
+# legacy surface; poetry-core historically required Poetry-specific metadata.
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+# --------------------------------------------------------------------------- #
+# Project metadata (PEP 621)
+# --------------------------------------------------------------------------- #
+[project]
+name = "astra"
+version = "0.1.0"
+description = "Autonomous Safety, Trust, and Runtime Architecture — runtime governance for AI-controlled cyber-physical systems"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Sushanth C." },
+    { name = "Tanay S. Huddar" },
+    { name = "Tarun Gowda V." },
+    { name = "T. Tilak Reddy" },
+]
+maintainers = [{ name = "ASTRA Engineering", email = "astra-eng@example.invalid" }]
+keywords = [
+    "runtime-assurance",
+    "functional-safety",
+    "conformal-prediction",
+    "cyber-physical-systems",
+    "iso-26262",
+    "sotif",
+]
+classifiers = [
+    "Private :: Do Not Upload", # hard guard against accidental PyPI publication
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Typing :: Typed",
+]
+
+# Phase 1 runtime dependencies are deliberately minimal. Every dependency added
+# to the safety pipeline is a component that must eventually be justified in a
+# safety case (ISO 26262 §8-12, "qualification of software components"), so the
+# bar for adding one is high. Numerical, ML and simulator dependencies arrive in
+# later phases and are declared as optional extras at that time.
+dependencies = [
+    "pydantic>=2.9,<3",
+    "pydantic-settings>=2.6,<3",
+]
+
+# No `[project.optional-dependencies]` table is declared. Empty extras are
+# noise. Later phases add: [estimation] filterpy/numpy, [learning] torch +
+# stable-baselines3, [simulation] carla, [dashboard] fastapi + uvicorn.
+
+[project.scripts]
+astra = "astra.bootstrap.cli:main"
+
+[project.urls]
+Documentation = "https://github.com/ORG/astra/tree/main/docs"
+Source = "https://github.com/ORG/astra"
+
+# --------------------------------------------------------------------------- #
+# Development dependency groups (PEP 735)
+# --------------------------------------------------------------------------- #
+# PEP 735 groups are used instead of an `[project.optional-dependencies.dev]`
+# extra because development tooling is not a feature of the distributed package
+# and must never be installable by a downstream consumer via `pip install
+# astra[dev]`.
+[dependency-groups]
+lint = [
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "import-linter>=2.1",
+]
+test = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "hypothesis>=6.115",
+]
+dev = [
+    { include-group = "lint" },
+    { include-group = "test" },
+    "pre-commit>=4.0",
+]
+
+# --------------------------------------------------------------------------- #
+# Packaging layout
+# --------------------------------------------------------------------------- #
+# The `src/` layout is mandatory rather than stylistic: it makes it impossible
+# to import `astra` from the repository root by accident, which means the test
+# suite always exercises the *installed* package. Without it, a missing entry in
+# the wheel is invisible until deployment.
+[tool.hatch.build.targets.wheel]
+packages = ["src/astra"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/astra", "tests", "config", "docs", "README.md", "LICENSE", "NOTICE"]
+
+# --------------------------------------------------------------------------- #
+# Ruff — linting and formatting
+# --------------------------------------------------------------------------- #
+# Ruff replaces flake8 + isort + pydocstyle + pyupgrade + bandit + black. One
+# tool, one configuration, one pass. For a project that will be reviewed by
+# people who are not full-time Python engineers, having a single command that
+# both reports and fixes style is worth more than marginal per-tool tuning.
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+extend-exclude = [".venv", "build", "dist"]
+
+[tool.ruff.lint]
+select = [
+    "F",    # pyflakes — real errors
+    "E", "W", # pycodestyle
+    "I",    # import sorting
+    "N",    # pep8-naming
+    "D",    # pydocstyle — every public symbol is documented (project requirement)
+    "UP",   # pyupgrade — keep the codebase on modern syntax
+    "ANN",  # flake8-annotations — every signature is typed (project requirement)
+    "S",    # bandit — security
+    "BLE",  # blind except — critical: a bare `except` in a safety path hides faults
+    "B",    # bugbear
+    "A",    # builtin shadowing
+    "C4",   # comprehensions
+    "DTZ",  # naive datetimes — a timestamp without a timezone is a defect here
+    "T10",  # debugger imports
+    "EM",   # exception message literals
+    "ISC",  # implicit string concat
+    "ICN",  # import conventions
+    "G",    # logging format — no f-strings in log calls (cost on the hot path)
+    "INP",  # implicit namespace packages
+    "PIE",
+    "T20",  # no print() outside the CLI
+    "PT",   # pytest style
+    "Q",    # quotes
+    "RSE",
+    "RET",
+    "SLF",  # private member access across objects
+    "SIM",
+    "TID",  # tidy imports — enforces absolute imports
+    "ARG",  # unused arguments
+    "PTH",  # pathlib over os.path
+    "ERA",  # commented-out code
+    "PL",   # pylint subset
+    "TRY",  # exception anti-patterns
+    "PERF",
+    "FURB",
+    "RUF",
+]
+ignore = [
+    "D203",   # conflicts with D211 (chosen: no blank line before class docstring)
+    "D213",   # conflicts with D212 (chosen: summary on the first line)
+    "ISC001", # conflicts with the formatter
+    "PLR0913", # argument count — safety records legitimately carry many fields
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101",   # assert is the point of a test
+    "D100", "D101", "D102", "D103", "D104", # test names are the documentation
+    "PLR2004", # magic numbers are expected in assertions
+    "SLF001", # tests may inspect internals
+    "S311",   # pseudo-random noise is test input, not a security control
+]
+"src/astra/bootstrap/cli.py" = ["T20"] # the CLI is the one place print() is correct
+# Benchmarks report to a human at a terminal, like the CLI. They are outside the
+# package and are never imported by it, so the T20 rule has nothing to protect.
+# S311: the synthetic measurements are benchmark inputs, not a security control.
+# INP001: benchmarks are standalone scripts, deliberately not an importable package.
+"benchmarks/**" = ["T20", "S311", "INP001"]
+# Stubs must mirror the upstream signature exactly, including parameter names
+# (`P`, `R`, `UT`) and its untyped **kwargs. Renaming them would break keyword
+# calls and would make the stub describe an API that does not exist.
+"stubs/**" = ["N803", "ANN401", "D", "A002"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all" # absolute imports only: a moved module fails loudly
+
+[tool.ruff.format]
+docstring-code-format = true
+
+# --------------------------------------------------------------------------- #
+# Mypy — static typing
+# --------------------------------------------------------------------------- #
+# Strict mode from commit one. Retrofitting strict typing onto an existing
+# codebase costs an order of magnitude more than starting with it, and the
+# contracts in `astra.contracts` are precisely the place where a silent type
+# error becomes a safety defect.
+[tool.mypy]
+python_version = "3.12"
+files = ["src", "tests"]
+# FilterPy ships no py.typed marker. Rather than relax strictness globally, the
+# exact surface the estimation layer depends on is declared in stubs/ — which
+# doubles as the enumeration a safety-case qualification argument for an
+# unmaintained dependency has to start from. See stubs/filterpy/__init__.pyi.
+mypy_path = "stubs"
+strict = true
+warn_unreachable = true
+warn_no_return = true
+enable_error_code = [
+    "redundant-expr",
+    "possibly-undefined",
+    "truthy-bool",
+    "ignore-without-code",
+    "explicit-override",
+]
+disallow_any_unimported = true
+show_error_codes = true
+pretty = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false # test bodies stay readable; signatures still checked
+
+# --------------------------------------------------------------------------- #
+# Pytest
+# --------------------------------------------------------------------------- #
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "-ra",
+    "--import-mode=importlib",
+]
+markers = [
+    "architecture: fitness tests that assert structural properties of the codebase",
+    "property: Hypothesis-driven property-based tests",
+]
+filterwarnings = ["error"] # a warning in a safety codebase is a defect, not noise
+
+# --------------------------------------------------------------------------- #
+# Coverage
+# --------------------------------------------------------------------------- #
+[tool.coverage.run]
+source = ["src/astra"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+# Phase 1 is pure foundation: there is no reason for any line to be untested.
+# The gate is set at 95% rather than 100% only to leave room for defensive
+# branches that cannot be reached without patching the interpreter.
+fail_under = 95
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@overload",
+    "class .*\\(Protocol\\):",
+]

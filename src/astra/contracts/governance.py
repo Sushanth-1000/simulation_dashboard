@@ -1,0 +1,395 @@
+"""Governance contracts: the runtime context, calibration profiles and arbitration.
+
+These records belong to RCM (L9), the arbitrator. Two things the architecture
+insists on are enforced here at the type level:
+
+* **SI-9 (independent calibration validation).** A :class:`CalibrationProfile`
+  rejects a non-monotonic quantile table at construction, using the same
+  monotonicity guard Core-B applies before activating any table. A table that
+  is not non-decreasing can map a *higher* non-conformity score to a *lower*
+  rejection threshold, which is the shape a calibration-poisoning attack takes.
+
+* **The admissibility rule is a hard gate.** :func:`is_candidate_admissible`
+  encodes ``T(c) >= tau AND val(c) == 1`` as a conjunction with no scoring
+  escape hatch: a candidate that fails validity is inadmissible no matter how
+  high its trust score. Writing it once, here, keeps every call site honest.
+
+Phase 1 scope: this module defines the *records and the admissibility
+predicate*. The knowledge-base search, the Mahalanobis scoring and the shadow
+execution that consume them are L9 logic and arrive in Phase 6; they are not
+implemented here (see the handoff's phase-discipline rule).
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from astra.kernel.constants import RCS_DIMENSION, RCS_FIELDS
+from astra.kernel.enums import ArbitrationOutcome
+from astra.kernel.errors import ContractViolationError, DimensionMismatchError
+from astra.kernel.units import Probability
+from astra.kernel.validation import (
+    require_dimension,
+    require_finite,
+    require_non_decreasing,
+    require_non_negative,
+    require_probability,
+)
+
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from astra.kernel.enums import ContextClass
+    from astra.kernel.identifiers import ProfileId, TickId
+    from astra.kernel.matrix import SymmetricMatrix
+    from astra.kernel.units import MetresPerSecond
+
+__all__ = [
+    "ArbitrationDecision",
+    "CalibrationProfile",
+    "ProfileFieldHistory",
+    "RuntimeContextSignature",
+    "is_candidate_admissible",
+]
+
+_VISIBILITY_INDEX = RCS_FIELDS.index("visibility")
+_EGO_SPEED_INDEX = RCS_FIELDS.index("ego_speed")
+_TRAFFIC_DYNAMICITY_INDEX = RCS_FIELDS.index("traffic_dynamicity")
+_SENSOR_RELIABILITY_INDEX = RCS_FIELDS.index("sensor_reliability")
+_ROAD_COMPLEXITY_INDEX = RCS_FIELDS.index("road_complexity")
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeContextSignature:
+    """The five-component normalised description of the current operating context.
+
+    RCM builds this each cold-path evaluation and searches the Calibration
+    Knowledge Base for the nearest certified profile by Mahalanobis distance.
+    Every component is a :data:`~astra.kernel.units.Probability` in ``[0, 1]``:
+    the signature is deliberately dimensionless and normalised so that a single
+    covariance-weighted distance is meaningful across heterogeneous quantities.
+
+    The sensor-reliability component is reliability-weighted upstream, so a
+    degraded sensor lowers its own contribution to the signature rather than
+    silently dominating it -- the mitigation the architecture names for the
+    shared-state common-cause weakness.
+
+    Attributes:
+        tick: The control tick this signature describes.
+        components: The five values, ordered per
+            :data:`~astra.kernel.constants.RCS_FIELDS`.
+    """
+
+    tick: TickId
+    components: tuple[Probability, ...]
+
+    def __post_init__(self) -> None:
+        """Validate the signature's dimension and per-component range.
+
+        Raises:
+            DimensionMismatchError: If there are not exactly
+                :data:`~astra.kernel.constants.RCS_DIMENSION` components.
+            RangeViolationError: If any component lies outside ``[0, 1]``.
+        """
+        checked = require_dimension(self.components, expected=RCS_DIMENSION, name="rcs")
+        validated = tuple(
+            require_probability(value, name=f"rcs.{RCS_FIELDS[index]}")
+            for index, value in enumerate(checked)
+        )
+        object.__setattr__(self, "components", validated)
+
+    @property
+    def visibility(self) -> Probability:
+        """Return the normalised visibility component."""
+        return self.components[_VISIBILITY_INDEX]
+
+    @property
+    def ego_speed(self) -> Probability:
+        """Return the normalised ego-speed component."""
+        return self.components[_EGO_SPEED_INDEX]
+
+    @property
+    def traffic_dynamicity(self) -> Probability:
+        """Return the normalised traffic-dynamicity component."""
+        return self.components[_TRAFFIC_DYNAMICITY_INDEX]
+
+    @property
+    def sensor_reliability(self) -> Probability:
+        """Return the normalised, reliability-weighted sensor component."""
+        return self.components[_SENSOR_RELIABILITY_INDEX]
+
+    @property
+    def road_complexity(self) -> Probability:
+        """Return the normalised road-complexity component."""
+        return self.components[_ROAD_COMPLEXITY_INDEX]
+
+    def as_vector(self) -> tuple[float, ...]:
+        """Return the signature as a bare numeric vector.
+
+        The form RCM's Mahalanobis distance consumes, and the form a profile's
+        certified centroid is stored in, so the two are directly comparable.
+
+        Returns:
+            The five components as plain floats in canonical order.
+        """
+        return tuple(float(component) for component in self.components)
+
+
+@dataclass(frozen=True, slots=True)
+class ProfileFieldHistory:
+    """Operational history a certified profile carries into the mandatory gates.
+
+    RCM's mandatory gates disqualify a profile with a critical-failure history
+    regardless of how well it scores. Recording that history on the profile is
+    what lets that gate be a lookup rather than a query against external state.
+
+    Attributes:
+        deployments: How many certified deployments this profile has backed.
+        critical_failures: How many of them ended in a critical safety failure.
+            A non-zero count is what the failure-history mandatory gate keys on.
+    """
+
+    deployments: int = 0
+    critical_failures: int = 0
+
+    def __post_init__(self) -> None:
+        """Validate that the counts are non-negative and mutually consistent.
+
+        Raises:
+            ContractViolationError: If a count is negative, or the number of
+                critical failures exceeds the number of deployments.
+        """
+        if self.deployments < 0 or self.critical_failures < 0:
+            message = "profile field-history counts must be non-negative"
+            raise ContractViolationError(
+                message,
+                context={
+                    "deployments": self.deployments,
+                    "critical_failures": self.critical_failures,
+                },
+            )
+        if self.critical_failures > self.deployments:
+            message = "critical failures cannot exceed deployments"
+            raise ContractViolationError(
+                message,
+                context={
+                    "deployments": self.deployments,
+                    "critical_failures": self.critical_failures,
+                },
+            )
+
+    @property
+    def has_critical_failure_history(self) -> bool:
+        """Return whether this profile has ever failed critically in the field.
+
+        Returns:
+            ``True`` if :attr:`critical_failures` is non-zero.
+        """
+        return self.critical_failures > 0
+
+
+@dataclass(frozen=True, slots=True)
+class CalibrationProfile:
+    """One immutable, certified calibration profile in RCM's knowledge base.
+
+    A profile binds an operational context to the certified parameters the
+    pipeline should run under in that context: where the context sits in RCS
+    space, how far from it is still "this context", the conformal quantile table
+    the ICP gate uses, and the operating limits. Profiles are versioned and
+    immutable (NFR7): a change is a new version, never an edit, so an audit
+    record naming ``highway_clear@v2`` is unambiguous forever.
+
+    Attributes:
+        profile_id: The versioned identity, e.g. ``highway_clear@v2``.
+        context_class: The context class this profile certifies.
+        centroid: The profile's location in RCS space, one value per
+            :data:`~astra.kernel.constants.RCS_FIELDS`, each in ``[0, 1]``.
+        covariance: The certified covariance about the centroid, used for the
+            Mahalanobis distance in RCM's cold-path search.
+        quantile_table: The non-decreasing conformal quantile table for the ICP
+            gate. Monotonicity is enforced (SI-9).
+        coverage_level: The conformal coverage ``1 - epsilon`` the table
+            certifies.
+        validation_fraction: The fraction of the certification corpus held out
+            for validation, in ``[0, 1]``.
+        max_speed: The certified maximum speed for this context, in m/s.
+        field_history: Operational history feeding the mandatory gates.
+        checksum: The signed checksum Core-B independently verifies before
+            activating the table (SI-9). Opaque here; verified in Phase 6.
+        platform: Platform identifier, keyed on by the platform-mismatch gate.
+        certified_at: When the profile was certified. Timezone-aware UTC.
+        expires_at: When the certification lapses. Timezone-aware UTC.
+    """
+
+    profile_id: ProfileId
+    context_class: ContextClass
+    centroid: tuple[float, ...]
+    covariance: SymmetricMatrix
+    quantile_table: tuple[float, ...]
+    coverage_level: Probability
+    validation_fraction: Probability
+    max_speed: MetresPerSecond
+    checksum: str
+    platform: str
+    certified_at: datetime
+    expires_at: datetime
+    field_history: ProfileFieldHistory = ProfileFieldHistory()
+
+    def __post_init__(self) -> None:
+        """Validate the profile's structure, ranges, monotonicity and dates.
+
+        Raises:
+            DimensionMismatchError: If the centroid or covariance is not
+                :data:`~astra.kernel.constants.RCS_DIMENSION`-dimensional.
+            RangeViolationError: If a centroid component, the coverage level, the
+                validation fraction or the max speed is out of range, or the
+                quantile table is not non-decreasing.
+            ContractViolationError: If the checksum or platform is empty, the
+                dates are naive, or the expiry is not after certification.
+        """
+        centroid = require_dimension(self.centroid, expected=RCS_DIMENSION, name="centroid")
+        for index, value in enumerate(centroid):
+            require_probability(value, name=f"centroid.{RCS_FIELDS[index]}")
+        object.__setattr__(self, "centroid", centroid)
+        if self.covariance.dimension != RCS_DIMENSION:
+            message = (
+                f"profile covariance is {self.covariance.dimension}-dimensional, "
+                f"expected {RCS_DIMENSION}"
+            )
+            raise DimensionMismatchError(message, context={"expected": RCS_DIMENSION})
+        object.__setattr__(
+            self,
+            "quantile_table",
+            require_non_decreasing(self.quantile_table, name="quantile_table"),
+        )
+        require_probability(self.coverage_level, name="coverage_level")
+        require_probability(self.validation_fraction, name="validation_fraction")
+        require_non_negative(self.max_speed, name="max_speed")
+        if not self.checksum:
+            message = "a calibration profile must carry a non-empty checksum"
+            raise ContractViolationError(message, context={"profile": str(self.profile_id)})
+        if not self.platform:
+            message = "a calibration profile must name a platform"
+            raise ContractViolationError(message, context={"profile": str(self.profile_id)})
+        self._validate_dates()
+
+    def _validate_dates(self) -> None:
+        """Validate that certification dates are timezone-aware and ordered.
+
+        Raises:
+            ContractViolationError: If either date is naive, or the expiry does
+                not strictly follow certification.
+        """
+        for label, moment in (("certified_at", self.certified_at), ("expires_at", self.expires_at)):
+            if moment.tzinfo is None:
+                message = f"{label} must be timezone-aware"
+                raise ContractViolationError(message, context={"field": label})
+        if self.expires_at <= self.certified_at:
+            message = "a profile's expiry must be strictly after its certification"
+            raise ContractViolationError(
+                message,
+                context={
+                    "certified_at": self.certified_at.isoformat(),
+                    "expires_at": self.expires_at.isoformat(),
+                },
+            )
+
+    def is_expired(self, now: datetime) -> bool:
+        """Return whether the profile's certification has lapsed.
+
+        The predicate behind RCM's expired-signature mandatory gate. Evaluated on
+        the cold path with civil time, never on the hot path.
+
+        Args:
+            now: The current civil time, timezone-aware.
+
+        Returns:
+            ``True`` if ``now`` is at or after :attr:`expires_at`.
+
+        Raises:
+            ContractViolationError: If ``now`` is naive.
+        """
+        if now.tzinfo is None:
+            message = "the current time passed to is_expired must be timezone-aware"
+            raise ContractViolationError(message)
+        return now >= self.expires_at
+
+
+@dataclass(frozen=True, slots=True)
+class ArbitrationDecision:
+    """RCM's decision for one cold-path evaluation.
+
+    Records what RCM decided to do and the scored evidence behind it: which
+    table stays or becomes active, which candidate (if any) was under
+    consideration, the candidate's trust score ``T(c)`` and, during a staged
+    switch, the Calibration Divergence Index that governs commit-or-rollback.
+
+    Attributes:
+        tick: The control tick this decision was taken at.
+        outcome: What RCM decided.
+        active_profile: The profile that is active after this decision.
+        candidate_profile: The candidate under evaluation, if any.
+        trust_score: The candidate's ``T(c)``, or the active table's, as a bare
+            score. Not bounded to ``[0, 1]``: it is a weighted sum that may be
+            negative when the risk term dominates.
+        calibration_divergence_index: The CDI during shadow execution, in
+            ``[0, 1]``, or ``None`` when no switch is in progress.
+    """
+
+    tick: TickId
+    outcome: ArbitrationOutcome
+    active_profile: ProfileId
+    candidate_profile: ProfileId | None = None
+    trust_score: float | None = None
+    calibration_divergence_index: Probability | None = None
+
+    def __post_init__(self) -> None:
+        """Validate the decision's numeric fields and cross-field consistency.
+
+        Raises:
+            NonFiniteValueError: If a present trust score is not finite.
+            RangeViolationError: If a present CDI is outside ``[0, 1]``.
+            ContractViolationError: If an outcome that requires a candidate has
+                none.
+        """
+        if self.trust_score is not None:
+            require_finite(self.trust_score, name="trust_score")
+        if self.calibration_divergence_index is not None:
+            require_probability(
+                self.calibration_divergence_index, name="calibration_divergence_index"
+            )
+        requires_candidate = {
+            ArbitrationOutcome.SHADOW_EXECUTION,
+            ArbitrationOutcome.SWITCH_COMMITTED,
+            ArbitrationOutcome.ROLLBACK,
+        }
+        if self.outcome in requires_candidate and self.candidate_profile is None:
+            message = f"outcome {self.outcome.value} requires a candidate profile"
+            raise ContractViolationError(message, context={"outcome": self.outcome.value})
+
+
+def is_candidate_admissible(
+    *,
+    trust_score: float,
+    threshold: float,
+    is_valid: bool,
+) -> bool:
+    """Return whether a scored candidate may be committed.
+
+    The executable form of RCM's hard admissibility rule
+    ``T(c) >= tau AND val(c) == 1``. It is a conjunction on purpose: validity is
+    a veto, not a weight, so no trust score however high can rescue a candidate
+    that failed validation. A safety engineer reads this predicate as the single
+    definition of "admissible candidate".
+
+    Args:
+        trust_score: The candidate's ``T(c)``.
+        threshold: The admissibility threshold ``tau``, from configuration.
+        is_valid: The binary validity ``val(c) == 1``.
+
+    Returns:
+        ``True`` only if the candidate is valid and its score meets the
+        threshold.
+    """
+    return is_valid and trust_score >= threshold

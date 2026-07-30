@@ -1,0 +1,60 @@
+#
+# ASTRA — pre-commit hooks
+#
+# These hooks are a fast subset of `make check`, chosen so that a commit stays
+# quick: the checks that catch the most defects per second run here, and the
+# full gate (including the test suite) runs in CI.
+#
+# The type check and the architecture contracts are included despite being
+# slower, because both catch a class of defect that is far more expensive to
+# find later — a contract violation discovered after code has been built on it
+# is a refactor, not a fix.
+#
+# Install with:  uv run pre-commit install
+#
+default_language_version:
+  python: python3.12
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      # A private, patent-pending repository must never grow a committed
+      # credential; this is cheap insurance on every commit.
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      # Run from the local environment rather than pre-commit's isolated one:
+      # mypy and import-linter both need the project's own dependencies and its
+      # real module graph to say anything true.
+      - id: mypy
+        name: mypy (strict)
+        entry: uv run mypy
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: lint-imports
+        name: architecture fitness contracts
+        # The console script, never `python -m importlinter.cli`: that module
+        # has no __main__ guard and would exit 0 having checked nothing.
+        entry: uv run lint-imports
+        language: system
+        types: [python]
+        pass_filenames: false

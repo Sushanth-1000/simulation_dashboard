@@ -1,0 +1,74 @@
+# Architecture Decision Records
+
+An ADR records one significant architectural decision: the situation that forced a choice, the
+choice made, the alternatives that were rejected and why, and the consequences — including the ones
+that hurt. In this project an ADR is not a summary of what the code does; the code and its module
+docstrings already say that. An ADR exists to answer the question a reader will ask in eighteen
+months, when the reasoning has left the building: *why is it like this, and what did we give up?*
+That is why every record here carries a **Negative / accepted trade-offs** section, and why an
+empty one would mean the record is wrong rather than the decision perfect. The first fourteen cover
+the decisions taken during Phase 1 (Foundation) and ADR-0015 opens Phase 2; they are **Accepted**
+and, unless a later ADR supersedes one, they describe the system as built. Where an ADR's reasoning
+is also recorded in the source, the module docstring is named — the reader who opens
+`kernel/units.py` should not have to find this directory to understand why `NewType` is there.
+
+## Index
+
+| ADR | Title | Primary source |
+|---|---|---|
+| [0001](0001-consolidated-layer-numbering.md) | Adopt the consolidated L1–L9 layer numbering | `src/astra/kernel/enums.py` (`LayerId`) |
+| [0002](0002-domain-independent-platform-core.md) | Domain-independent platform core with adapters, not a CARLA-coupled prototype | `src/astra/ports/pipeline.py` |
+| [0003](0003-python-312-floor-simulator-behind-a-port.md) | Python 3.12 floor; the simulator is isolated behind a port | `pyproject.toml`, `.importlinter` |
+| [0004](0004-uv-hatchling-pep-621-735.md) | uv + hatchling + PEP 621/735 for build and dependency management | `pyproject.toml`, `Makefile` |
+| [0005](0005-quality-gate-ruff-mypy-import-linter.md) | Ruff + mypy strict + import-linter as a single non-negotiable quality gate | `pyproject.toml`, `Makefile`, `.github/workflows/ci.yml` |
+| [0006](0006-typed-exception-hierarchy-no-result-type.md) | Typed exception hierarchy carrying safety dispositions; no `Result` type | `src/astra/kernel/errors.py` |
+| [0007](0007-si-units-via-newtype.md) | SI units internally via `NewType`; conversion only at boundaries | `src/astra/kernel/units.py` |
+| [0008](0008-frozen-dataclasses-pydantic-at-boundaries.md) | Frozen slotted dataclasses on the hot path; pydantic only at boundaries | `src/astra/contracts/`, `src/astra/config/schema.py` |
+| [0009](0009-deterministic-identifiers-one-random-runid.md) | Deterministic identifiers; exactly one random `RunId` | `src/astra/kernel/identifiers.py` |
+| [0010](0010-injected-clock.md) | Injected `Clock`; no component reads time directly | `src/astra/kernel/time.py` |
+| [0011](0011-packed-symmetric-matrix-no-numpy.md) | Packed lower-triangular `SymmetricMatrix`; no NumPy in the kernel | `src/astra/kernel/matrix.py` |
+| [0012](0012-executable-separation-invariants.md) | Separation invariants as executable, machine-checked contracts | `src/astra/invariants/catalogue.py`, `.importlinter` |
+| [0013](0013-append-only-jsonl-audit-log.md) | Append-only JSONL audit log as the certification evidence artefact | `src/astra/observability/audit.py`, `src/astra/contracts/audit.py` |
+| [0014](0014-proprietary-licence-pending-patent.md) | Proprietary licence while the patent filing is pending | `LICENSE`, `NOTICE` |
+| [0015](0015-carla-interpreter-strategy.md) | Target CARLA 0.9.16 on Linux; no sidecar, no unofficial wheel | `.importlinter`, [`../spikes/R6-carla-interpreter.md`](../spikes/R6-carla-interpreter.md) |
+
+## Format
+
+Every record follows the same structure, and new ones must:
+
+```markdown
+# ADR-000N: Title
+
+- **Status:** Proposed | Accepted | Superseded by ADR-000M
+- **Date:** YYYY-MM-DD
+- **Phase:** N (Name)
+
+## Context
+## Decision
+## Alternatives considered
+## Consequences
+### Positive
+### Negative / accepted trade-offs
+```
+
+## Writing a new one
+
+Number sequentially; the number is permanent. Use a short kebab-case slug in the filename
+(`0015-something-specific.md`) and add a row to the index above.
+
+Write one when a decision has a *rejected alternative worth recording* — when a future reader could
+reasonably ask "why not X?" and the answer took thought. Do not write one for a decision with no
+alternative; that is just how the thing works, and it belongs in a module docstring.
+
+Never edit an accepted ADR to reflect a changed decision. Write a new record and mark the old one
+**Superseded by ADR-000M**. The value of this directory is that it shows what was believed at the
+time, including where that turned out to be wrong.
+
+## Related
+
+- [`../CONVENTIONS.md`](../CONVENTIONS.md) — the coding standards these decisions produced, and how
+  each is enforced
+- [`../ASSUMPTIONS.md`](../ASSUMPTIONS.md) — A-1 … A-10, what breaks if each is wrong, and their
+  status
+- [`../DEVELOPMENT.md`](../DEVELOPMENT.md) — the quality gate that makes several of these decisions
+  mechanical

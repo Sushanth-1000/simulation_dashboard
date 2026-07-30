@@ -1,0 +1,68 @@
+#
+# ASTRA — development environment
+#
+# ─────────────────────────────────────────────────────────────────────────────
+#  PROVISIONAL VALUES. NOT CERTIFIED. NOT EVIDENCE.
+#
+#  Every safety threshold below is a placeholder chosen so that the pipeline can
+#  be executed during development. None of them is derived from a run, from the
+#  source documents, or from any calibration exercise — the documents assign no
+#  values to these parameters precisely because they can only be fixed
+#  empirically (assumption A-4).
+#
+#  No number produced under this configuration may be reported as a result.
+#  The configuration hash stamped on every decision record is what makes a run
+#  under this file distinguishable from a certified one; that is the mechanism
+#  that keeps a development number from being mistaken for evidence.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+
+schema_version = 1
+environment = "development"
+
+[estimation]
+# Loose enough not to fire constantly on unturned filter parameters during
+# bring-up. Tightened empirically in Phase 2 against ground truth.
+innovation_gate_gamma = 9.0
+# Process-noise diagonals Q_f and Q_s. PROVISIONAL: these are starting points
+# for the Phase 2 tuning against ground truth, not tuned values. Order follows
+# FAST_STATE_FIELDS = (px, py, v, psi, a_lat) and
+# SLOW_STATE_FIELDS = (mu_road, delta_tyre, rho_sensor).
+fast_process_noise = [0.05, 0.05, 0.10, 0.01, 0.50]
+# Degradation parameters drift slowly, so their process noise is small.
+slow_process_noise = [1e-5, 1e-6, 1e-5]
+
+[trust]
+# 95% nominal conformal coverage. A round number for development, not a
+# certified operating point.
+coverage_level = 0.95
+
+[gate]
+significance_epsilon = 0.05
+mmd_threshold = 0.10
+
+[shield]
+# Urban default. The shield's bounds are hard limits, so even in development
+# they are set to physically defensible values rather than permissive ones —
+# a shield that never fires teaches nothing during bring-up.
+legal_speed_limit_kmh = 50.0
+friction_margin = 0.85
+minimum_stopping_distance_m = 2.0
+# d_avail: the clear distance ahead the ODD assures. PROVISIONAL.
+assured_clear_distance_m = 60.0
+
+[failsafe]
+# Deliberately small so that state transitions are reachable in short
+# development runs and the FSM can be exercised by hand.
+ood_threshold_degraded = 3
+ood_threshold_limp = 6
+ood_threshold_halt = 10
+degraded_speed_cap_kmh = 40.0
+limp_speed_cap_kmh = 20.0
+
+[arbitration]
+trust_threshold_tau = 0.60
+divergence_limit_delta = 0.25
+
+[observability]
+log_level = "DEBUG"
