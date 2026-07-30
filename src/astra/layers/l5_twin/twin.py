@@ -59,6 +59,7 @@ quantile false, which reads as PASS -- a fail-open in a gate input. Raising a
 
 from __future__ import annotations
 
+import hashlib
 import math
 from typing import TYPE_CHECKING, Final
 
@@ -72,6 +73,7 @@ from astra.layers.l5_twin.network import TwinNetwork, physics_residual, state_fe
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from pathlib import Path
 
     from astra.config.schema import TwinSettings
     from astra.contracts.actuation import ActuationSpace
@@ -227,6 +229,62 @@ class PhysicsInformedTwin:
             command=ControlCommand(space=self._space, values=values),
             source=self._component,
         )
+
+    @property
+    def weights_digest(self) -> str:
+        """Return a stable SHA-256 digest of the twin's current parameters.
+
+        The counterpart of the configuration hash. A verdict is only traceable
+        if a reader can tell *which* twin produced the prediction it rests on,
+        and "the twin" is not a fixed thing: it ships as a checkpoint, and FB2
+        moves it during a run. Recording the digest alongside the configuration
+        hash makes an evidence record answer "under which model" as precisely as
+        it already answers "under which configuration".
+
+        Returns:
+            A hex digest over every parameter in canonical name order.
+        """
+        digest = hashlib.sha256()
+        for name, parameter in sorted(self._network.state_dict().items()):
+            digest.update(name.encode("utf-8"))
+            digest.update(parameter.detach().cpu().numpy().tobytes())
+        return digest.hexdigest()
+
+    def save_checkpoint(self, path: Path) -> None:
+        """Write the twin's parameters to a checkpoint file.
+
+        Args:
+            path: Destination. Parent directories are created if absent.
+        """
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(self._network.state_dict(), path)
+
+    def load_checkpoint(self, path: Path) -> None:
+        """Load parameters from a checkpoint, replacing the seeded initialisation.
+
+        Args:
+            path: The checkpoint to load.
+
+        Raises:
+            ConfigurationError: If the checkpoint does not match this twin's
+                architecture. A shape mismatch means the checkpoint was trained
+                for a different actuation space or hidden width, and loading it
+                partially would leave a twin that predicts confidently from
+                half-trained weights.
+        """
+        try:
+            state = torch.load(path, map_location="cpu", weights_only=True)
+            self._network.load_state_dict(state)
+        except (RuntimeError, KeyError) as error:
+            message = (
+                f"the checkpoint at {path} does not match this twin's architecture: "
+                f"{error}. A checkpoint trained for a different actuation space or hidden "
+                f"width would leave a twin predicting confidently from half-trained weights"
+            )
+            raise ConfigurationError(
+                message, layer=LayerId.L5_PINN_TWIN, context={"path": str(path)}
+            ) from error
+        self._network.eval()
 
     def adapt(self, *, applied: ControlCommand, measured: FastStateEstimate) -> None:
         """Record an executed outcome and update the twin when enough have arrived.

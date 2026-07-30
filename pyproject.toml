@@ -222,6 +222,11 @@ ignore = [
 # S311: the synthetic measurements are benchmark inputs, not a security control.
 # INP001: benchmarks are standalone scripts, deliberately not an importable package.
 "benchmarks/**" = ["T20", "S311", "INP001"]
+# Training scripts report to a human at a terminal for the same reason
+# benchmarks do, and are standalone rather than importable. S311: the corpus
+# sampler is a data generator, not a security control. PLR0913: a training entry
+# point legitimately takes many hyperparameters.
+"training/**" = ["T20", "S311", "INP001", "PLR0913"]
 # Stubs must mirror the upstream signature exactly, including parameter names
 # (`P`, `R`, `UT`) and its untyped **kwargs. Renaming them would break keyword
 # calls and would make the stub describe an API that does not exist.
