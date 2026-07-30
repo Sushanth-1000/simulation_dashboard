@@ -44,8 +44,13 @@ CERTIFICATION_MISSING_FIELDS = frozenset(
         "estimation.fast_process_noise",
         "estimation.slow_process_noise",
         "trust.coverage_level",
+        "twin.physics_weight",
+        "twin.ewc_lambda",
+        "twin.control_effectiveness",
         "gate.significance_epsilon",
         "gate.mmd_threshold",
+        "physical.max_lateral_jerk_mps3",
+        "physical.admissible_divergence_mps2",
         "shield.legal_speed_limit_kmh",
         "shield.friction_margin",
         "shield.minimum_stopping_distance_m",
@@ -99,9 +104,18 @@ slow_process_noise = [1e-5, 1e-6, 1e-5]
 [trust]
 coverage_level = 0.95
 
+[twin]
+physics_weight = 1.0
+ewc_lambda = 100.0
+control_effectiveness = [0.0, 0.0, 120.0]
+
 [gate]
 significance_epsilon = 0.05
 mmd_threshold = 0.10
+
+[physical]
+max_lateral_jerk_mps3 = 12.0
+admissible_divergence_mps2 = 4.0
 
 [shield]
 legal_speed_limit_kmh = 50.0

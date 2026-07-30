@@ -1,0 +1,421 @@
+"""L5 -- the physics-informed digital twin, and why it adapts the way it does.
+
+What this layer is for
+----------------------
+The twin answers one question per tick: *given the state the vehicle is in, what
+command does the modelled physics expect next?* That prediction, ``pi_hat``, is
+the right operand of the statistical gate's non-conformity score
+
+    ``alpha = |pi_prop - pi_hat| / sigma(x)``
+
+so the twin is not a diagnostic. It is a safety input, and a twin that drifted
+would move the acceptance band under the gate without the gate noticing.
+
+Why the twin must not become a good controller
+----------------------------------------------
+There is a failure mode here that looks like success. If the twin were trained
+until it predicted Core-A's policy accurately, every non-conformity score would
+be small, the statistical gate would stop firing, and the system would look
+healthy while having disarmed one of its three gates. The twin is trained
+against *physics*, not against the proposer, and the physics residual in
+:mod:`astra.layers.l5_twin.network` is what keeps it anchored to something the
+proposer cannot move.
+
+Why adaptation touches the output layer only
+--------------------------------------------
+Feedback loop FB2 lets the twin track real changes -- tyre wear, load shifts, a
+wet road. The risk is catastrophic forgetting: adapting to rain silently
+destroys highway accuracy, and nothing in the pipeline would report it, because
+a confidently wrong twin produces confidently wrong scores rather than errors.
+
+Two mechanisms guard against it. Only :attr:`TwinNetwork.output` receives
+gradients, so the learned physics representation in the hidden layer is
+structurally out of reach of any single context's data. And the update carries
+an elastic-weight-consolidation penalty anchored on the Fisher information of a
+window of historical samples, so parameters that mattered to earlier contexts
+resist being moved.
+
+Neither mechanism is a proof. RK-5 records that EWC may fail to prevent
+forgetting in practice, and the validation plan requires an explicit test --
+highway accuracy must not degrade after adapting to rain -- rather than an
+assumption that the penalty worked.
+
+Determinism
+-----------
+Weight initialisation is seeded from configuration. A randomly initialised
+network would make two runs over identical recorded inputs produce different
+predictions, different scores and different verdicts, which would defeat the
+byte-exact replay the project built in Phase 2 precisely so that closed-loop
+behaviour could be debugged. Assumption A-5 named this as the extension replay
+would need once learned components arrived; this is that extension.
+
+Failure policy
+--------------
+A non-finite prediction raises rather than returning a command. NaN propagating
+into the non-conformity score would make the comparison against the conformal
+quantile false, which reads as PASS -- a fail-open in a gate input. Raising a
+``FAIL_CLOSED`` error turns it into a VETO through the ordinary path.
+"""
+
+from __future__ import annotations
+
+import math
+from typing import TYPE_CHECKING, Final
+
+import torch
+
+from astra.contracts.actuation import ControlCommand, PredictedCommand
+from astra.kernel.constants import FAST_STATE_FIELDS
+from astra.kernel.enums import LayerId
+from astra.kernel.errors import ConfigurationError, SafetyPathError
+from astra.layers.l5_twin.network import TwinNetwork, physics_residual, state_features
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from astra.config.schema import TwinSettings
+    from astra.contracts.actuation import ActuationSpace
+    from astra.contracts.estimation import FastStateEstimate
+    from astra.kernel.identifiers import ComponentId, TickId
+    from astra.kernel.time import Clock
+
+__all__ = ["PhysicsInformedTwin"]
+
+_SPEED_INDEX: Final = FAST_STATE_FIELDS.index("speed")
+_HEADING_INDEX: Final = FAST_STATE_FIELDS.index("heading")
+_LATERAL_INDEX: Final = FAST_STATE_FIELDS.index("lateral_acceleration")
+
+_ADAPTATION_LEARNING_RATE: Final = 1e-3
+"""Step size for the FB2 output-layer update.
+
+A property of the adaptation mechanism rather than an operating point: it is
+small enough that a single 50-sample batch cannot move the twin far, which is
+the behaviour the mechanism needs regardless of platform. Revisit only if
+adaptation is observed to be too slow to track a real context change.
+"""
+
+_ADAPTATION_GRADIENT_CLIP: Final = 1.0
+"""Maximum gradient norm per adaptation step.
+
+Not a tuning knob -- it is what makes the step size mean anything. The physics
+residual is expressed in metres per second squared and scaled by the platform's
+control effectiveness, which is a number in the hundreds for a steering channel.
+Its gradient is correspondingly large, and unclipped it drives the output layer
+past the point of representable floats within a handful of steps. Clipping the
+norm bounds how far one batch of executed outcomes can move the twin, which is
+the guarantee FB2 needs: adaptation should track a drifting context, never
+relocate the reference point that the statistical gate scores against.
+"""
+
+
+class PhysicsInformedTwin:
+    """The digital twin. Satisfies :class:`~astra.ports.pipeline.DynamicsPredictor`.
+
+    Holds a small network, the configured control effectiveness, and a bounded
+    history used to anchor online adaptation. Prediction is pure: it reads the
+    state and touches no internal counter, so two calls with the same state
+    return the same command and a replayed run reproduces its verdicts.
+    """
+
+    __slots__ = (
+        "_anchor",
+        "_buffer",
+        "_clock",
+        "_component",
+        "_effectiveness",
+        "_fisher",
+        "_history",
+        "_network",
+        "_settings",
+        "_space",
+    )
+
+    def __init__(
+        self,
+        *,
+        settings: TwinSettings,
+        space: ActuationSpace,
+        component: ComponentId,
+        clock: Clock,
+    ) -> None:
+        """Build the twin for one actuation space.
+
+        Args:
+            settings: The twin's configuration.
+            space: The actuation space whose channels the twin predicts. Supplied
+                by the adapter, so the layer never names a channel (NFR5).
+            component: The L5 component identity stamped on every prediction.
+            clock: The injected clock. Never ``time.time()``: a prediction's
+                timestamp has to sit on the same timeline as the state that
+                produced it, and replay rewinds that timeline.
+
+        Raises:
+            ConfigurationError: If the component is not an L5 component, or if
+                the configured control-effectiveness row does not match the
+                actuation space's dimension. The second is a genuine
+                misconfiguration rather than a runtime fault: a row of the wrong
+                length silently describes a different vehicle.
+        """
+        if component.layer is not LayerId.L5_PINN_TWIN:
+            message = (
+                f"the digital twin must be constructed with an L5 component, "
+                f"got {component.layer.value}; a prediction attributed to another "
+                f"layer would misdescribe the trust boundary in the evidence log"
+            )
+            raise ConfigurationError(message, layer=component.layer)
+
+        effectiveness = tuple(settings.control_effectiveness)
+        if len(effectiveness) != space.dimension:
+            message = (
+                f"twin.control_effectiveness has {len(effectiveness)} entries but the "
+                f"actuation space has {space.dimension} channels {space.names}; the row "
+                f"maps a command to the lateral acceleration it produces, so a length "
+                f"mismatch describes a different platform"
+            )
+            raise ConfigurationError(
+                message,
+                layer=LayerId.L5_PINN_TWIN,
+                context={"configured": len(effectiveness), "channels": list(space.names)},
+            )
+
+        self._settings = settings
+        self._space = space
+        self._component = component
+        self._clock = clock
+
+        torch.manual_seed(settings.seed)
+        self._network = TwinNetwork(
+            hidden_width=settings.hidden_width, command_dimension=space.dimension
+        )
+        self._network.eval()
+        self._effectiveness = torch.tensor(effectiveness, dtype=torch.float32)
+        self._buffer: list[tuple[tuple[float, ...], tuple[float, ...]]] = []
+        self._history: list[tuple[tuple[float, ...], tuple[float, ...]]] = []
+        self._fisher: dict[str, torch.Tensor] = {}
+        self._anchor: dict[str, torch.Tensor] = {}
+
+    def predict(self, *, tick: TickId, state: FastStateEstimate) -> PredictedCommand:
+        """Predict the command the modelled physics expects next.
+
+        Args:
+            tick: The control tick.
+            state: The current fast state estimate.
+
+        Returns:
+            ``pi_hat_{t+1}`` as a :class:`~astra.contracts.actuation.PredictedCommand`.
+
+        Raises:
+            SafetyPathError: If the state contains a non-finite value, or if the
+                network produces one. Both fail closed: a NaN reaching the
+                non-conformity score would make the comparison against the
+                conformal quantile false, which the gate reads as PASS.
+        """
+        self._require_finite(tick, state.mean, what="state")
+        features = state_features(
+            state.mean,
+            speed_index=_SPEED_INDEX,
+            heading_index=_HEADING_INDEX,
+            lateral_index=_LATERAL_INDEX,
+        )
+        with torch.no_grad():
+            predicted = self._network(torch.tensor([features], dtype=torch.float32))
+        values = tuple(float(value) for value in predicted[0])
+        self._require_finite(tick, values, what="prediction")
+        return PredictedCommand(
+            tick=tick,
+            predicted_at=self._clock.now(),
+            command=ControlCommand(space=self._space, values=values),
+            source=self._component,
+        )
+
+    def adapt(self, *, applied: ControlCommand, measured: FastStateEstimate) -> None:
+        """Record an executed outcome and update the twin when enough have arrived.
+
+        Feedback loop FB2. Buffers the sample; once
+        ``settings.adaptation_buffer`` have accumulated, performs one
+        Fisher-anchored update of the output layer and clears the buffer.
+
+        A sample whose state or command is non-finite is discarded rather than
+        raising. This is the cold path: a bad measurement here must not take
+        down a tick that has already been decided, and the twin adapting from a
+        corrupt sample would be worse than it not adapting at all.
+
+        Args:
+            applied: The command that was actually applied -- not the one
+                proposed. Adapting on the proposal would teach the twin the
+                policy's intent rather than the vehicle's response, which is
+                exactly the coupling FB1 exists to remove from L2.
+            measured: The state measured after applying it.
+        """
+        # Checked before the features are built, not after: `state_features`
+        # takes the sine and cosine of the heading, and `math.sin(inf)` raises
+        # rather than returning a NaN that a later guard could catch.
+        if not all(math.isfinite(value) for value in (*measured.mean, *applied.values)):
+            return
+
+        features = state_features(
+            measured.mean,
+            speed_index=_SPEED_INDEX,
+            heading_index=_HEADING_INDEX,
+            lateral_index=_LATERAL_INDEX,
+        )
+        sample = (features, applied.values)
+        self._buffer.append(sample)
+        self._history.append(sample)
+        if len(self._history) > self._settings.fisher_sample_count:
+            del self._history[0]
+
+        if len(self._buffer) >= self._settings.adaptation_buffer:
+            self._consolidate()
+            self._buffer.clear()
+
+    def _consolidate(self) -> None:
+        """Run one elastic-weight-consolidation update over the buffered samples.
+
+        Takes several gradient steps on the output layer against a loss
+        combining command error, the physics residual, and the Fisher-weighted
+        penalty holding parameters near the point they reached at the end of the
+        *previous* consolidation.
+
+        The anchor is deliberately the previous consolidation's parameters, not
+        the current ones. Anchoring on the current values makes the penalty
+        identically zero at the moment its gradient is taken -- ``(theta -
+        theta)^2`` has both zero value and zero derivative -- so the term would
+        appear in the loss, cost time to compute, and constrain nothing. That is
+        a silent failure: the twin would forget exactly as fast as an
+        unregularised one while the configuration claimed otherwise.
+
+        On the first consolidation there is no anchor and the penalty is zero,
+        which is correct: there is nothing yet to forget.
+        """
+        features = torch.tensor([row for row, _ in self._buffer], dtype=torch.float32)
+        targets = torch.tensor([cmd for _, cmd in self._buffer], dtype=torch.float32)
+        lateral = features[:, -1]
+
+        # Kept so the update can be abandoned wholesale. A large `ewc_lambda`
+        # or an ill-conditioned batch can drive the output layer to infinity in
+        # a few steps, and a twin holding NaN weights does not fail loudly -- it
+        # predicts NaN, which the statistical gate would compare against its
+        # quantile and read as a PASS. Adaptation is the cold path, so refusing
+        # a divergent update costs a missed adaptation and nothing else.
+        restore = {
+            name: parameter.detach().clone()
+            for name, parameter in self._network.output.named_parameters()
+        }
+
+        for parameter in self._network.hidden.parameters():
+            parameter.requires_grad_(False)
+
+        self._network.train()
+        optimiser = torch.optim.SGD(self._network.output.parameters(), lr=_ADAPTATION_LEARNING_RATE)
+        for _ in range(self._settings.adaptation_steps):
+            optimiser.zero_grad()
+            predicted = self._network(features)
+            loss = torch.mean((predicted - targets) ** 2)
+            loss = loss + self._settings.physics_weight * physics_residual(
+                predicted, lateral, self._effectiveness
+            )
+            loss = loss + self._settings.ewc_lambda * self._elastic_penalty()
+            loss.backward()  # type: ignore[no-untyped-call]
+            torch.nn.utils.clip_grad_norm_(
+                self._network.output.parameters(), _ADAPTATION_GRADIENT_CLIP
+            )
+            optimiser.step()
+
+        self._network.eval()
+        for parameter in self._network.hidden.parameters():
+            parameter.requires_grad_(True)
+
+        if not self._output_is_finite():
+            with torch.no_grad():
+                for name, parameter in self._network.output.named_parameters():
+                    parameter.copy_(restore[name])
+            return
+
+        # Re-anchor for the next context: both the Fisher information and the
+        # point it was measured at have to move together, or the penalty would
+        # weight the new optimum by the old task's importances.
+        self._fisher = self._estimate_fisher()
+        self._anchor = {
+            name: parameter.detach().clone()
+            for name, parameter in self._network.output.named_parameters()
+        }
+
+    def _output_is_finite(self) -> bool:
+        """Return whether every output-layer parameter is finite.
+
+        Returns:
+            ``True`` if the layer can still produce a usable prediction.
+        """
+        return all(
+            bool(torch.isfinite(parameter).all()) for parameter in self._network.output.parameters()
+        )
+
+    def _estimate_fisher(self) -> dict[str, torch.Tensor]:
+        """Estimate diagonal Fisher information for the output layer.
+
+        Returns:
+            Squared-gradient magnitude per output-layer parameter over the
+            retained history, or an empty mapping if no history has accumulated.
+            An empty mapping makes the elastic penalty zero, which is the right
+            behaviour for the first adaptation: there is nothing yet to forget.
+        """
+        if not self._history:
+            return {}
+        features = torch.tensor([row for row, _ in self._history], dtype=torch.float32)
+        targets = torch.tensor([cmd for _, cmd in self._history], dtype=torch.float32)
+        self._network.zero_grad()
+        loss = torch.mean((self._network(features) - targets) ** 2)
+        loss.backward()  # type: ignore[no-untyped-call]
+        fisher = {
+            name: (
+                parameter.grad.detach() ** 2
+                if parameter.grad is not None
+                else torch.zeros_like(parameter)
+            )
+            for name, parameter in self._network.output.named_parameters()
+        }
+        self._network.zero_grad()
+        return fisher
+
+    def _elastic_penalty(self) -> torch.Tensor:
+        """Return the Fisher-weighted squared drift from the anchored parameters.
+
+        Returns:
+            A scalar tensor, zero before the first consolidation has established
+            an anchor.
+        """
+        penalty = torch.zeros((), dtype=torch.float32)
+        for name, parameter in self._network.output.named_parameters():
+            information = self._fisher.get(name)
+            anchored = self._anchor.get(name)
+            if information is None or anchored is None:
+                continue
+            penalty = penalty + torch.sum(information * (parameter - anchored) ** 2)
+        return penalty
+
+    @staticmethod
+    def _require_finite(tick: TickId, values: Sequence[float], *, what: str) -> None:
+        """Refuse to continue with a non-finite vector.
+
+        Args:
+            tick: The control tick.
+            values: The vector to check.
+            what: ``"state"`` or ``"prediction"``, for the evidence record.
+
+        Raises:
+            SafetyPathError: If any entry is NaN or infinite.
+        """
+        offenders = [index for index, value in enumerate(values) if not math.isfinite(value)]
+        if offenders:
+            message = (
+                f"the digital twin cannot produce a usable prediction from a non-finite "
+                f"{what} at indices {offenders}; a NaN reaching the non-conformity score "
+                f"makes the comparison against the conformal quantile false, which the "
+                f"statistical gate would read as a PASS"
+            )
+            raise SafetyPathError(
+                message,
+                layer=LayerId.L5_PINN_TWIN,
+                context={"tick": tick.value, "indices": offenders, "source": what},
+            )

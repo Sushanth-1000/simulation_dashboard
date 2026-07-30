@@ -3,8 +3,8 @@
 Day-to-day workflow: the quality gate, how to run parts of it, how to add a layer in a later
 phase, and how to debug the checks when they fail.
 
-Environment setup lives in [`INSTALL.md`](INSTALL.md). This document assumes `uv sync --all-groups`
-has already run.
+Environment setup lives in [`INSTALL.md`](INSTALL.md). This document assumes
+`uv sync --all-groups --all-extras` has already run.
 
 ---
 

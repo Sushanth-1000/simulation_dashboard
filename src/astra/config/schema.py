@@ -35,6 +35,7 @@ configuration.
 
 from __future__ import annotations
 
+import math
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -53,6 +54,7 @@ from astra.kernel.units import (
     KilometresPerHour,
     Metres,
     MetresPerSecond,
+    MetresPerSecondSquared,
     Milliseconds,
     Probability,
     Radians,
@@ -237,6 +239,78 @@ class TrustSettings(_Section):
         return Probability(self.coverage_level)
 
 
+class TwinSettings(_Section):
+    """L5 -- the physics-informed digital twin.
+
+    The twin's prediction is the right operand of the ICP non-conformity score
+    ``alpha = |pi_prop - pi_hat| / sigma(x)``, so every value here shapes a gate
+    input rather than a diagnostic. The empirical ones therefore follow the same
+    no-default discipline as every other safety parameter (A-4).
+
+    Attributes:
+        physics_weight: Weight on the physics residual in the training loss. It
+            sets how strongly the twin is held to Newtonian consistency versus
+            fitting its training data, which is the whole point of a PINN rather
+            than a plain regressor. **No default** (A-4).
+        ewc_lambda: Strength of the Fisher-anchored elastic-weight-consolidation
+            penalty applied during online adaptation. Too low and adapting to
+            rain forgets the highway; too high and the twin cannot adapt at all.
+            The balance is empirical. **No default** (A-4).
+        control_effectiveness: Row mapping a command vector to the lateral
+            acceleration it produces, in the actuation space's channel order.
+            This is a platform fact, not a core assumption, which is why it is
+            configured rather than written into the layer -- NFR5. Its length
+            must equal the actuation space dimension, checked at construction
+            because the space is not known here. **No default** (A-4).
+        hidden_width: Width of the network's single hidden layer. Architectural
+            rather than empirical, so it carries a default.
+        adaptation_buffer: Fresh measurements to accumulate before an EWC update
+            fires. The validation plan specifies 50.
+        adaptation_steps: Gradient steps taken per consolidation. More than one
+            is required for the elastic penalty to do anything at all: on the
+            first step the parameters still sit on their anchor, where the
+            penalty has zero value *and* zero gradient.
+        fisher_sample_count: Historical samples the Fisher information is
+            estimated over. The validation plan specifies 200.
+        seed: Seed for weight initialisation. Present because A-5 requires a run
+            to be byte-reproducible, and a randomly initialised network would
+            defeat that in the one layer whose output feeds a gate.
+    """
+
+    physics_weight: NonNegativeFloat
+    ewc_lambda: NonNegativeFloat
+    control_effectiveness: list[float]
+    hidden_width: PositiveInt = 32
+    adaptation_buffer: PositiveInt = 50
+    adaptation_steps: PositiveInt = 10
+    fisher_sample_count: PositiveInt = 200
+    seed: int = 0
+
+    @field_validator("control_effectiveness")
+    @classmethod
+    def _effectiveness_is_finite_and_non_empty(cls, value: list[float]) -> list[float]:
+        """Reject an empty or non-finite control-effectiveness row.
+
+        Args:
+            value: The configured row.
+
+        Returns:
+            The validated row.
+
+        Raises:
+            ValueError: If the row is empty or contains a non-finite entry. A
+                NaN here would propagate silently into every prediction and
+                therefore into every non-conformity score.
+        """
+        if not value:
+            message = "twin.control_effectiveness must name at least one channel"
+            raise ValueError(message)
+        if not all(math.isfinite(entry) for entry in value):
+            message = f"twin.control_effectiveness must be finite, got {value}"
+            raise ValueError(message)
+        return value
+
+
 class GateSettings(_Section):
     """L6 -- the statistical (inductive conformal prediction) gate.
 
@@ -252,6 +326,44 @@ class GateSettings(_Section):
     significance_epsilon: UnitInterval
     mmd_window: PositiveInt = 100
     mmd_threshold: NonNegativeFloat
+
+
+class PhysicalGateSettings(_Section):
+    """L7b -- the physical admissibility gate.
+
+    Both bounds are rate limits rather than magnitude limits, and that is what
+    separates this gate from the deterministic shield. L7a asks whether the
+    vehicle is outside its envelope *now*; L7b asks whether the proposal demands
+    a change that Newtonian mechanics cannot deliver in one tick. A command can
+    be comfortably inside every hard bound and still be physically impossible to
+    execute, and vice versa.
+
+    Attributes:
+        max_lateral_jerk: Largest admissible rate of change of lateral
+            acceleration, in m/s^3. Tyres and suspension cannot transfer force
+            instantaneously, so a command demanding a step change in lateral
+            acceleration is asking for something no vehicle can do. Derived from
+            the platform's suspension and tyre characterisation. **No default**
+            (A-4).
+        admissible_divergence: Largest admissible difference, in m/s^2, between
+            the lateral acceleration the proposal implies and the one the twin
+            predicts. This is the term through which twin drift becomes this
+            gate's failure mode, which is what makes it structurally distinct
+            from the shield. **No default** (A-4).
+    """
+
+    max_lateral_jerk_mps3: PositiveFloat
+    admissible_divergence_mps2: PositiveFloat
+
+    @property
+    def max_lateral_jerk(self) -> float:
+        """Return the lateral jerk bound in m/s^3."""
+        return self.max_lateral_jerk_mps3
+
+    @property
+    def admissible_divergence(self) -> MetresPerSecondSquared:
+        """Return the admissible model divergence in m/s^2."""
+        return MetresPerSecondSquared(self.admissible_divergence_mps2)
 
 
 class ShieldSettings(_Section):
@@ -431,7 +543,9 @@ class AstraSettings(BaseSettings):
         sensing: L1 settings.
         estimation: L2 settings.
         trust: L3 settings.
+        twin: L5 settings.
         gate: L6 settings.
+        physical: L7b settings.
         shield: L7a settings.
         failsafe: L8 settings.
         arbitration: L9 settings.
@@ -451,7 +565,9 @@ class AstraSettings(BaseSettings):
     sensing: SensingSettings = SensingSettings()
     estimation: EstimationSettings
     trust: TrustSettings
+    twin: TwinSettings
     gate: GateSettings
+    physical: PhysicalGateSettings
     shield: ShieldSettings
     failsafe: FailSafeSettings
     arbitration: ArbitrationSettings

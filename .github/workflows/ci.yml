@@ -54,8 +54,13 @@ jobs:
       - name: Install Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
-      - name: Install the project and all dependency groups
-        run: uv sync --all-groups --python ${{ matrix.python-version }}
+      # `--all-extras` as well as `--all-groups`: the estimation layer's NumPy
+      # and FilterPy live in the `[estimation]` extra rather than in
+      # `dependencies`, so that the kernel and contracts stay installable
+      # without the numerical stack. Without this flag the gate installs
+      # cleanly and then fails at type check and collection.
+      - name: Install the project, all dependency groups and all extras
+        run: uv sync --all-groups --all-extras --python ${{ matrix.python-version }}
 
       # The gate, step by step rather than via `make check`, so that a failure
       # is attributed to a named check in the GitHub UI instead of to one opaque

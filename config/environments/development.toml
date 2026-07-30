@@ -37,9 +37,39 @@ slow_process_noise = [1e-5, 1e-6, 1e-5]
 # certified operating point.
 coverage_level = 0.95
 
+[twin]
+# PINN training and online-adaptation parameters. PROVISIONAL: none of these is
+# derived from a trained model, because no corpus has been collected yet.
+# How hard the physics residual is enforced relative to data fit. At 0 the twin
+# is an ordinary regressor, which would forfeit the property that makes it worth
+# calling physics-informed.
+physics_weight = 1.0
+# Fisher-anchored EWC penalty. Too small and adapting to rain forgets the
+# highway; too large and FB2 cannot adapt at all. Balance is empirical (RK-5).
+ewc_lambda = 100.0
+# Row mapping a command vector to the lateral acceleration it produces, in the
+# actuation space's channel order. A platform fact, configured rather than coded
+# so the core stays domain-independent (NFR5). This development space is
+# (throttle, brake, steer), so only steering contributes lateral acceleration.
+# The linearisation ignores the v^2 term and is a bring-up placeholder only.
+control_effectiveness = [0.0, 0.0, 120.0]
+seed = 20260730
+
 [gate]
 significance_epsilon = 0.05
 mmd_threshold = 0.10
+
+[physical]
+# L7b's two rate bounds. PROVISIONAL. Both are deliberately rate limits, not
+# magnitude limits — a magnitude bound here would duplicate the shield and
+# collapse two of the three gates into one while both kept reporting verdicts.
+# Lateral jerk a tyre and suspension can actually transmit. Human comfort limits
+# are around 2 m/s^3; the physical limit is higher, and this is set loose enough
+# for bring-up not to fire on ordinary manoeuvres.
+max_lateral_jerk_mps3 = 12.0
+# How far the proposal's implied lateral acceleration may sit from the twin's
+# before the model and the proposer are judged to disagree about the vehicle.
+admissible_divergence_mps2 = 4.0
 
 [shield]
 # Urban default. The shield's bounds are hard limits, so even in development

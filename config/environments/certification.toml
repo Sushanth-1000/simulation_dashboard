@@ -49,11 +49,40 @@ environment = "certification"
 # against the per-class empirical coverage actually achieved, not assumed.
 # coverage_level =
 
+[twin]
+# The twin's prediction is the right operand of the non-conformity score, so
+# these shape a gate input rather than a diagnostic.
+# Weight on the physics residual during training. Derive from the trained twin's
+# validation error against held-out dynamics; record the corpus and the split.
+# physics_weight =
+# Fisher-anchored EWC penalty for FB2. Must be justified against an explicit
+# catastrophic-forgetting test: accuracy in the original context must not
+# degrade after adapting to a new one (RK-5).
+# ewc_lambda =
+# Row mapping a command vector to the lateral acceleration it produces, in the
+# actuation space's channel order. A certified platform characterisation, not a
+# tuning parameter -- derive from the vehicle's steering response measurement.
+# control_effectiveness =
+
 [gate]
 # Conformal significance level ε, and the MMD value above which covariate shift
 # is declared and ε is tightened.
 # significance_epsilon =
 # mmd_threshold =
+
+[physical]
+# L7b's two rate bounds. Both are platform characterisations, not tuning
+# parameters, and both must be rate limits: a magnitude bound here would
+# duplicate the shield and merge two of the three gates while leaving both
+# still reporting verdicts.
+# Largest lateral jerk the tyres and suspension can transmit. Derive from the
+# platform's suspension and tyre characterisation.
+# max_lateral_jerk_mps3 =
+# Largest admissible disagreement, in m/s^2, between the lateral acceleration
+# the proposal implies and the one the twin predicts. Derive from the trained
+# twin's validation error against held-out dynamics; this is the term through
+# which twin drift becomes this gate's failure mode.
+# admissible_divergence_mps2 =
 
 [shield]
 # The three hard bounds. These are legal and physical limits for the certified

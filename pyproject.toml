@@ -67,9 +67,43 @@ dependencies = [
     "pydantic-settings>=2.6,<3",
 ]
 
-# No `[project.optional-dependencies]` table is declared. Empty extras are
-# noise. Later phases add: [estimation] filterpy/numpy, [learning] torch +
-# stable-baselines3, [simulation] carla, [dashboard] fastapi + uvicorn.
+# Extras, not core dependencies. The `kernel-independence` and
+# `contracts-independence` architecture contracts forbid NumPy below the layer
+# packages precisely so that an offline evidence tool, a certification script or
+# the dashboard process can `pip install astra` and read an audit archive back
+# without the numerical stack. Folding NumPy into `dependencies` would satisfy
+# the import at the cost of the property those two contracts exist to defend.
+#
+# Anything that imports `astra.layers.l2_estimation` needs `[estimation]`.
+# Later phases add: [learning] torch + stable-baselines3, [simulation] carla,
+# [dashboard] fastapi + uvicorn.
+[project.optional-dependencies]
+estimation = [
+    # Phase 2. The dual-rate UKF is built on FilterPy's `UnscentedKalmanFilter`
+    # and `MerweScaledSigmaPoints`; NumPy is its array substrate and is imported
+    # directly by the process models.
+    #
+    # FilterPy is pinned to a floor rather than a range because 1.4.5 (2018) is
+    # the final release -- the project is unmaintained. That is recorded as
+    # technical debt item 3: it sits inside a safety path and ISO 26262 §8-12
+    # will require a qualification argument for it. `stubs/filterpy/` enumerates
+    # the exact surface depended on, which is where that argument starts.
+    "numpy>=2.0",
+    "filterpy>=1.4.5",
+]
+learning = [
+    # Phase 4. The L5 digital twin is a small PyTorch network; the L4 proposer
+    # is a Stable-Baselines3 PPO policy under a Lagrangian constraint wrapper.
+    #
+    # Assumption A-6 asked whether this stack supported the project's 3.12 floor
+    # and was unverified for two phases. It is now verified: torch 2.13, SB3 2.9
+    # and gymnasium 1.3 install and run on CPython 3.12, PPO trains, and
+    # autograd differentiates through a physics residual. No interpreter
+    # downgrade is required.
+    "torch>=2.2",
+    "stable-baselines3>=2.3",
+    "gymnasium>=0.29",
+]
 
 [project.scripts]
 astra = "astra.bootstrap.cli:main"
@@ -251,7 +285,30 @@ markers = [
     "architecture: fitness tests that assert structural properties of the codebase",
     "property: Hypothesis-driven property-based tests",
 ]
-filterwarnings = ["error"] # a warning in a safety codebase is a defect, not noise
+filterwarnings = [
+    # A warning in a safety codebase is a defect, not noise.
+    "error",
+    # The one documented exception, and it is a dependency's defect rather than
+    # this project's. FilterPy 1.4.5 (2018, its final release) writes LaTeX into
+    # non-raw docstrings -- `\Sum`, `\epsilon`, `\frac`. Python 3.12 raises
+    # SyntaxWarning for an invalid escape sequence, and `error` above promotes
+    # it to a SyntaxError that aborts collection before a single test runs.
+    #
+    # Whether it fires at all depended on the installer: pip byte-compiles at
+    # install time, so the warning was emitted there and the cached .pyc stayed
+    # quiet afterwards; `uv sync` does not byte-compile, so the warning fired
+    # during the test run. The suite therefore passed under pip and failed under
+    # the uv path CI actually uses. A gate whose result depends on which
+    # installer ran is not a gate.
+    #
+    # Silenced explicitly here rather than with UV_COMPILE_BYTECODE in CI: the
+    # compile flag would hide the same defect behind an environment variable and
+    # leave the next interpreter bump to rediscover it. Invalid escape sequences
+    # are scheduled to become an unconditional SyntaxError in a future Python,
+    # at which point no filter helps and FilterPy stops importing entirely --
+    # see technical debt item 3.
+    "ignore:invalid escape sequence:SyntaxWarning",
+]
 
 # --------------------------------------------------------------------------- #
 # Coverage

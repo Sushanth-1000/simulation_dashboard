@@ -61,6 +61,7 @@ forbidden_modules =
     pydantic_settings
     numpy
     filterpy
+    torch
 allow_indirect_imports = False
 
 # The contracts are the records offline tools read back out of an evidence
@@ -75,6 +76,7 @@ source_modules =
 forbidden_modules =
     numpy
     filterpy
+    torch
 allow_indirect_imports = False
 
 # ---------------------------------------------------------------------------
@@ -124,12 +126,63 @@ forbidden_modules =
 [importlinter:contract:si-3-shield-independence]
 name = SI-3 the deterministic shield imports no other gate and no FSM
 type = forbidden
+#
+# The twin and the physical gate are named here from Phase 4 onward, and they
+# are the important entries: before they existed the contract could only forbid
+# the FSM. A shield that imported `l5_twin` would inherit model drift as a
+# failure mode and the three gates would no longer fail for unrelated reasons.
 source_modules =
     astra.layers.l7_shield
 forbidden_modules =
+    astra.layers.l5_twin
+    astra.layers.l7b_physical
     astra.layers.l8_failsafe
     astra.layers.l1_sensing
     astra.replay
+allow_indirect_imports = False
+
+# ---------------------------------------------------------------------------
+# The digital twin is independent of the gates it feeds
+# ---------------------------------------------------------------------------
+# L5's prediction is an input to both L6 and L7b, so the twin must not be able
+# to see what those gates decided with it. A twin that could read a verdict
+# could be adapted -- through FB2 -- towards whatever made the gates quiet,
+# which is the same adversarial dynamic SI-5 keeps Core-A out of, arriving by a
+# different route. It reads no sensors either: SI-1 confines raw payloads to L2,
+# and the twin takes the filtered estimate like every other consumer.
+#
+# `astra.layers.l6_statistical_gate` belongs in the forbidden list and is absent
+# only because import-linter errors on a module that does not exist yet. Add it
+# to this contract in the same commit that creates the package, exactly as the
+# SI-5 contract below is activated when `l4_proposer` lands.
+[importlinter:contract:si-3-twin-independence]
+name = SI-3 the digital twin imports no gate, no FSM and no sensor bus
+type = forbidden
+source_modules =
+    astra.layers.l5_twin
+forbidden_modules =
+    astra.layers.l7_shield
+    astra.layers.l7b_physical
+    astra.layers.l8_failsafe
+    astra.layers.l1_sensing
+allow_indirect_imports = False
+
+# ---------------------------------------------------------------------------
+# The physical gate reads the twin's output, never the deterministic gate's
+# ---------------------------------------------------------------------------
+# L7b is allowed to depend on L5 -- that dependency is what gives it a failure
+# mode of its own. It must not depend on L7a or L8. A physical gate that could
+# see the shield's verdict could be tuned, deliberately or by drift, to agree
+# with it, and two gates that agree are one gate with a redundant log entry.
+[importlinter:contract:si-3-physical-gate-independence]
+name = SI-3 the physical gate imports no other gate and no FSM
+type = forbidden
+source_modules =
+    astra.layers.l7b_physical
+forbidden_modules =
+    astra.layers.l7_shield
+    astra.layers.l8_failsafe
+    astra.layers.l1_sensing
 allow_indirect_imports = False
 
 # ---------------------------------------------------------------------------
@@ -153,25 +206,31 @@ allow_indirect_imports = False
 # ---------------------------------------------------------------------------
 # SI-5: the one-way Core-A to Core-B channel
 # ---------------------------------------------------------------------------
-# Core-A may write a proposal into Core-B and may read nothing back. The layer
-# packages that this contract will name (astra.layers.l4_proposer as the source;
-# l5_twin, l6_statistical_gate, l7_shield and l8_failsafe as forbidden) arrive
-# in Phase 3 and Phase 4. Until they exist, import-linter would fail on unknown
-# modules, so the contract is written here, commented, rather than omitted and
-# forgotten -- it is activated by deleting the comment markers once the modules
-# land.
+# Core-A may write a proposal into Core-B and may read nothing back.
 #
-# [importlinter:contract:si-5-one-way-core-channel]
-# name = SI-5 Core-A cannot import any Core-B module
-# type = forbidden
-# source_modules =
-#     astra.layers.l4_proposer
-# forbidden_modules =
-#     astra.layers.l5_twin
-#     astra.layers.l6_statistical_gate
-#     astra.layers.l7_shield
-#     astra.layers.l8_failsafe
-# allow_indirect_imports = False
+# ACTIVATED in Phase 4, when `astra.layers.l4_proposer` landed. Before that this
+# contract could not be expressed at all: import-linter errors on a source
+# module that does not exist rather than passing it vacuously, so the rule sat
+# here commented out rather than being omitted and forgotten.
+#
+# `astra.layers.l6_statistical_gate` is still absent from the forbidden list for
+# that same reason, and belongs in it. Add it in the commit that creates the
+# package.
+#
+# The type discipline in `astra.runtime.channels` already makes the read
+# direction unrepresentable -- `ProposalWriter` has no method returning a
+# verdict. This contract covers the path that types cannot: a plain `import`.
+[importlinter:contract:si-5-one-way-core-channel]
+name = SI-5 Core-A cannot import any Core-B module
+type = forbidden
+source_modules =
+    astra.layers.l4_proposer
+forbidden_modules =
+    astra.layers.l5_twin
+    astra.layers.l7b_physical
+    astra.layers.l7_shield
+    astra.layers.l8_failsafe
+allow_indirect_imports = False
 
 # ---------------------------------------------------------------------------
 # SI-10: evidence non-influence

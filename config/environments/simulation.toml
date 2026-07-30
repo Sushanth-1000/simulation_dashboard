@@ -30,9 +30,25 @@ slow_process_noise = [1e-5, 1e-6, 1e-5]
 [trust]
 coverage_level = 0.95
 
+[twin]
+# PROVISIONAL, as in development.toml. Highway motion is smoother, so the
+# physics residual can be weighted a little harder without fighting the data.
+physics_weight = 1.5
+ewc_lambda = 150.0
+# (throttle, brake, steer) for the simulated platform. Placeholder pending a
+# trained twin and a measured steering-to-lateral-acceleration response.
+control_effectiveness = [0.0, 0.0, 140.0]
+seed = 20260730
+
 [gate]
 significance_epsilon = 0.05
 mmd_threshold = 0.08
+
+[physical]
+# PROVISIONAL. Highway manoeuvres are smoother than urban ones, so both bounds
+# are tighter here than in development.
+max_lateral_jerk_mps3 = 8.0
+admissible_divergence_mps2 = 3.0
 
 [shield]
 # Highway operating point, matching the first phase of the validation drive.

@@ -31,7 +31,7 @@ help: ## Show this help
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
 install: ## Create the environment and install everything
-	uv sync --all-groups
+	uv sync --all-groups --all-extras
 
 format: ## Rewrite files to the project's format
 	$(RUN) ruff format .

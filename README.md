@@ -89,7 +89,7 @@ everything through Phase 2 is developed and tested against in-process fakes.
 
 ```bash
 git clone <repository-url> astra && cd astra
-uv sync --all-groups          # create .venv and install everything
+uv sync --all-groups --all-extras   # create .venv and install everything
 uv run astra doctor           # verify the installation and print the environment report
 uv run astra config show      # render the effective, fully-resolved configuration
 uv run astra invariants list  # print the separation invariants and their enforcement

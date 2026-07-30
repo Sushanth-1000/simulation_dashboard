@@ -79,21 +79,32 @@ profile, and the current session does not re-read it.
 ```bash
 git clone <repository-url> astra
 cd astra
-uv sync --all-groups
+uv sync --all-groups --all-extras
 ```
 
-`uv sync --all-groups` does four things:
+`uv sync --all-groups --all-extras` does four things:
 
 1. Reads `requires-python = ">=3.12"` from `pyproject.toml` and downloads a matching interpreter if
    the machine has none.
 2. Creates `.venv/` in the repository root.
-3. Installs the locked dependency set from `uv.lock` — the two runtime packages plus every
-   [PEP 735](https://peps.python.org/pep-0735/) dependency group (`lint`, `test`, `dev`).
+3. Installs the locked dependency set from `uv.lock` — the two runtime packages, every
+   [PEP 735](https://peps.python.org/pep-0735/) dependency group (`lint`, `test`, `dev`), and every
+   extra (`estimation`).
 4. Installs `astra` itself in editable mode, which is what makes the `astra` console script and the
    `src/` layout work together.
 
-`--all-groups` matters. Without it you get the runtime dependencies only, and every tool in the
-quality gate is missing.
+**Both flags matter, for different reasons.**
+
+`--all-groups` installs the development tooling. Without it you get the runtime dependencies only,
+and every tool in the quality gate is missing.
+
+`--all-extras` installs NumPy and FilterPy. Without it the install still succeeds — and then `mypy`
+reports dozens of errors and `pytest` cannot collect `tests/unit/test_l2_filter.py`,
+`tests/integration/test_phase2_pipeline.py` or `tests/integration/test_phase3_safety_spine.py`,
+because `astra.layers.l2_estimation.filter` imports NumPy. Those dependencies sit in the
+`[estimation]` extra rather than in `dependencies` so that the kernel and contracts stay importable
+without the numerical stack, which is the property the `kernel-independence` and
+`contracts-independence` architecture contracts exist to defend.
 
 You do **not** need to activate the environment. `uv run <command>` resolves the command from the
 locked environment:
@@ -128,12 +139,15 @@ virtual environment works:
 ```bash
 python3.12 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -e .
+.venv/bin/python -m pip install -e ".[estimation]"
 .venv/bin/python -m pip install \
     ruff mypy import-linter \
     pytest pytest-cov hypothesis \
     pre-commit
 ```
+
+The `[estimation]` extra is not optional in practice: it carries NumPy and FilterPy, without which
+the estimation layer will not import and three test modules cannot be collected.
 
 Then run the gate with `RUN` cleared, so the Makefile takes each tool from `PATH` instead of
 prefixing it with `uv run`:
@@ -275,12 +289,20 @@ Either the environment was created without installing the project (`uv sync` ins
 unless it is installed. Check with `uv run python -c "import astra; print(astra.__file__)"`.
 
 **`astra: command not found`**
-The console script comes from installing the project itself. Re-run `uv sync --all-groups`, or in
-the venv fallback `pip install -e .`.
+The console script comes from installing the project itself. Re-run
+`uv sync --all-groups --all-extras`, or in the venv fallback `pip install -e ".[estimation]"`.
 
 **`ruff` or `mypy` not found**
-The dependency groups were not installed. `uv sync --all-groups` — the `--all-groups` flag is what
-pulls in `lint`, `test` and `dev`.
+The dependency groups were not installed. `uv sync --all-groups --all-extras` — the `--all-groups`
+flag is what pulls in `lint`, `test` and `dev`.
+
+**`ModuleNotFoundError: No module named 'numpy'`, or mypy reporting dozens of
+`no-any-unimported` errors**
+The `estimation` extra was not installed. Re-run `uv sync --all-groups --all-extras`; the
+`--all-extras` flag is what pulls in NumPy and FilterPy. The symptom is three test modules failing
+to collect (`test_l2_filter.py`, `test_phase2_pipeline.py`, `test_phase3_safety_spine.py`) rather
+than a failure at install time, because the estimation layer's dependencies deliberately sit outside
+`dependencies` — see §3.
 
 **`lint-imports` cannot find the `astra` package**
 import-linter builds a real module graph by importing the root package named in `.importlinter`, so
