@@ -321,11 +321,21 @@ class GateSettings(_Section):
             maximum-mean-discrepancy covariate-shift detector operates over.
         mmd_threshold: The MMD value above which covariate shift is declared and
             ``epsilon`` is tightened. **No default** (A-4).
+        shift_epsilon_multiplier: Factor applied to ``epsilon`` when shift is
+            declared. Must be **at least 1**, and the direction matters more
+            than the magnitude. The conformal acceptance region is
+            ``{score <= q_{1-epsilon}}``, so a *smaller* epsilon raises the
+            quantile and *widens* the region. Multiplying below 1 would
+            therefore make the gate more permissive at exactly the moment the
+            world stopped matching the calibration data, and nothing would
+            raise: coverage would still be achieved, at a weaker level. **No
+            default** (A-4).
     """
 
     significance_epsilon: UnitInterval
     mmd_window: PositiveInt = 100
     mmd_threshold: NonNegativeFloat
+    shift_epsilon_multiplier: float = Field(ge=1.0)
 
 
 class PhysicalGateSettings(_Section):

@@ -58,6 +58,10 @@ seed = 20260730
 [gate]
 significance_epsilon = 0.05
 mmd_threshold = 0.10
+# Applied to epsilon when covariate shift is declared. Above 1 on purpose: a
+# smaller epsilon raises the conformal quantile and widens the acceptance
+# region, so multiplying below 1 would loosen the gate under shift. PROVISIONAL.
+shift_epsilon_multiplier = 2.0
 
 [physical]
 # L7b's two rate bounds. PROVISIONAL. Both are deliberately rate limits, not

@@ -150,16 +150,36 @@ allow_indirect_imports = False
 # which is the same adversarial dynamic SI-5 keeps Core-A out of, arriving by a
 # different route. It reads no sensors either: SI-1 confines raw payloads to L2,
 # and the twin takes the filtered estimate like every other consumer.
-#
-# `astra.layers.l6_statistical_gate` belongs in the forbidden list and is absent
-# only because import-linter errors on a module that does not exist yet. Add it
-# to this contract in the same commit that creates the package, exactly as the
-# SI-5 contract below is activated when `l4_proposer` lands.
 [importlinter:contract:si-3-twin-independence]
 name = SI-3 the digital twin imports no gate, no FSM and no sensor bus
 type = forbidden
 source_modules =
     astra.layers.l5_twin
+forbidden_modules =
+    astra.layers.l6_statistical_gate
+    astra.layers.l7_shield
+    astra.layers.l7b_physical
+    astra.layers.l8_failsafe
+    astra.layers.l1_sensing
+allow_indirect_imports = False
+
+# ---------------------------------------------------------------------------
+# SI-4: the Trust Index does not participate in Core-B's verdict
+# ---------------------------------------------------------------------------
+# L6 and L3 share calibration *scores*, which are data, and L6 legitimately
+# imports the Mondrian store and the classifier protocol to read them. What it
+# must never acquire is the Trust Index derived from those scores.
+#
+# `TrustAssessment` has no field a gate could read a verdict from and no gate
+# port accepts one, so SI-4 is already structural. This contract covers the
+# remaining route: the statistical gate must not reach the other two gates or
+# the fail-safe machine, since a gate that could see the posture its own verdict
+# produces could make its verdict depend on it.
+[importlinter:contract:si-4-statistical-gate-independence]
+name = SI-4 the statistical gate imports no other gate and no FSM
+type = forbidden
+source_modules =
+    astra.layers.l6_statistical_gate
 forbidden_modules =
     astra.layers.l7_shield
     astra.layers.l7b_physical
@@ -213,10 +233,6 @@ allow_indirect_imports = False
 # module that does not exist rather than passing it vacuously, so the rule sat
 # here commented out rather than being omitted and forgotten.
 #
-# `astra.layers.l6_statistical_gate` is still absent from the forbidden list for
-# that same reason, and belongs in it. Add it in the commit that creates the
-# package.
-#
 # The type discipline in `astra.runtime.channels` already makes the read
 # direction unrepresentable -- `ProposalWriter` has no method returning a
 # verdict. This contract covers the path that types cannot: a plain `import`.
@@ -227,6 +243,7 @@ source_modules =
     astra.layers.l4_proposer
 forbidden_modules =
     astra.layers.l5_twin
+    astra.layers.l6_statistical_gate
     astra.layers.l7b_physical
     astra.layers.l7_shield
     astra.layers.l8_failsafe

@@ -43,6 +43,8 @@ seed = 20260730
 [gate]
 significance_epsilon = 0.05
 mmd_threshold = 0.08
+# See development.toml: above 1 tightens the gate, below 1 would loosen it.
+shift_epsilon_multiplier = 2.5
 
 [physical]
 # PROVISIONAL. Highway manoeuvres are smoother than urban ones, so both bounds

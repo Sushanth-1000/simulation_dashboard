@@ -49,6 +49,7 @@ CERTIFICATION_MISSING_FIELDS = frozenset(
         "twin.control_effectiveness",
         "gate.significance_epsilon",
         "gate.mmd_threshold",
+        "gate.shift_epsilon_multiplier",
         "physical.max_lateral_jerk_mps3",
         "physical.admissible_divergence_mps2",
         "shield.legal_speed_limit_kmh",
@@ -112,6 +113,7 @@ control_effectiveness = [0.0, 0.0, 120.0]
 [gate]
 significance_epsilon = 0.05
 mmd_threshold = 0.10
+shift_epsilon_multiplier = 2.0
 
 [physical]
 max_lateral_jerk_mps3 = 12.0

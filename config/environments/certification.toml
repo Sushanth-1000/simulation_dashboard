@@ -69,6 +69,12 @@ environment = "certification"
 # is declared and ε is tightened.
 # significance_epsilon =
 # mmd_threshold =
+# Factor applied to epsilon once shift is declared. Must be at least 1. The
+# acceptance region is {score <= q_{1-epsilon}}, so a smaller epsilon raises the
+# quantile and widens the region: a value below 1 would loosen the gate at
+# exactly the moment the world stopped matching the calibration data, and
+# nothing would raise, because coverage would still hold at the weaker level.
+# shift_epsilon_multiplier =
 
 [physical]
 # L7b's two rate bounds. Both are platform characterisations, not tuning

@@ -1,0 +1,324 @@
+"""L6 -- the statistical gate, and the direction the paper's wording gets wrong.
+
+The score
+---------
+    ``alpha = |pi_prop - pi_hat| / sigma(x)``   with   ``sigma(x) = sqrt(P_f[control dim])``
+
+The numerator is how far the untrusted proposal departs from what the twin
+expects. The denominator is the filter's own uncertainty about the dimension
+that departure acts on, so the same absolute departure is scored as ordinary
+when the filter is unsure and as anomalous when it is confident. That coupling
+between state uncertainty and the acceptance band is the second of the paper's
+listed contributions, and it is one line of code.
+
+Which way "tighten epsilon" goes
+---------------------------------
+This is the trap in this module and it is worth stating plainly, because the
+natural reading of the source material implements it backwards.
+
+The conformal acceptance region is ``{score <= q_{1-epsilon}}``. A *smaller*
+epsilon means higher coverage, a higher quantile, and therefore a **larger**
+acceptance region. So reducing epsilon makes the gate more permissive.
+
+The papers say the gate "tightens epsilon" under covariate shift and that it
+"gets stricter immediately". Those two statements are only consistent if
+"tighten" means *raise* epsilon: less coverage, a lower quantile, a smaller
+acceptance region, a stricter gate.
+
+Implementing the phrase literally -- reducing epsilon on detected shift -- would
+make the gate more permissive at exactly the moment the world stopped matching
+the calibration data. Nothing would raise. Coverage would still be reported as
+achieved, because it would be: the guarantee would hold at the new, weaker
+level. This module therefore multiplies epsilon *upward* on shift, and the
+setting is named for what it does rather than for what the paper called it.
+
+Why this gate can fail when the others do not
+----------------------------------------------
+Conformal coverage assumes exchangeability between calibration and runtime data.
+An adversarial perturbation violates that by construction -- it is chosen to be
+unlike the calibration set. So this gate is the one that a deliberate attack can
+defeat, and it is why there is more than one gate. Its counterpart property is
+the one the validation plan is built around: an FGSM perturbation that is
+kinematically plausible and inside every hard bound is invisible to L7a and L7b
+and visible only here.
+
+The uncalibrated case
+---------------------
+A class with too few scores has no finite conformal threshold. This gate vetoes
+in that case rather than passing, with its own reason code, because a gate that
+cannot make a statistical claim must not report that the proposal satisfied one.
+In a running system L9 substitutes the nearest available calibration table
+before this is reached, which is what keeps the tunnel scenario moving.
+"""
+
+from __future__ import annotations
+
+import math
+from typing import TYPE_CHECKING, Final
+
+from astra.contracts.assurance import GateVerdict
+from astra.kernel.enums import GateId, LayerId, Verdict
+from astra.kernel.errors import SafetyPathError
+
+if TYPE_CHECKING:
+    from astra.contracts.actuation import PredictedCommand, ProposedCommand
+    from astra.contracts.estimation import FastStateEstimate
+    from astra.kernel.identifiers import TickId
+    from astra.layers.l3_trust.mondrian import MondrianCalibration
+    from astra.layers.l3_trust.trust import ContextClassifier
+    from astra.layers.l6_statistical_gate.mmd import MmdShiftDetector
+
+__all__ = ["REASON_CODES", "IcpStatisticalGate"]
+
+REASON_NOMINAL: Final = "NOMINAL"
+REASON_SCORE_ABOVE_QUANTILE: Final = "SCORE_EXCEEDS_CONFORMAL_QUANTILE"
+REASON_UNCALIBRATED: Final = "CONTEXT_NOT_CALIBRATED"
+REASON_INPUT_NOT_FINITE: Final = "INPUT_NOT_FINITE"
+
+REASON_CODES: Final[tuple[str, ...]] = (
+    REASON_NOMINAL,
+    REASON_SCORE_ABOVE_QUANTILE,
+    REASON_UNCALIBRATED,
+    REASON_INPUT_NOT_FINITE,
+)
+"""Every reason code this gate can emit. Part of the evidence schema."""
+
+CONTROL_DIMENSION: Final = "lateral_acceleration"
+"""The state dimension whose variance normalises the score.
+
+Named rather than indexed. ``FastStateEstimate.variance_of`` resolves it from
+the canonical field order, so reordering the state vector cannot silently
+repoint the normalisation term at a different physical quantity -- which would
+still produce plausible numbers.
+"""
+
+_MINIMUM_SIGMA: Final = 1e-6
+"""Floor on the normalisation term.
+
+A variance at or below this means the filter claims near-perfect certainty about
+the control dimension. Dividing by it produces an enormous score -- arithmetically
+a VETO, which is the right answer, but by way of an overflow rather than a
+decision. The floor makes the veto explicit and keeps the number in the evidence
+log finite and readable.
+"""
+
+
+class IcpStatisticalGate:
+    """L6. Satisfies :class:`~astra.ports.pipeline.StatisticalGate`.
+
+    Holds calibration, a classifier, and the shift detector. It deliberately
+    does *not* hold or accept a
+    :class:`~astra.contracts.assurance.TrustAssessment`: SI-4 forbids the Trust
+    Index from participating in Core-B's verdict, and the surest way to honour
+    that is to have no parameter through which it could arrive. The calibration
+    *scores* are shared with L3 because they are data; the Trust Index derived
+    from them is not.
+    """
+
+    __slots__ = ("_calibration", "_classifier", "_detector", "_epsilon", "_shift_multiplier")
+
+    def __init__(
+        self,
+        *,
+        calibration: MondrianCalibration,
+        classifier: ContextClassifier,
+        detector: MmdShiftDetector,
+        significance_epsilon: float,
+        shift_epsilon_multiplier: float,
+    ) -> None:
+        """Build the gate.
+
+        Args:
+            calibration: The Mondrian calibration windows.
+            classifier: Supplied by the adapter, as L3's is.
+            detector: The covariate-shift detector.
+            significance_epsilon: The nominal significance level.
+            shift_epsilon_multiplier: Factor applied to epsilon when shift is
+                declared. Must be at least 1: see the module docstring for why
+                a value below 1 would loosen the gate under shift rather than
+                tightening it.
+
+        Raises:
+            SafetyPathError: If the multiplier is below 1, or if either value is
+                non-finite, or if the resulting epsilon would leave ``(0, 1)``.
+        """
+        if not math.isfinite(shift_epsilon_multiplier) or shift_epsilon_multiplier < 1.0:
+            message = (
+                f"the shift epsilon multiplier must be at least 1, got "
+                f"{shift_epsilon_multiplier}; a value below 1 raises the conformal "
+                f"quantile and widens the acceptance region, making the gate more "
+                f"permissive at exactly the moment covariate shift was detected"
+            )
+            raise SafetyPathError(
+                message,
+                layer=LayerId.L6_MPC_ICP_GATE,
+                context={"multiplier": str(shift_epsilon_multiplier)},
+            )
+        if not math.isfinite(significance_epsilon) or not (0.0 < significance_epsilon < 1.0):
+            message = (
+                f"the significance level must lie strictly inside (0, 1), got "
+                f"{significance_epsilon}"
+            )
+            raise SafetyPathError(
+                message,
+                layer=LayerId.L6_MPC_ICP_GATE,
+                context={"epsilon": str(significance_epsilon)},
+            )
+        self._calibration = calibration
+        self._classifier = classifier
+        self._detector = detector
+        self._epsilon = significance_epsilon
+        self._shift_multiplier = shift_epsilon_multiplier
+
+    def effective_epsilon(self) -> float:
+        """Return the significance level in force for this tick.
+
+        Returns:
+            The nominal epsilon, or the shifted one when the detector has fired.
+            Capped strictly below 1: an epsilon of 1 would set the quantile to
+            the smallest observed score and veto essentially everything, which
+            is a fail-safe posture the FSM should reach by counting vetoes
+            rather than one the gate should adopt unilaterally.
+        """
+        if not self._detector.has_shifted():
+            return self._epsilon
+        return min(self._epsilon * self._shift_multiplier, 0.999)
+
+    def observe_innovation(self, magnitude: float) -> None:
+        """Feed the shift detector one innovation magnitude.
+
+        Args:
+            magnitude: The Mahalanobis distance for this tick.
+        """
+        self._detector.observe(magnitude)
+
+    def evaluate(
+        self,
+        *,
+        tick: TickId,
+        proposal: ProposedCommand,
+        prediction: PredictedCommand,
+        state: FastStateEstimate,
+    ) -> GateVerdict:
+        """Score the proposal against the class-conditional conformal band.
+
+        Args:
+            tick: The control tick.
+            proposal: The untrusted proposed command.
+            prediction: The twin's prediction.
+            state: The fast estimate, supplying ``sigma(x)`` from ``P_f``.
+
+        Returns:
+            A verdict tagged :attr:`~astra.kernel.enums.GateId.STATISTICAL`.
+
+        Raises:
+            SafetyPathError: If the two commands are vectors over
+                different-sized spaces, or if any input is non-finite. NaN
+                defeats the comparison against the quantile rather than failing
+                it, which reads as a PASS.
+        """
+        proposed = proposal.command.values
+        predicted = prediction.command.values
+        if len(proposed) != len(predicted):
+            message = (
+                f"the proposal has {len(proposed)} channels and the prediction has "
+                f"{len(predicted)}; a departure measured across a dimension mismatch "
+                f"is a number about no particular vehicle"
+            )
+            raise SafetyPathError(
+                message,
+                layer=LayerId.L6_MPC_ICP_GATE,
+                context={
+                    "tick": tick.value,
+                    "proposed": len(proposed),
+                    "predicted": len(predicted),
+                },
+            )
+
+        variance = state.variance_of(CONTROL_DIMENSION)
+        self._require_finite(tick, (*proposed, *predicted, variance))
+
+        departure = math.dist(proposed, predicted)
+        sigma = math.sqrt(max(variance, _MINIMUM_SIGMA))
+        score = departure / sigma
+
+        context = self._classifier.classify(state=state, innovation=None)
+        epsilon = self.effective_epsilon()
+        quantile = self._calibration.quantile(context, epsilon)
+        discrepancy = self._detector.discrepancy()
+
+        evidence: tuple[tuple[str, float], ...] = (
+            ("non_conformity_score", score),
+            ("departure", departure),
+            ("sigma", sigma),
+            ("conformal_quantile", quantile if math.isfinite(quantile) else -1.0),
+            ("effective_epsilon", epsilon),
+            ("mmd_discrepancy", discrepancy),
+            ("calibration_samples", float(self._calibration.sample_count(context))),
+        )
+
+        if math.isinf(quantile):
+            # No finite threshold exists for this class. A gate that cannot make
+            # a statistical claim must not report that the proposal satisfied
+            # one. The quantile is logged as -1 above because the evidence
+            # schema carries floats and an infinity would not round-trip.
+            return self._veto(tick, REASON_UNCALIBRATED, evidence)
+        if score > quantile:
+            return self._veto(tick, REASON_SCORE_ABOVE_QUANTILE, evidence)
+        return GateVerdict(
+            tick=tick,
+            gate=GateId.STATISTICAL,
+            verdict=Verdict.PASS,
+            reason_code=REASON_NOMINAL,
+            evidence=evidence,
+        )
+
+    @staticmethod
+    def _veto(
+        tick: TickId, reason_code: str, evidence: tuple[tuple[str, float], ...]
+    ) -> GateVerdict:
+        """Build a vetoing verdict.
+
+        Args:
+            tick: The control tick.
+            reason_code: Why the gate rejected the proposal.
+            evidence: The computed quantities.
+
+        Returns:
+            The verdict.
+        """
+        return GateVerdict(
+            tick=tick,
+            gate=GateId.STATISTICAL,
+            verdict=Verdict.VETO,
+            reason_code=reason_code,
+            evidence=evidence,
+        )
+
+    @staticmethod
+    def _require_finite(tick: TickId, values: tuple[float, ...]) -> None:
+        """Refuse to score a non-finite input.
+
+        Args:
+            tick: The control tick.
+            values: Every quantity the score is computed from.
+
+        Raises:
+            SafetyPathError: If any value is NaN or infinite.
+        """
+        offenders = [index for index, value in enumerate(values) if not math.isfinite(value)]
+        if offenders:
+            message = (
+                f"the statistical gate cannot score a non-finite input at indices "
+                f"{offenders}; NaN defeats the comparison against the conformal quantile "
+                f"rather than failing it, so this tick fails closed"
+            )
+            raise SafetyPathError(
+                message,
+                layer=LayerId.L6_MPC_ICP_GATE,
+                context={
+                    "tick": tick.value,
+                    "indices": offenders,
+                    "reason": REASON_INPUT_NOT_FINITE,
+                },
+            )
