@@ -66,7 +66,11 @@ _A_LAT = FAST_STATE_FIELDS.index("lateral_acceleration")
 
 
 def fast_transition(
-    state: NDArray[np.float64], dt: float, *, yaw_rate_minimum_speed: float
+    state: NDArray[np.float64],
+    dt: float,
+    *,
+    yaw_rate_minimum_speed: float,
+    commanded_lateral_acceleration: float | None = None,
 ) -> NDArray[np.float64]:
     """Propagate the fast kinematic state forward by one step.
 
@@ -76,13 +80,30 @@ def fast_transition(
         dt: The step in seconds.
         yaw_rate_minimum_speed: Speed below which the yaw rate is taken as zero
             rather than computed from ``a_lat / v``.
+        commanded_lateral_acceleration: The lateral acceleration the last
+            *issued* command implies, or ``None`` to propagate the estimate
+            unchanged. This is feedback loop **FB1**, and it is a control input
+            rather than a state correction: it enters the prediction, so the
+            covariance grows around it and a subsequent measurement can still
+            overrule it.
+
+            Without it the model asserts that lateral acceleration is constant
+            between measurements, so the filter can only learn about a
+            manoeuvre after the IMU reports it -- and if the IMU is degraded or
+            absent, never. The vehicle is then being steered by a command the
+            estimator does not know was sent, which is precisely the state the
+            architecture calls out as the shared-state common-cause channel.
 
     Returns:
         The propagated state, as a new array.
     """
     speed = float(state[_V])
     heading = float(state[_PSI])
-    lateral_acceleration = float(state[_A_LAT])
+    lateral_acceleration = (
+        float(state[_A_LAT])
+        if commanded_lateral_acceleration is None
+        else float(commanded_lateral_acceleration)
+    )
 
     yaw_rate = 0.0 if abs(speed) < yaw_rate_minimum_speed else lateral_acceleration / speed
 

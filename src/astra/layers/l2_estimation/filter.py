@@ -57,7 +57,7 @@ from astra.kernel.constants import (
 from astra.kernel.enums import LayerId
 from astra.kernel.errors import ContractViolationError, SafetyPathError
 from astra.kernel.matrix import SymmetricMatrix
-from astra.kernel.validation import require_dimension
+from astra.kernel.validation import require_dimension, require_finite
 from astra.layers.l2_estimation.models import fast_transition, slow_transition
 
 if TYPE_CHECKING:
@@ -98,6 +98,7 @@ class DualRateUKF[PayloadT]:
     """
 
     __slots__ = (
+        "_applied_lateral_acceleration",
         "_extractor",
         "_fast",
         "_fast_updates",
@@ -148,6 +149,7 @@ class DualRateUKF[PayloadT]:
         _require_positive_definite(initial_fast_covariance, label="initial fast covariance")
         _require_positive_definite(initial_slow_covariance, label="initial slow covariance")
 
+        self._applied_lateral_acceleration: float | None = None
         fast_dt = 1.0 / settings.fast_rate_hz
         slow_dt = 1.0 / settings.slow_rate_hz
         minimum_speed = settings.yaw_rate_minimum_speed
@@ -157,7 +159,12 @@ class DualRateUKF[PayloadT]:
             dim_z=FAST_STATE_DIMENSION,
             dt=fast_dt,
             hx=_identity_observation,
-            fx=lambda state, dt: fast_transition(state, dt, yaw_rate_minimum_speed=minimum_speed),
+            fx=lambda state, dt: fast_transition(
+                state,
+                dt,
+                yaw_rate_minimum_speed=minimum_speed,
+                commanded_lateral_acceleration=self._applied_lateral_acceleration,
+            ),
             points=MerweScaledSigmaPoints(
                 n=FAST_STATE_DIMENSION, alpha=_SIGMA_ALPHA, beta=_SIGMA_BETA, kappa=_SIGMA_KAPPA
             ),
@@ -238,6 +245,44 @@ class DualRateUKF[PayloadT]:
             mean=tuple(float(value) for value in self._slow.x),
             covariance=_to_symmetric(self._slow.P, label="slow covariance"),
         )
+
+    def apply_command(self, lateral_acceleration: float | None) -> None:
+        """Tell the filter what the last issued command demands. Feedback loop FB1.
+
+        Called by the pipeline after L9 has issued, so the *next* prediction
+        propagates from the commanded lateral acceleration instead of assuming
+        the last estimate persists.
+
+        Deliberately a prediction input rather than a state assignment. Writing
+        the commanded value into ``x`` would make the estimate agree with the
+        command by construction, which destroys the innovation the whole system
+        uses to detect that the vehicle is not doing what it was told -- the
+        filter would report perfect health precisely when the actuator had
+        failed. As a control input the covariance still grows around it and a
+        measurement can still overrule it.
+
+        Args:
+            lateral_acceleration: The lateral acceleration implied by the issued
+                command, or ``None`` when no command was issued. ``None``
+                restores the constant-acceleration assumption, which is the
+                right model for a tick on which nothing was commanded.
+
+        Raises:
+            NonFiniteValueError: If a non-finite value is supplied. A NaN would
+                propagate into every sigma point and silently destroy the state.
+        """
+        if lateral_acceleration is not None:
+            require_finite(
+                lateral_acceleration,
+                name="applied_lateral_acceleration",
+                layer=LayerId.L2_DUAL_RATE_UKF,
+            )
+        self._applied_lateral_acceleration = lateral_acceleration
+
+    @property
+    def applied_lateral_acceleration(self) -> float | None:
+        """Return the command input the next prediction will use, if any."""
+        return self._applied_lateral_acceleration
 
     def latest_innovation(self) -> InnovationRecord | None:
         """Return the most recent innovation record.

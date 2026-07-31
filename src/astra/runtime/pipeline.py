@@ -83,7 +83,7 @@ from astra.layers.l9_rcm.exploration import exploration_envelope, restricted_spa
 from astra.layers.l9_rcm.signature import build_signature
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from astra.contracts.actuation import IssuedCommand, PredictedCommand, ProposedCommand
     from astra.contracts.assurance import FailSafeSnapshot, TrustAssessment
@@ -205,6 +205,7 @@ class GovernancePipeline[PayloadT]:
         "_clock",
         "_config_hash",
         "_context",
+        "_control_effectiveness",
         "_degradation",
         "_estimator",
         "_failsafe",
@@ -244,6 +245,7 @@ class GovernancePipeline[PayloadT]:
         staleness_budget: Seconds,
         slow_period_ticks: int,
         context: ColdPathContext | None = None,
+        control_effectiveness: Sequence[float] | None = None,
     ) -> None:
         """Assemble the pipeline from already-constructed layers.
 
@@ -271,6 +273,12 @@ class GovernancePipeline[PayloadT]:
             slow_period_ticks: How many fast ticks pass between slow-filter
                 updates. Derived by the composition root from the two configured
                 rates, not guessed here.
+            control_effectiveness: The platform's ``B`` row, mapping a command
+                vector to the lateral acceleration it implies. Enables feedback
+                loop FB1. ``None`` leaves the loop open, so the filter keeps its
+                constant-acceleration model -- which is what every run before
+                FB1 existed did, and is retained so an ablation can turn the
+                loop off and measure the difference rather than argue about it.
             context: What the cold path needs to run: the arbitration cadence,
                 the thresholds, and the three signature components the pipeline
                 cannot observe. ``None`` leaves the cold path dormant, which is
@@ -294,6 +302,11 @@ class GovernancePipeline[PayloadT]:
         self._clock = clock
         self._staleness_budget = staleness_budget
         self._slow_period_ticks = max(1, slow_period_ticks)
+        self._control_effectiveness = (
+            None
+            if control_effectiveness is None
+            else tuple(float(g) for g in control_effectiveness)
+        )
         self._degradation: SlowStateEstimate | None = None
         self._context = context
         self._arbitration: ArbitrationDecision | None = None
@@ -339,6 +352,7 @@ class GovernancePipeline[PayloadT]:
             tick=tick, proposal=proposal, verdict=verdict, failsafe=failsafe, trust=trust
         )
 
+        self._reanchor(issued)
         self._maybe_arbitrate(tick=tick, frame=frame, frame_health=frame_health, state=state)
 
         record = DecisionRecord(
@@ -541,6 +555,50 @@ class GovernancePipeline[PayloadT]:
             context: The new cold-path context.
         """
         self._context = context
+
+    def _reanchor(self, issued: IssuedCommand | None) -> None:
+        """Feed the issued command back into the estimator. Feedback loop FB1.
+
+        Runs after the command has been issued and before the cold path, so the
+        *next* tick's prediction starts from what the vehicle was actually told
+        to do rather than from the assumption that its lateral acceleration has
+        not changed.
+
+        FB1 is first among the four loops because the others depend on the state
+        estimate it corrects, and because it is the mitigation for the shared
+        estimate that couples Core-A and Core-B: an estimator blind to the
+        commands being issued diverges from the vehicle in exactly the situation
+        -- an actuator not doing what it was told -- where both cores are
+        reading the same wrong number.
+
+        The command feeds the *prediction*, never the state. See
+        :meth:`~astra.layers.l2_estimation.filter.DualRateUKF.apply_command` for
+        why that distinction is what keeps the innovation meaningful.
+
+        Args:
+            issued: The command L9 issued, or ``None`` if the tick issued none.
+                ``None`` clears the input, restoring the constant-acceleration
+                model, which is the correct assumption for a tick on which
+                nothing was commanded.
+        """
+        if issued is None or self._control_effectiveness is None:
+            self._estimator.apply_command(None)
+            return
+        effectiveness = self._control_effectiveness
+        values = issued.command.values
+        if len(effectiveness) != len(values):
+            # A mismatch means the configured platform row and the actuation
+            # space disagree about how many channels this vehicle has. Feeding
+            # the loop anyway would anchor the filter to a number computed from
+            # the wrong channels, so the loop opens rather than lies.
+            self._estimator.apply_command(None)
+            return
+        self._estimator.apply_command(
+            sum(
+                float(gain) * float(value)
+                for gain, value in zip(effectiveness, values, strict=True)
+            )
+        )
 
     def _maybe_arbitrate(
         self,

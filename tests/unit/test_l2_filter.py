@@ -22,6 +22,7 @@ from astra.kernel.errors import (
     AstraError,
     ContractViolationError,
     DimensionMismatchError,
+    NonFiniteValueError,
     SafetyDisposition,
     SafetyPathError,
 )
@@ -1042,3 +1043,48 @@ def test_an_index_error_from_the_filter_becomes_a_fail_closed_safety_error(
         estimator.update_fast(_frame(0))
 
     assert raised.value.disposition is SafetyDisposition.FAIL_CLOSED
+
+
+# --------------------------------------------------------------------------- #
+# FB1: the applied command reaches the prediction, and only the prediction
+# --------------------------------------------------------------------------- #
+
+
+def test_the_applied_command_moves_the_prediction_not_the_estimate() -> None:
+    # The distinction FB1 rests on. Writing the commanded value into the state
+    # would make the estimate agree with the command by construction, which
+    # destroys the innovation the system uses to notice the vehicle is not doing
+    # what it was told -- the filter would report perfect health exactly when
+    # the actuator had failed. As a prediction input it steers the propagation
+    # and a measurement can still overrule it.
+    quiet = _build(_SilentExtractor())
+    steered = _build(_SilentExtractor())
+    steered.apply_command(2.8)
+
+    for _ in range(5):
+        quiet.update_fast(_frame(0))
+        steered.update_fast(_frame(0))
+
+    heading = FAST_STATE_FIELDS.index("heading")
+
+    assert steered.applied_lateral_acceleration == pytest.approx(2.8)
+    assert quiet.update_fast(_frame(0)).mean[heading] == pytest.approx(0.0)
+    assert steered.update_fast(_frame(0)).mean[heading] > 0.0
+
+
+def test_a_non_finite_applied_command_is_refused() -> None:
+    # A NaN reaching the transition propagates into every sigma point and the
+    # state is gone, with nothing raised at the point of entry.
+    estimator = _build(_SilentExtractor())
+
+    with pytest.raises(NonFiniteValueError):
+        estimator.apply_command(float("nan"))
+
+
+def test_clearing_the_applied_command_restores_the_constant_model() -> None:
+    estimator = _build(_SilentExtractor())
+
+    estimator.apply_command(1.5)
+    estimator.apply_command(None)
+
+    assert estimator.applied_lateral_acceleration is None

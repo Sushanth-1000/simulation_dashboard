@@ -488,6 +488,7 @@ def assemble_pipeline[PayloadT](
         clock=clock,
         staleness_budget=settings.sensing.staleness_budget,
         slow_period_ticks=slow_period_ticks,
+        control_effectiveness=settings.twin.control_effectiveness,
         context=cold_path,
     )
     return AssembledPipeline(

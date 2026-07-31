@@ -310,6 +310,24 @@ def generate(
             )
             prediction = twin.predict(tick=TickId(tick), state=state)
 
+            # Feedback loop FB1, as the pipeline runs it. The corpus has to be
+            # generated under the same filter behaviour the gate will score
+            # against: FB1 changes the state estimate, the estimate changes the
+            # non-conformity score, and a quantile table calibrated with the
+            # loop open does not describe the distribution a closed-loop run
+            # produces. Leaving it out here raised the placeholder policy's
+            # measured veto rate from 60% to 100% with no change to the policy.
+            estimator.apply_command(
+                sum(
+                    float(gain) * float(value)
+                    for gain, value in zip(
+                        settings.twin.control_effectiveness,
+                        proposal.command.values,
+                        strict=True,
+                    )
+                )
+            )
+
             departure = math.dist(proposal.command.values, prediction.command.values)
             sigma = math.sqrt(max(state.variance_of(CONTROL_DIMENSION), MINIMUM_SIGMA))
             bucket = scores.setdefault(context, [])
