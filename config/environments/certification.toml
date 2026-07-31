@@ -48,6 +48,9 @@ environment = "certification"
 # Conformal coverage 1 − ε targeted by the Trust Module. Must be justified
 # against the per-class empirical coverage actually achieved, not assumed.
 # coverage_level =
+# The urban/highway classification boundary. An ODD definition: it decides which
+# certified population a tick's conformal quantile is drawn from.
+# highway_speed_boundary_kmh =
 
 [twin]
 # The twin's prediction is the right operand of the non-conformity score, so

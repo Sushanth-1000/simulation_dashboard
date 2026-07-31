@@ -50,11 +50,17 @@ from dataclasses import dataclass
 from enum import StrEnum, unique
 from typing import Final
 
+from astra.contracts.actuation import ActuationChannel, ActuationSpace
 from astra.kernel.enums import LayerId
 from astra.kernel.errors import ConfigurationError
 from astra.kernel.units import MetresPerSecond, Radians
 
-__all__ = ["ExplorationEnvelope", "ExplorationExit", "exploration_envelope"]
+__all__ = [
+    "ExplorationEnvelope",
+    "ExplorationExit",
+    "exploration_envelope",
+    "restricted_space",
+]
 
 SPEED_FRACTION_OF_NEAREST: Final = 0.5
 """Fraction of the nearest certified profile's maximum speed.
@@ -176,3 +182,86 @@ def exploration_envelope(nearest_max_speed: float) -> ExplorationEnvelope:
         speed_cap=MetresPerSecond(nearest_max_speed * SPEED_FRACTION_OF_NEAREST),
         steering_limit=Radians(MAXIMUM_STEERING_RADIANS),
     )
+
+
+def restricted_space(
+    space: ActuationSpace,
+    envelope: ExplorationEnvelope,
+    *,
+    longitudinal_channel: str = "throttle",
+    steering_channel: str = "steer",
+) -> ActuationSpace:
+    """Narrow an actuation space to the exploration envelope.
+
+    This is what makes the envelope *enforceable* rather than advisory. L9 issues
+    commands as vectors in an actuation space, and
+    :class:`~astra.contracts.actuation.IssuedCommand` refuses any vector outside
+    its space's bounds -- so narrowing the space narrows what can physically be
+    issued, through the same check that already guards every other command.
+
+    The alternative would be to clamp commands against the envelope at the point
+    of issue. That works until somebody adds a second issue path, and then the
+    envelope is enforced in one of them.
+
+    Only two channels are narrowed. Braking is deliberately left at full
+    authority: exploration bounds what the vehicle may *do*, and taking away its
+    ability to stop would make the safety envelope less safe.
+
+    Args:
+        space: The nominal actuation space.
+        envelope: The exploration envelope in force.
+        longitudinal_channel: Name of the channel carrying propulsion.
+        steering_channel: Name of the channel carrying steering.
+
+    Returns:
+        A space with the steering channel narrowed to the cone and the
+        longitudinal channel scaled by the envelope's speed fraction.
+
+    Raises:
+        ContractViolationError: If either named channel is absent from the space.
+    """
+    fraction = _longitudinal_fraction(envelope)
+    narrowed: list[ActuationChannel] = []
+    for channel in space.channels:
+        if channel.name == steering_channel:
+            limit = min(float(envelope.steering_limit), max(abs(channel.lower), channel.upper))
+            narrowed.append(
+                ActuationChannel(name=channel.name, lower=-limit, upper=limit, unit=channel.unit)
+            )
+        elif channel.name == longitudinal_channel:
+            narrowed.append(
+                ActuationChannel(
+                    name=channel.name,
+                    lower=channel.lower,
+                    upper=channel.upper * fraction,
+                    unit=channel.unit,
+                )
+            )
+        else:
+            narrowed.append(channel)
+
+    # `channel()` raises if a name is absent, so this is the check that the
+    # caller named channels this space actually has -- performed after building
+    # so the error names the space rather than a half-built one.
+    space.channel(longitudinal_channel)
+    space.channel(steering_channel)
+    return ActuationSpace(tuple(narrowed))
+
+
+def _longitudinal_fraction(envelope: ExplorationEnvelope) -> float:
+    """Return how much of the propulsion range exploration may use.
+
+    The envelope bounds *speed*, and the actuation space bounds *command*. There
+    is no general mapping between the two without a plant model, so the fraction
+    is taken directly from the architectural constant the envelope was built
+    with. Deriving it from the speed cap would require dividing by a certified
+    maximum that the envelope no longer carries.
+
+    Args:
+        envelope: The envelope in force.
+
+    Returns:
+        The fraction of the longitudinal channel's upper bound that remains.
+    """
+    del envelope
+    return SPEED_FRACTION_OF_NEAREST

@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum, unique
 from typing import Final, Protocol, Self, runtime_checkable
 
@@ -53,6 +53,7 @@ __all__ = [
     "ManualClock",
     "SystemClock",
     "Timeline",
+    "civil_plus_days",
     "is_stale",
     "staleness",
 ]
@@ -329,6 +330,39 @@ class ManualClock:
             raise ContractViolationError(message, context={"interval_s": interval})
         self._instant = self._instant.plus(interval)
         return self._instant
+
+
+def civil_plus_days(moment: datetime, days: float) -> datetime:
+    """Return a civil time a number of days after another.
+
+    Civil-time arithmetic lives here because this module is the only one
+    permitted to import ``datetime`` at runtime -- an architecture test walks
+    the AST of every other module to enforce it. Calibration profiles carry
+    certification and expiry dates, and something has to be able to express
+    "ninety days from certification" without every caller reaching for the
+    standard library and breaking that rule.
+
+    Distinct from :class:`Instant` arithmetic, deliberately. Instants measure
+    durations on a monotonic timeline and are what every control decision uses;
+    this is wall-clock bookkeeping for certification metadata, and it is never
+    used to time anything.
+
+    Args:
+        moment: The reference civil time. Must be timezone-aware.
+        days: The offset in days. May be negative.
+
+    Returns:
+        The offset civil time, in the same timezone.
+
+    Raises:
+        ContractViolationError: If ``moment`` is naive. A naive certification
+            date is ambiguous by up to a day, and a profile's expiry is a
+            safety-relevant boundary.
+    """
+    if moment.tzinfo is None:
+        message = "civil time arithmetic requires a timezone-aware datetime"
+        raise ContractViolationError(message)
+    return moment + timedelta(days=days)
 
 
 def staleness(observed_at: Instant, now: Instant) -> Seconds:

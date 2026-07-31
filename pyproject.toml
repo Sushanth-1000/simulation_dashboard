@@ -162,6 +162,13 @@ target-version = "py312"
 src = ["src", "tests"]
 extend-exclude = [".venv", "build", "dist"]
 
+[tool.ruff.lint.isort]
+# `training` is first-party even though it is not installed: it lives outside
+# `src/` so the RL frameworks stay off the runtime import graph, not because it
+# belongs to somebody else. Without this it sorts as a third-party package and
+# the import block reads as though the pipeline depended on an external trainer.
+known-first-party = ["astra", "training"]
+
 [tool.ruff.lint]
 select = [
     "F",    # pyflakes — real errors
@@ -222,6 +229,8 @@ ignore = [
 # S311: the synthetic measurements are benchmark inputs, not a security control.
 # INP001: benchmarks are standalone scripts, deliberately not an importable package.
 "benchmarks/**" = ["T20", "S311", "INP001"]
+# The demo reports to a human at a terminal, like the CLI and the benchmarks.
+"demo/**" = ["T20", "S311", "INP001"]
 # Training scripts report to a human at a terminal for the same reason
 # benchmarks do, and are standalone rather than importable. S311: the corpus
 # sampler is a data generator, not a security control. PLR0913: a training entry
@@ -280,6 +289,11 @@ disallow_untyped_defs = false # test bodies stay readable; signatures still chec
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
+# The offline training package is not installed -- it is deliberately outside
+# `src/` so Stable-Baselines3 and Gymnasium stay off the runtime import graph.
+# Integration tests that drive the pipeline against the training plant still
+# need to import it, so the repository root goes on the path for them.
+pythonpath = ["."]
 addopts = [
     "--strict-markers",
     "--strict-config",

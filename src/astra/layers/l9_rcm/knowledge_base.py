@@ -272,10 +272,16 @@ def score_candidates(
                 distance=distance,
                 similarity=similarity,
                 trust_score=trust_score,
-                # val(c) == 1 is a hard conjunct: a profile that passed 99% of
-                # its certification suite is not 99% admissible, it is
-                # inadmissible.
-                is_valid=validation >= 1.0,
+                # val(c) is the profile's binary certification verdict, not the
+                # fraction of its corpus held out for validation. Reading the
+                # fraction here instead made every correctly-certified profile
+                # -- one holding out a sensible 20% -- permanently inadmissible,
+                # so the knowledge base could never return a candidate and
+                # bounded safe exploration engaged in every context.
+                #
+                # The hard-conjunct reasoning still stands: a profile that
+                # passed 99% of its suite is not 99% admissible.
+                is_valid=profile.validation_passed,
             )
         )
 

@@ -54,6 +54,13 @@ jobs:
       - name: Install Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
+      # The lockfile went stale twice before this step existed, and both times
+      # a *training run* found it rather than the test suite -- because nothing
+      # exercised a from-scratch frozen install. `uv sync` with UV_FROZEN would
+      # eventually fail too, but this fails first and says why in one line.
+      - name: Lockfile is current with pyproject.toml
+        run: uv lock --check
+
       # `--all-extras` as well as `--all-groups`: the estimation layer's NumPy
       # and FilterPy live in the `[estimation]` extra rather than in
       # `dependencies`, so that the kernel and contracts stay installable
@@ -87,6 +94,26 @@ jobs:
         # run, which makes it a genuine smoke test of the composition root and
         # not merely a nice printout.
         run: uv run astra doctor
+
+      # A from-scratch frozen install of *only* what a consumer gets: no dev
+      # groups, no extras. It proves the two independence contracts are real
+      # rather than aspirational -- an offline evidence tool or a certification
+      # script must be able to read an audit archive without the numerical
+      # stack, and a stray `import numpy` in the kernel or the contracts would
+      # surface here as an ImportError rather than in a reviewer's judgement.
+      - name: Core installs and imports without the numerical stack
+        run: |
+          uv venv --python ${{ matrix.python-version }} /tmp/bare
+          VIRTUAL_ENV=/tmp/bare uv pip install --no-deps .
+          VIRTUAL_ENV=/tmp/bare uv pip install pydantic pydantic-settings
+          /tmp/bare/bin/python -c "
+          import astra.kernel.matrix, astra.kernel.units, astra.kernel.enums
+          import astra.contracts.audit, astra.contracts.governance
+          import sys
+          assert 'numpy' not in sys.modules, 'the kernel or contracts pulled in NumPy'
+          assert 'torch' not in sys.modules, 'the kernel or contracts pulled in torch'
+          print('kernel and contracts import cleanly without the numerical stack')
+          "
 
       - name: Upload coverage
         if: always()

@@ -38,10 +38,10 @@ assessment, and a reader can recover the distinction exactly by comparing it
 against :func:`~astra.layers.l3_trust.quantile.minimum_samples_for`. The helper
 :meth:`ConformalTrustModule.is_calibrated` does that comparison.
 
-This is a real limitation of the contract rather than a property of the
-mathematics, and it is recorded as such. An explicit ``is_calibrated`` field on
-``TrustAssessment`` would say it directly, at the cost of an audit schema
-version. Worth doing before the evidence pack is assembled, not before then.
+``TrustAssessment`` now carries an explicit ``is_calibrated`` field, so the
+record says which case it is rather than leaving a reader to infer it. The
+quantile is still reported as ``0.0`` when uncalibrated -- the contract cannot
+carry an infinity -- but that value is no longer the only signal.
 
 In practice the uncalibrated case should not reach the gate during a run: L9
 supplies the nearest available calibration table when no class matches, which is
@@ -190,12 +190,16 @@ class ConformalTrustModule:
             tick=tick,
             trust_index=Probability(trust),
             context_class=context,
-            # Infinity cannot be carried by the contract. Zero is the
-            # fail-closed reading, and `calibration_sample_count` below is what
-            # lets a reader tell the two apart.
+            # Infinity cannot be carried by the contract, so an uncalibrated
+            # class reports a threshold of zero -- the fail-closed reading,
+            # since a threshold of zero rejects every non-zero score. What makes
+            # that unambiguous rather than merely safe is `is_calibrated`
+            # alongside it: without the flag, a reader cannot tell this from a
+            # class whose genuine threshold happens to be near zero.
             class_conditional_quantile=0.0 if math.isinf(quantile) else quantile,
             coverage_target=Probability(1.0 - self._epsilon),
             calibration_sample_count=self._calibration.sample_count(context),
+            is_calibrated=not math.isinf(quantile),
         )
 
     def recalibrate(self, *, non_conformity_score: float, was_correct: bool) -> None:

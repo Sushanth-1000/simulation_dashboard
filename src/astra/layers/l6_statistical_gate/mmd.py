@@ -117,7 +117,7 @@ class MmdShiftDetector:
     place in the safety argument.
     """
 
-    __slots__ = ("_threshold", "_values", "_window")
+    __slots__ = ("_cached", "_threshold", "_values", "_window")
 
     def __init__(self, *, window: int, threshold: float) -> None:
         """Build the detector.
@@ -157,6 +157,7 @@ class MmdShiftDetector:
         self._window = window
         self._threshold = threshold
         self._values: deque[float] = deque(maxlen=window)
+        self._cached: float | None = None
 
     @property
     def sample_count(self) -> int:
@@ -174,19 +175,35 @@ class MmdShiftDetector:
         """
         if math.isfinite(innovation):
             self._values.append(innovation)
+            self._cached = None
 
     def discrepancy(self) -> float:
         """Return the squared MMD between the older and newer halves.
 
+        Memoised until the next :meth:`observe`. The discrepancy is a pure
+        function of the retained window, so caching it returns the identical
+        value rather than an approximation of it.
+
+        The caching is not a micro-optimisation. The kernel is evaluated
+        ``O(n^2)`` times in the window size, and the gate asks for the
+        discrepancy twice per tick -- once through ``effective_epsilon`` to
+        decide whether to tighten, and once directly to record it as evidence.
+        Measured on the assembled pipeline, that second computation was the
+        single largest cost in the whole tick.
+
         Returns:
             ``MMD^2``, or ``0.0`` before the window has filled enough to split.
         """
+        if self._cached is not None:
+            return self._cached
         if len(self._values) < self._window:
+            self._cached = 0.0
             return 0.0
         half = len(self._values) // 2
         values = list(self._values)
         older, newer = values[:half], values[half:]
-        return squared_mmd(older, newer, median_bandwidth(values))
+        self._cached = squared_mmd(older, newer, median_bandwidth(values))
+        return self._cached
 
     def has_shifted(self) -> bool:
         """Return whether covariate shift is currently declared.

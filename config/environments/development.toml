@@ -36,6 +36,8 @@ slow_process_noise = [1e-5, 1e-6, 1e-5]
 # 95% nominal conformal coverage. A round number for development, not a
 # certified operating point.
 coverage_level = 0.95
+# The urban/highway classification boundary. PROVISIONAL.
+highway_speed_boundary_kmh = 50.0
 
 [twin]
 # PINN training and online-adaptation parameters. PROVISIONAL: none of these is

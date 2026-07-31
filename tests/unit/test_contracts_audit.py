@@ -51,6 +51,8 @@ DECISION_RECORD_KEYS = (
     "fast_state",
     "trust",
     "proposal",
+    "prediction",
+    "twin_weights_digest",
     "prediction_admissible",
     "safety_verdict",
     "failsafe",
@@ -105,6 +107,7 @@ def _full_record(
             class_conditional_quantile=1.42,
             coverage_target=Probability(0.9),
             calibration_sample_count=512,
+            is_calibrated=True,
         ),
         proposal=ProposedCommand(
             tick=tick,

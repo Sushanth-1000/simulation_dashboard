@@ -29,6 +29,8 @@ slow_process_noise = [1e-5, 1e-6, 1e-5]
 
 [trust]
 coverage_level = 0.95
+# The urban/highway classification boundary. PROVISIONAL.
+highway_speed_boundary_kmh = 70.0
 
 [twin]
 # PROVISIONAL, as in development.toml. Highway motion is smoother, so the

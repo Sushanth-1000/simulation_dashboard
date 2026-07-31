@@ -232,6 +232,13 @@ class TrustSettings(_Section):
     coverage_level: UnitInterval
     ensemble_size: PositiveInt = 10
     minimum_calibration_samples: PositiveInt = 500
+    calibration_window: PositiveInt = 500
+    highway_speed_boundary_kmh: PositiveFloat
+
+    @property
+    def highway_speed_boundary(self) -> MetresPerSecond:
+        """Return the urban/highway classification boundary in SI m/s."""
+        return kmh_to_mps(KilometresPerHour(self.highway_speed_boundary_kmh))
 
     @property
     def coverage(self) -> Probability:

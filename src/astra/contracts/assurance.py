@@ -60,6 +60,21 @@ class TrustAssessment:
         calibration_sample_count: How many calibration residuals backed the
             quantile. A quantile from too few samples is not yet trustworthy,
             and recording the count lets a reviewer see when that was the case.
+        is_calibrated: Whether the class had enough calibration data for the
+            conformal threshold to mean anything.
+
+            **Required, not defaulted.** Without this field the uncalibrated
+            case was encoded as a quantile of ``0.0``, which is the right
+            fail-closed *behaviour* and an ambiguous *record*: a reader cannot
+            tell "no calibration, so reject everything" from "calibrated, and
+            this class genuinely has a threshold near zero". The distinction was
+            recoverable by comparing ``calibration_sample_count`` against
+            ``minimum_samples_for(epsilon)``, but only by a reader who knew to,
+            and who still had the epsilon to hand.
+
+            A default would defeat the point. ``True`` would be fail-open, and
+            ``False`` would quietly mark every hand-built assessment
+            uncalibrated. The constructor makes the caller say which.
     """
 
     tick: TickId
@@ -68,6 +83,7 @@ class TrustAssessment:
     class_conditional_quantile: float
     coverage_target: Probability
     calibration_sample_count: int
+    is_calibrated: bool
 
     def __post_init__(self) -> None:
         """Validate the probabilistic fields and the sample count.

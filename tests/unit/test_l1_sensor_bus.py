@@ -26,6 +26,29 @@ THREADS = 8
 SAMPLES_PER_THREAD = 200
 ACQUIRES = 500
 
+# Every barrier and join in this file is bounded. Without a bound, a thread
+# starved by an overloaded machine leaves the others waiting forever and the
+# test *hangs* rather than failing -- which is what made this section flaky:
+# it did not produce wrong answers under load, it produced no answer at all.
+# A generous ceiling turns that into a loud, fast failure, and it is generous
+# enough that it can only be reached by a genuine stall rather than by slowness.
+RENDEZVOUS_TIMEOUT = 30.0
+JOIN_TIMEOUT = 60.0
+
+
+def _start_and_join(threads: list[threading.Thread]) -> None:
+    """Run threads to completion, failing loudly if any of them stalls.
+
+    Args:
+        threads: The threads to run.
+    """
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=JOIN_TIMEOUT)
+    stalled = [thread.name for thread in threads if thread.is_alive()]
+    assert not stalled, f"threads did not finish within {JOIN_TIMEOUT}s: {stalled}"
+
 
 def _sample(
     modality: SensorModality,
@@ -574,7 +597,7 @@ def _publisher(
 ) -> Callable[[], None]:
     def run() -> None:
         try:
-            barrier.wait()
+            barrier.wait(timeout=RENDEZVOUS_TIMEOUT)
             for step in range(SAMPLES_PER_THREAD):
                 # Strictly increasing per thread, and globally unique across threads.
                 observed_at = Instant(step * THREADS + thread_index + 1, Timeline.MANUAL)
@@ -599,10 +622,7 @@ def test_concurrent_publishers_lose_nothing_and_keep_the_newest_reading(
         for index in range(THREADS)
     ]
 
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
+    _start_and_join(threads)
 
     assert failures == []
 
@@ -628,7 +648,7 @@ def test_acquiring_while_publishers_run_always_yields_a_well_formed_frame(
 
     def acquire_repeatedly() -> None:
         try:
-            barrier.wait()
+            barrier.wait(timeout=RENDEZVOUS_TIMEOUT)
             frames.extend(bus.acquire(tick) for _ in range(ACQUIRES))
         except Exception as error:  # noqa: BLE001 - a test must not lose a thread's failure
             failures.append(error)
@@ -641,10 +661,7 @@ def test_acquiring_while_publishers_run_always_yields_a_well_formed_frame(
     ]
     threads.append(threading.Thread(target=acquire_repeatedly))
 
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
+    _start_and_join(threads)
 
     assert failures == []
     assert len(frames) == ACQUIRES
@@ -708,7 +725,7 @@ def test_no_frame_reports_negative_staleness_while_publishing_concurrently() -> 
 
     def publisher() -> None:
         try:
-            barrier.wait()
+            barrier.wait(timeout=RENDEZVOUS_TIMEOUT)
             for step in range(1, 400):
                 bus.publish(
                     SensorSample(
@@ -723,7 +740,7 @@ def test_no_frame_reports_negative_staleness_while_publishing_concurrently() -> 
 
     def consumer() -> None:
         try:
-            barrier.wait()
+            barrier.wait(timeout=RENDEZVOUS_TIMEOUT)
             for step in range(400):
                 frame = bus.acquire(TickId(step))
                 negatives.extend(
@@ -734,11 +751,7 @@ def test_no_frame_reports_negative_staleness_while_publishing_concurrently() -> 
         except BaseException as error:  # noqa: BLE001 - recorded, then re-asserted
             failures.append(error)
 
-    threads = [threading.Thread(target=publisher), threading.Thread(target=consumer)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
+    _start_and_join([threading.Thread(target=publisher), threading.Thread(target=consumer)])
 
     assert failures == []
     assert negatives == []

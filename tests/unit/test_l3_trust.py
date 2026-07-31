@@ -272,3 +272,60 @@ def test_a_coverage_level_outside_the_open_unit_interval_is_refused(
 
 def test_the_significance_level_is_the_complement_of_the_coverage_level() -> None:
     assert _module().epsilon == pytest.approx(EPSILON)
+
+
+# --------------------------------------------------------------------------- #
+# The uncalibrated case is stated, not inferred
+# --------------------------------------------------------------------------- #
+# Before `is_calibrated` existed, an uncalibrated class reported a quantile of
+# 0.0 -- correct fail-closed behaviour, ambiguous record. A reader could not
+# tell it from a class whose genuine threshold happens to be near zero without
+# recovering epsilon and comparing the sample count against
+# `minimum_samples_for`. The flag says it directly.
+
+
+def test_an_uncalibrated_class_is_reported_as_uncalibrated() -> None:
+    module = ConformalTrustModule(
+        classifier=_FixedClassifier(ContextClass.HIGHWAY_CLEAR),
+        calibration=MondrianCalibration(window=100),
+        coverage_level=0.95,
+    )
+
+    assessment = module.assess(tick=TickId(0), state=_state(), innovation=None)
+
+    assert assessment.is_calibrated is False
+    assert assessment.calibration_sample_count == 0
+    assert assessment.class_conditional_quantile == 0.0
+
+
+def test_a_calibrated_class_is_reported_as_calibrated() -> None:
+    calibration = MondrianCalibration(window=200)
+    calibration.seed(ContextClass.HIGHWAY_CLEAR, [0.1 * index for index in range(1, 101)])
+    module = ConformalTrustModule(
+        classifier=_FixedClassifier(ContextClass.HIGHWAY_CLEAR),
+        calibration=calibration,
+        coverage_level=0.95,
+    )
+
+    assessment = module.assess(tick=TickId(0), state=_state(), innovation=None)
+
+    assert assessment.is_calibrated is True
+    assert assessment.class_conditional_quantile > 0.0
+
+
+def test_a_zero_quantile_no_longer_has_to_carry_two_meanings() -> None:
+    # The disambiguation, stated as the property it is: the flag and the
+    # quantile are independent, so a near-zero threshold on a calibrated class
+    # is distinguishable from no calibration at all.
+    calibration = MondrianCalibration(window=200)
+    calibration.seed(ContextClass.URBAN_CLEAR, [0.0] * 100)
+    module = ConformalTrustModule(
+        classifier=_FixedClassifier(ContextClass.URBAN_CLEAR),
+        calibration=calibration,
+        coverage_level=0.95,
+    )
+
+    assessment = module.assess(tick=TickId(0), state=_state(), innovation=None)
+
+    assert assessment.class_conditional_quantile == 0.0
+    assert assessment.is_calibrated is True

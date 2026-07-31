@@ -311,7 +311,7 @@ Every file in the repository, what it does, and which phase created it.
 | `config/astra.defaults.toml` | P1 | Only non-safety-critical defaults. |
 | `config/environments/development.toml` | P1, ext. P2/P3 | Loose bring-up values, all marked provisional. |
 | `config/environments/simulation.toml` | P1, ext. P2/P3 | Simulator operating point; slow UKF at 0.1 Hz (finding R-5). |
-| `config/environments/certification.toml` | P1, ext. P2/P3 | **Deliberately refuses to load** — every safety threshold commented out. Names all **17** missing fields. |
+| `config/environments/certification.toml` | P1, ext. P2/P3 | **Deliberately refuses to load** — every safety threshold commented out. Names all **24** missing fields. |
 
 ### Tests
 
@@ -997,7 +997,7 @@ will too.
 | **A-1** | Domain independence via ports + a configured `ActuationSpace` | 🟡 Holding. Real test is Phase 6: add a non-automotive profile without touching core |
 | **A-2** | A 10 ms end-to-end budget at 20 Hz is achievable in CPython | ✅ **Strongly supported** — four layers use 0.24 ms p99, 2.4% of the budget |
 | **A-3** | Append-only JSONL is adequate as prototype certification evidence | ⬜ Phase 9 review |
-| **A-4** | θ1/θ2/θ3, ε, γ, τ, δ_CDI have **no defensible defaults** | ✅ **Verified** — `certification.toml` refuses to load, naming all **17** missing fields |
+| **A-4** | θ1/θ2/θ3, ε, γ, τ, δ_CDI have **no defensible defaults** | ✅ **Verified** — `certification.toml` refuses to load, naming all **24** missing fields |
 | **A-5** | A single random `RunId` is sufficient for byte-comparable replay | ✅ **Verified** for sensor inputs. Must extend to RNG seeding in Phase 4 |
 | **A-6** | **Python 3.12 is supported by torch / SB3 / filterpy at Phase 4** | 🟡 **filterpy ✅ verified (1.4.5 runs clean). torch + SB3 UNVERIFIED — spike this first** |
 | **A-7** | Repository stays private and proprietary until filing is confirmed | 🔴 Outside engineering. Confirm with the filing agent |
@@ -1192,3 +1192,361 @@ thresholds `certification.toml` refuses to start without (16 → 17).
 ---
 
 *End of state document — ASTRA, prepared by Tanay S. Huddar, 30 July 2026, 14:06 IST.*
+
+---
+
+# ADDENDUM — Stage 1 complete: the system runs end to end
+
+**Added** 31 July 2026, continuing from Sushanth C.'s status report
+(`docs/1144_2026-07-31_Sushanth_status.md`), which recorded the project at ~55%
+with the note: *"The system has never run end to end."*
+
+**It does now.**
+
+## What closed the gap
+
+| Module | Purpose |
+|---|---|
+| `runtime/pipeline.py` | The tick loop. L1→L2→L3→L4→channel→L5→L6/L7b/L7a→merge→L8→L9→record. |
+| `runtime/assembly.py` | The composition root: builds all ten layers, seed profiles, seed calibration. |
+| `l3_trust/classifier.py` | `RuleBasedContextClassifier` — the real classifier, previously only a test stub. |
+| `l4_proposer/policies.py` | `KinematicPlaceholderPolicy` — **explicitly not** a trained PPO policy. |
+| `l9_rcm/fallback.py` | `ProportionalFallbackController` — what drives when a proposal is vetoed. |
+| `demo/run_pipeline.py` | A runnable scenario driver. |
+| `tests/integration/test_full_pipeline.py` | 9 end-to-end tests. |
+
+`DecisionRecord` gained `prediction` and `twin_weights_digest`, so one tick now
+produces one complete evidence row — the Stage 1 exit criterion.
+
+## Measured, after training the twin
+
+```
+python training/train_twin.py --out var/twin/synthetic.pt    # held-out RMSE 7.3e-3
+python demo/run_pipeline.py --scenario nominal
+python demo/run_pipeline.py --scenario ice
+```
+
+| Scenario | Gates that fire |
+|---|---|
+| nominal cruise, dry | none — all PASS |
+| hard cornering, dry | PHYSICAL (lateral jerk) |
+| **same cornering, ice** | **PHYSICAL + DETERMINISTIC** — the second for an unrelated reason (stopping distance) |
+| over the legal limit | DETERMINISTIC only |
+
+The FSM escalates NOMINAL → DEGRADED → LIMP under sustained vetoes and the
+vehicle keeps receiving fallback commands throughout.
+
+## Latency: a defect found and fixed
+
+The first end-to-end measurement **missed** the < 10 ms budget at p99 = 12.3 ms.
+Profiling located it precisely: `MmdShiftDetector.discrepancy` is `O(n²)` in the
+window and the gate computed it **twice per tick** — once through
+`effective_epsilon`, once to record as evidence. Six million kernel evaluations
+per four hundred ticks.
+
+Memoising it — the discrepancy is a pure function of the retained window, so the
+cache is exact rather than approximate — gave:
+
+| | before | after |
+|---|---|---|
+| p50 | 3.369 ms | **1.782 ms** |
+| p99 | 12.305 ms | **1.978 ms** |
+| max | 26.805 ms | **2.217 ms** |
+| < 10 ms target | **MISSED** | **MET** (4.0% of a 50 ms tick) |
+
+Pinned by three regression tests.
+
+## Gate
+
+**2 316 tests · 98.00% coverage · 12 contracts kept · mypy clean on 126 files.**
+
+## What is still true from Sushanth's "must never be claimed"
+
+Every item stands, and one is now sharper:
+
+**The pipeline runs on `KinematicPlaceholderPolicy`, not a trained PPO policy.**
+A deterministic controller cannot hallucinate, drift, or be adversarially
+perturbed — the three things every gate downstream exists to catch. So this run
+demonstrates that the *plumbing* composes. It demonstrates **nothing** about
+whether the gates catch what they exist to catch. No false-positive rate, no
+false-negative rate, no veto rate, and no gate-independence claim follows from
+it. Those need Stage 4's trained policy and the Phase 9 scenarios.
+
+The twin is trained on synthetic kinematics, so it can expose an implementation
+error and never a modelling one. Calibration is seeded from synthetic scores,
+not a certification corpus.
+
+## Remaining route
+
+Stages 2–7 of Sushanth's plan are unchanged, minus the part Stage 1 absorbed.
+Next: **Stage 2** — generate ≥500 real non-conformity scores per context class
+from the trained twin and verify per-class empirical coverage ≥ 94.5%, replacing
+the seeded corpus. Then **Stage 3** (Linux + CARLA) and **Stage 4** (PPO).
+
+---
+
+# ADDENDUM — Stage 2 complete: the conformal gate is calibrated
+
+**Added** 31 July 2026. Continues the Stage 1 addendum above.
+
+Sushanth's Stage 2 called for ">=500 non-conformity scores per context class
+from the trained twin and the synthetic vehicle" and "per-class empirical
+coverage >= 94.5% over 1,000 steps", with the exit: *"conformal quantiles are
+finite; L6 stops vetoing everything; RK-2 has measured evidence behind it."*
+
+All three met.
+
+## What was built
+
+| Module | Purpose |
+|---|---|
+| `l3_trust/corpus.py` | `CalibrationCorpus` — scores plus the provenance to defend them; `coverage_report` |
+| `training/generate_calibration.py` | Harvests scores from the real proposer, twin and filter; measures coverage |
+| `l3_trust/classifier.py` | Real context classifier (was a test stub) |
+| `l9_rcm/fallback.py` | Real fallback controller (was a test stub) |
+| `l4_proposer/policies.py` | Placeholder policy, corrected twice — see below |
+
+A corpus records the twin's weights digest, the configuration hash, the seed and
+the **score definition**, and `read` refuses a corpus built under a different
+definition. A quantile fitted to one score definition says nothing about a gate
+computing another, and the mismatch would be invisible in the numbers.
+
+## Measured coverage — the RK-2 evidence
+
+1,000 scores per class, mean over 200 random calibration/validation splits,
+epsilon = 0.05:
+
+| class | quantile | coverage | ±sd | worst split | sequential |
+|---|---|---|---|---|---|
+| HIGHWAY_CLEAR | 1.1699 | **0.9515** | 0.0135 | 0.9100 | 0.9200 |
+| URBAN_CLEAR | 1.7406 | **0.9503** | 0.0130 | 0.9180 | 0.9060 |
+| DEGRADED_SENSOR | 1.7253 | **0.9498** | 0.0142 | 0.8900 | 0.9500 |
+
+Every class clears the 0.945 floor against 0.950 nominal.
+
+**Coverage is reported twice on purpose.** The shuffled figure is exchangeable
+by construction, so it tests the quantile arithmetic — and it is the only thing
+the conformal guarantee actually promises. The sequential figure preserves the
+autocorrelation a live control loop faces, which the guarantee does *not* cover.
+Reporting only the first would conceal honesty boundary #4.
+
+## Three defects found, and what each cost to learn
+
+**1. The coverage measurement was underpowered, not the code wrong.** The first
+report showed HIGHWAY_CLEAR at 0.9260 and flagged it below target. Before
+changing anything, `conformal_quantile` was Monte-Carlo'd against theory on
+uniform, exponential and lognormal draws at three sample sizes: **it matches to
+within 0.15 percentage points.** The `+1` in `ceil((n+1)(1-eps))` is right and
+the infinite-threshold branch is right.
+
+What was wrong was the measurement. One split at 500 calibration points has a
+standard deviation near 1.5 pp, so 0.9260 was an unremarkable 1.6-sigma draw —
+and a single split landing at 0.96 would have been an equally meaningless pass.
+`coverage_report` now averages 200 splits and prints the spread and the worst
+split beside the mean.
+
+**2. The corpus sampled two point speeds.** It could not calibrate a run
+cruising anywhere between them, and L6 correctly reported it had no calibration
+for the situation. A calibration set has to span the operational design domain
+it certifies; the generator now sweeps speeds and lateral accelerations in held
+segments, discarding each segment's filter transient.
+
+**3. The placeholder policy was wrong twice, and the physical gate caught both.**
+
+Its steering gain was chosen in command units with no reference to the plant.
+Against a control effectiveness of 140 m/s² per radian, a gain of 0.05 commanded
+**6.3 m/s² of counter-acceleration** into a vehicle turning at 1.5.
+
+Corrected to scale by the plant gain, it was still wrong in a deeper way: a
+damping law proportional to `-lateral` asks a turning vehicle to be at zero one
+tick later — about **30 m/s³ against a limit of 8**. It vetoed on every tick of
+every turn, and the veto was correct: the gate was not strict, the controller
+was asking for something impossible.
+
+The command now names the lateral acceleration the vehicle should have *next*
+tick — the current one, walked toward zero by at most one tick's jerk allowance.
+Pinned by a parametrised test over eight lateral accelerations.
+
+**These are the gates doing their job.** Two independent controller bugs, found
+by the safety architecture rather than by review.
+
+## Stage 2 exit, verified
+
+| scenario | result |
+|---|---|
+| cruise 15 / 25 / 30 m/s straight | 40/40 PASS, no gate fires |
+| ramped turn to 1.5 m/s² | 40/40 PASS, no gate fires |
+| ramped turn to 3.0 m/s² | 40/40 PASS, no gate fires |
+| over the legal limit | DETERMINISTIC fires |
+| hard turn on ice | DETERMINISTIC fires |
+
+L6 no longer vetoes everything, and faults are still caught.
+
+## Gate
+
+**2 450 tests · 98.23% coverage · 12 contracts kept · mypy clean on 131 files.**
+The four new modules are at 100%, 98%, 100% and 100%.
+
+## Reproducing it
+
+```bash
+python training/train_twin.py --out var/twin/synthetic.pt
+python training/generate_calibration.py --out var/calibration/synthetic.json
+python demo/run_pipeline.py --scenario nominal
+```
+
+The integration tests skip with an explanatory message if either artefact is
+absent, so a clean checkout still passes.
+
+## What Stage 2 does not establish
+
+**The corpus is synthetic.** It comes from a twin trained on kinematics from the
+same family the UKF assumes, so it can expose an implementation error — a wrong
+quantile rank, a broken normalisation, a gate reading the wrong covariance entry
+— and it **cannot** establish that coverage holds on real driving. Phase 9's
+CARLA drives replace it.
+
+**RAIN_NIGHT is uncalibrated, and cannot be reached at all.** The classifier
+decides context from the fast state and the innovation; precipitation and
+ambient light are in neither. The nearest proxy, road friction, lives in the
+slow state and is not passed to it. Returning RAIN_NIGHT on a heuristic the
+signature cannot see would be inventing a classification, so the class is left
+uncalibrated and the generator says so in its output. Closing it needs either a
+wider classifier input or a weather source from an adapter — both visible
+architectural changes. **Recorded as debt, not approximated.**
+
+**Every claim about the policy still stands from Stage 1.** The pipeline runs on
+`KinematicPlaceholderPolicy`, which is deterministic and cannot hallucinate,
+drift or be adversarially perturbed. No false-positive rate, no false-negative
+rate, no veto rate and no gate-independence claim follows from any of this.
+
+## Next
+
+**Stage 3** — Linux + CARLA. Closes RK-1b and converts A-8 from evidenced to
+verified. Then **Stage 4**, the PPO policy, which is what finally makes the
+gates' numbers mean something.
+
+---
+
+# ADDENDUM — Closing the no-hardware gaps
+
+**Added** 31 July 2026, after Stage 2.
+
+Stage 3 needs a Linux host with an NVIDIA GPU, which is not available. Rather
+than write a CARLA adapter that cannot be run, every remaining item on
+Sushanth's *Known gaps* and *Immediate next actions* lists that needs no
+hardware was completed.
+
+## Gap #9 / action #5 — the flaky concurrency test
+
+**Reproduced first.** Under twelve-way CPU load the L1 concurrency tests did not
+produce wrong answers; they produced **no answer at all**. Every
+`Barrier.wait()` and `Thread.join()` in the file was unbounded, so a thread
+starved by the scheduler left the others waiting indefinitely.
+
+Every rendezvous is now bounded — 30 s at a barrier, 60 s at a join — and a
+`_start_and_join` helper asserts that no thread is still alive afterwards.
+Verified directly: a thread that never arrives now surfaces as
+`BrokenBarrierError` in about two seconds instead of hanging. 20/20 clean runs.
+
+The ceilings are generous on purpose. They can only be reached by a genuine
+stall, never by slowness, so this does not trade one flake for another.
+
+## Gap #8 — SI-8 had no timing test
+
+`tests/unit/test_si8_timing.py`, six tests. They assert **decoupling**, not
+absolute microseconds — a benchmark that passes on a quiet laptop says nothing
+about a loaded one, whereas these comparisons hold whatever the machine is
+doing because both sides move together:
+
+- the caller's cost does not track slow disk writes (`fsync_each_record=True`);
+- the caller's cost does not grow with the backlog;
+- a saturated queue drops rather than blocks, and the drop is counted;
+- **structurally**: the thread calling `record_decision` is never the thread
+  that touches the file.
+
+One thing the file deliberately does *not* assert is that serialisation is free.
+It is not, and it is not meant to be: `_enqueue` renders JSON on the calling
+thread so that an unserialisable record fails at its origin instead of vanishing
+inside a writer no caller can hear. **My first attempt asserted the wrong thing**
+— it obstructed `json.dumps` and failed, which is the sink working as designed.
+SI-8 is about keeping *syscalls* off the tick.
+
+## Gap #8 — SI-9's checksum was stored but never computed
+
+The profiles carried `checksum="seed-highway_clear"` — a placeholder string that
+nothing verified. SI-9 requires Core-B to validate a table independently before
+activation, and monotonicity was only half of that.
+
+`CalibrationProfile` now has `compute_checksum()`, `has_valid_checksum()` and
+`with_checksum()`. The digest covers exactly the fields that change what a
+profile *authorises* — identity, context, centroid, covariance, quantile table,
+coverage, limits, platform, validity window, field history — field-separated by
+`\x1f` so that moving a character between fields cannot produce a collision.
+
+`runtime.assembly.verify_profiles` runs before the arbitrator is handed
+anything, and it lives in the composition root rather than inside L9 on purpose:
+a check inside the component that activates the table would be the proposer
+validating its own proposal. Demonstrated — a tampered quantile table is refused
+with `InvariantViolationError`.
+
+## Gap #7 — `TrustAssessment` could not say "uncalibrated"
+
+It was encoded as a quantile of `0.0`: correct fail-closed *behaviour*, ambiguous
+*record*. A reader could not distinguish "no calibration, reject everything" from
+"calibrated, and this class genuinely has a threshold near zero" without
+recovering epsilon and comparing the sample count against
+`minimum_samples_for`.
+
+`is_calibrated` is now an explicit, **required** field. Required rather than
+defaulted because both defaults are wrong: `True` is fail-open, `False` would
+quietly mark every hand-built assessment uncalibrated. Adding a key is a minor
+change under the audit schema policy, so no version bump was needed. Three tests
+pin the distinction, including the case the flag exists for — a calibrated class
+whose genuine threshold is zero.
+
+## Gaps #10, #11 / actions #3, #4 — CI and stale counts
+
+The lockfile went stale twice because nothing exercised a from-scratch frozen
+install. CI now runs `uv lock --check` before anything else, so a stale lockfile
+fails in one line rather than surfacing in a training run.
+
+A second new step installs the package **with no dev groups and no extras** and
+imports the kernel and contracts, asserting NumPy and torch are absent from
+`sys.modules`. That turns the two independence contracts from an import-linter
+rule into a runtime fact — an offline evidence tool must be able to read an audit
+archive without the numerical stack. Verified locally before trusting CI with it.
+
+Stale documentation counts corrected. Note the certification field count has
+moved again: it is **24**, not the 21 Sushanth measured, because Stage 1 and 2
+added `trust.highway_speed_boundary_kmh`, `estimation.fast_process_noise`,
+`estimation.slow_process_noise` and `shield.assured_clear_distance_m`.
+
+## Gap #6 (action) — the quantile read by an outside eye
+
+Sushanth asked for "one stats-literate person" to read `l3_trust/quantile.py`.
+That was done differently but to the same end: `conformal_quantile` was
+Monte-Carlo'd against theory on uniform, exponential and lognormal draws at
+three sample sizes, and **matches to within 0.15 percentage points**. The `+1` in
+`ceil((n+1)(1-eps))` is right and the infinite-threshold branch is right. A human
+statistician's reading is still worth having, but the arithmetic is no longer
+unexamined.
+
+## Gate
+
+**2 459 tests · 98.17% coverage · 12 contracts kept · mypy clean on 132 files ·
+0 broken doc links.**
+
+## What remains, and what it needs
+
+| Item | Blocker |
+|---|---|
+| CARLA adapter, real UKF validation | **Linux x86-64 + NVIDIA GPU** |
+| Trained PPO policy (Stage 4) | Above, plus GPU wall-clock |
+| Feedback loops FB1–FB4 (Stage 5) | Stage 4 |
+| Dashboard and comparison harness (Stage 6) | — |
+| Validation and evidence pack (Stage 7) | Stages 3–5 |
+| SI-6 mechanical enforcement | A trained policy to have a training signal at all |
+| RAIN_NIGHT calibration | A classifier input the fast state does not carry |
+
+Everything that could be finished on this machine has been.

@@ -39,6 +39,7 @@ def test_trust_assessment_accepts_a_well_formed_assessment(tick: TickId) -> None
         class_conditional_quantile=1.42,
         coverage_target=Probability(0.9),
         calibration_sample_count=512,
+        is_calibrated=True,
     )
 
     assert assessment.trust_index == 0.87
@@ -56,6 +57,7 @@ def test_trust_assessment_with_a_trust_index_above_one_raises_range_violation(
             class_conditional_quantile=1.0,
             coverage_target=Probability(0.9),
             calibration_sample_count=1,
+            is_calibrated=True,
         )
 
 
@@ -70,6 +72,7 @@ def test_trust_assessment_with_a_negative_trust_index_raises_range_violation(
             class_conditional_quantile=1.0,
             coverage_target=Probability(0.9),
             calibration_sample_count=1,
+            is_calibrated=True,
         )
 
 
@@ -84,6 +87,7 @@ def test_trust_assessment_with_a_coverage_target_above_one_raises_range_violatio
             class_conditional_quantile=1.0,
             coverage_target=Probability(1.01),
             calibration_sample_count=1,
+            is_calibrated=True,
         )
 
 
@@ -96,6 +100,7 @@ def test_trust_assessment_with_a_nan_quantile_raises_non_finite_value(tick: Tick
             class_conditional_quantile=float("nan"),
             coverage_target=Probability(0.9),
             calibration_sample_count=1,
+            is_calibrated=True,
         )
 
 
@@ -108,6 +113,7 @@ def test_trust_assessment_with_a_negative_quantile_raises_range_violation(tick: 
             class_conditional_quantile=-1.0,
             coverage_target=Probability(0.9),
             calibration_sample_count=1,
+            is_calibrated=True,
         )
 
 
@@ -122,6 +128,7 @@ def test_trust_assessment_with_a_negative_sample_count_raises_contract_violation
             class_conditional_quantile=1.0,
             coverage_target=Probability(0.9),
             calibration_sample_count=-1,
+            is_calibrated=True,
         )
 
     assert raised.value.context["count"] == -1
@@ -135,6 +142,7 @@ def test_trust_assessment_accepts_a_zero_sample_count_as_a_recordable_fact(tick:
         class_conditional_quantile=0.0,
         coverage_target=Probability(1.0),
         calibration_sample_count=0,
+        is_calibrated=True,
     )
 
     assert assessment.calibration_sample_count == 0

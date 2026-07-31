@@ -62,13 +62,13 @@ component's PASS.
 
 | | |
 |---|---|
-| **Current phase** | **Phase 3 — Deterministic Safety Spine. Complete.** |
-| Implemented | Phase 1 foundation · **L1** sensor bus · **L2** dual-rate UKF · **L7a** Hard Safety Shield · **L8** fail-safe FSM · one-way Core-A→Core-B channel · replay spine |
-| Not yet implemented | L3, L4, L5, L6, L9, all four feedback loops, the CARLA adapter, the dashboard |
-| Quality gate | Green — 1 953 tests, 99.1% coverage, `ruff` + `mypy --strict` + **8** `lint-imports` contracts clean |
-| Invariants | 10 declared; 9 mechanically enforced, SI-6 review-only until Phase 4 |
-| Measured | Hot path so far (L1+L2+L7a+L8) p99 **0.22 ms** — 0.4% of a 50 ms tick. Software measurement. |
-| Next phase | Phase 4 — CMDP proposer and PINN twin; reaches Checkpoint 1 (see [`docs/ROADMAP.md`](docs/ROADMAP.md)) |
+| **Current phase** | **All ten layers built and composed. The pipeline runs end to end.** |
+| Implemented | All of **L1–L9** · the tick loop composing them · trained digital twin · calibration corpus · replay spine · one-way Core-A→Core-B channel |
+| Not yet implemented | Trained PPO policy, the four feedback loops, the CARLA adapter, the dashboard |
+| Quality gate | Green — 2 459 tests, 98.2% coverage, `ruff` + `mypy --strict` + **12** `lint-imports` contracts clean |
+| Invariants | 10 declared; **9 mechanically enforced** including SI-8 and SI-9, which were partial until now. SI-6 is review-only until a trained policy exists. |
+| Measured | Full ten-layer tick p99 **1.98 ms** — 4% of a 50 ms tick. Software measurement. |
+| Next | Linux + CARLA (needs hardware), then the PPO policy — see [`docs/PROJECT_STATE_AND_ROADMAP.md`](docs/PROJECT_STATE_AND_ROADMAP.md) |
 
 > **R-6 resolved.** CARLA 0.9.16 publishes an official CPython 3.12 wheel, so the interpreter
 > incompatibility that was this project's highest-rated technical risk no longer exists. CARLA has

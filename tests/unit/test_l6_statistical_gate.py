@@ -7,6 +7,7 @@ import random
 
 import pytest
 
+import astra.layers.l6_statistical_gate.mmd as mmd_module
 from astra.contracts.actuation import (
     ActuationChannel,
     ActuationSpace,
@@ -384,3 +385,69 @@ def test_a_negative_threshold_is_refused() -> None:
     # The biased estimator is never negative, so this would fire every tick.
     with pytest.raises(ConfigurationError, match="every tick"):
         MmdShiftDetector(window=10, threshold=-0.1)
+
+
+# --------------------------------------------------------------------------- #
+# The discrepancy is memoised until the next observation
+# --------------------------------------------------------------------------- #
+# The kernel is evaluated O(n^2) times in the window size, and the gate asks for
+# the discrepancy twice per tick -- once through `effective_epsilon` to decide
+# whether to tighten, and once directly to record it as evidence. Measured on
+# the assembled pipeline, that second computation was the largest single cost in
+# the whole tick: removing it took p99 from 12.3 ms to 2.0 ms.
+
+
+def test_the_discrepancy_is_computed_once_until_a_new_innovation_arrives(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    detector = MmdShiftDetector(window=8, threshold=0.5)
+    for value in range(8):
+        detector.observe(float(value))
+    calls = 0
+    original = mmd_module.squared_mmd
+
+    def _counting(*args: object, **kwargs: object) -> float:
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(mmd_module, "squared_mmd", _counting)
+    detector.observe(9.0)
+
+    first = detector.discrepancy()
+    second = detector.discrepancy()
+    third = detector.discrepancy()
+
+    assert calls == 1
+    assert first == second == third
+
+
+def test_observing_a_new_innovation_invalidates_the_cached_discrepancy() -> None:
+    # A cache that outlived its window would report a stale discrepancy, which
+    # is worse than a slow one: the gate would stop noticing covariate shift.
+    #
+    # The window must end up with *unlike halves* for the discrepancy to be
+    # non-zero. Replacing every sample would make both halves identical again,
+    # and MMD between two identical populations is legitimately zero.
+    detector = MmdShiftDetector(window=8, threshold=0.5)
+    for _ in range(8):
+        detector.observe(0.0)
+    settled = detector.discrepancy()
+
+    for _ in range(4):
+        detector.observe(100.0)
+    shifted = detector.discrepancy()
+
+    assert settled == pytest.approx(0.0, abs=1e-9)
+    assert shifted > settled
+
+
+def test_a_dropped_non_finite_innovation_does_not_invalidate_the_cache() -> None:
+    detector = MmdShiftDetector(window=8, threshold=0.5)
+    for value in range(8):
+        detector.observe(float(value))
+    before = detector.discrepancy()
+
+    detector.observe(float("nan"))
+
+    assert detector.discrepancy() == before

@@ -22,7 +22,9 @@ implemented here (see the handoff's phase-discipline rule).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import hashlib
+import hmac
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from astra.kernel.constants import RCS_DIMENSION, RCS_FIELDS
@@ -212,7 +214,22 @@ class CalibrationProfile:
         coverage_level: The conformal coverage ``1 - epsilon`` the table
             certifies.
         validation_fraction: The fraction of the certification corpus held out
-            for validation, in ``[0, 1]``.
+            for validation, in ``[0, 1]``. Metadata about *how much* evidence
+            backs the profile, and a term in RCM's trust score -- a profile
+            validated against more held-out data scores higher.
+
+            **Not** the same thing as :attr:`validation_passed`, and conflating
+            the two is a mistake this codebase actually made: the knowledge base
+            once read this field as ``val(c)`` and required it to equal 1.0,
+            which made every correctly-certified profile -- one holding out a
+            sensible 20% -- permanently inadmissible. The architecture's
+            ``val(c)`` is binary; the held-out fraction is not.
+        validation_passed: ``val(c)``. Whether the profile passed its
+            certification suite.
+
+            Binary on purpose, and a **hard conjunct** in the admissibility
+            rule: a profile that passed 99% of its suite is not 99% admissible,
+            it is inadmissible. No trust score, however high, may rescue it.
         max_speed: The certified maximum speed for this context, in m/s.
         field_history: Operational history feeding the mandatory gates.
         checksum: The signed checksum Core-B independently verifies before
@@ -229,6 +246,7 @@ class CalibrationProfile:
     quantile_table: tuple[float, ...]
     coverage_level: Probability
     validation_fraction: Probability
+    validation_passed: bool
     max_speed: MetresPerSecond
     checksum: str
     platform: str
@@ -294,6 +312,69 @@ class CalibrationProfile:
                     "expires_at": self.expires_at.isoformat(),
                 },
             )
+
+    def compute_checksum(self) -> str:
+        """Return the digest of every field this profile's authority rests on.
+
+        SI-9 requires Core-B to validate a calibration table independently before
+        activating it, "even though RCM proposed it". Monotonicity is one half of
+        that; this is the other. A profile whose quantile table has been altered
+        between certification and activation is a calibration-poisoning attack,
+        and it is invisible unless something recomputes the digest and compares.
+
+        The digest covers exactly the fields that change what the profile
+        *authorises*: its identity, the context it claims, where it sits in RCS
+        space, the thresholds it certifies, its operating limits, its platform
+        and its validity window. It deliberately excludes :attr:`checksum`
+        itself, which would be circular.
+
+        Field-separated with a delimiter that cannot appear in the rendered
+        values, so that moving a character from one field to the next cannot
+        produce the same digest -- a concatenation without separators is a
+        classic way to make two different profiles collide.
+
+        Returns:
+            A hex SHA-256 digest.
+        """
+        parts = (
+            str(self.profile_id),
+            self.context_class.value,
+            ",".join(repr(value) for value in self.centroid),
+            ",".join(repr(value) for value in self.covariance.lower_triangle),
+            ",".join(repr(value) for value in self.quantile_table),
+            repr(float(self.coverage_level)),
+            repr(float(self.validation_fraction)),
+            repr(float(self.max_speed)),
+            self.platform,
+            self.certified_at.isoformat(),
+            self.expires_at.isoformat(),
+            str(self.field_history.deployments),
+            str(self.field_history.critical_failures),
+        )
+        digest = hashlib.sha256()
+        digest.update("\x1f".join(parts).encode("utf-8"))
+        return digest.hexdigest()
+
+    def has_valid_checksum(self) -> bool:
+        """Return whether the stored checksum matches the profile's contents.
+
+        Returns:
+            ``True`` if the profile has not been altered since its checksum was
+            computed.
+        """
+        return hmac.compare_digest(self.checksum, self.compute_checksum())
+
+    def with_checksum(self) -> CalibrationProfile:
+        """Return a copy carrying the checksum of its own contents.
+
+        The certification-time operation. Used when a profile is minted; a
+        profile read back from a knowledge base keeps whatever checksum it was
+        stored with, so that tampering is detectable rather than overwritten.
+
+        Returns:
+            An identical profile whose checksum is correct.
+        """
+        return replace(self, checksum=self.compute_checksum())
 
     def is_expired(self, now: datetime) -> bool:
         """Return whether the profile's certification has lapsed.

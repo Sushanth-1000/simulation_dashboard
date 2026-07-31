@@ -57,6 +57,7 @@ def _profile(
         quantile_table=quantile_table,
         coverage_level=Probability(0.9),
         validation_fraction=Probability(0.2),
+        validation_passed=True,
         max_speed=MetresPerSecond(31.0),
         checksum=checksum,
         platform=platform,

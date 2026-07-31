@@ -54,6 +54,7 @@ def _profile(
     *,
     centroid: tuple[float, ...] = (0.5, 0.5, 0.5, 0.5, 0.5),
     validation: float = 1.0,
+    passed: bool = True,
     platform: str = PLATFORM,
     expires: datetime = LATER,
     deployments: int = 0,
@@ -69,6 +70,7 @@ def _profile(
         quantile_table=(0.1, 0.3, 0.7, 1.2),
         coverage_level=Probability(0.95),
         validation_fraction=Probability(validation),
+        validation_passed=passed,
         max_speed=MetresPerSecond(30.0),
         checksum="0" * 64,
         platform=platform,
@@ -233,12 +235,16 @@ def test_similarity_is_bounded_so_one_close_profile_cannot_dominate() -> None:
     assert 0.0 < candidates[0].similarity <= 1.0
 
 
-def test_partial_validation_is_inadmissible_however_high_the_score() -> None:
-    # val(c) == 1 is a conjunct, not a weight. A profile that passed 99% of its
-    # certification suite is not 99% admissible.
+def test_a_profile_that_failed_certification_is_inadmissible_however_high_the_score() -> None:
+    # val(c) is a conjunct, not a weight. A profile that failed its
+    # certification suite is inadmissible whatever it scores.
+    #
+    # This is expressed through `validation_passed`, not through a held-out
+    # fraction below 1.0. Conflating the two made every correctly-certified
+    # profile -- one holding out a sensible 20% -- permanently inadmissible.
     candidates, _ = score_candidates(
         signature=_signature(),
-        profiles=[_profile(validation=0.99)],
+        profiles=[_profile(passed=False)],
         weights=WEIGHTS,
         platform=PLATFORM,
         now=NOW,

@@ -172,6 +172,16 @@ class RuntimeCalibrationManager:
         self._exploration_space: ActuationSpace | None = None
 
     @property
+    def space(self) -> ActuationSpace:
+        """Return the nominal actuation space, before any narrowing.
+
+        Exposed so the cold path can derive an exploration envelope from the
+        space commands are actually issued in, rather than being handed a second
+        copy that could drift from it.
+        """
+        return self._space
+
+    @property
     def active_profile(self) -> CalibrationProfile:
         """Return the calibration profile currently in force."""
         return self._active

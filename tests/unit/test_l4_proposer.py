@@ -69,6 +69,7 @@ def _trust(index: float = 0.9) -> TrustAssessment:
         class_conditional_quantile=0.5,
         coverage_target=Probability(0.95),
         calibration_sample_count=500,
+        is_calibrated=True,
     )
 
 

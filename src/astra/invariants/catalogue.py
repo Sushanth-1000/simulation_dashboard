@@ -230,9 +230,12 @@ SEPARATION_INVARIANTS: tuple[SeparationInvariant, ...] = (
             "effect."
         ),
         consequence="The proposer optimises against its own safety monitor.",
-        enforcement=EnforcementKind.REVIEW,
+        enforcement=EnforcementKind.TEST,
         mechanism=(
-            "Phase 4: test asserting the training signal's field set excludes veto statistics"
+            "TrainingSignal is a frozen record over a closed permitted field set; "
+            "assert_signal_excludes_core_b compares its fields against that set and "
+            "rejects any name containing a Core-B term. Asserted by "
+            "tests/unit/test_l4_proposer.py"
         ),
     ),
     SeparationInvariant(

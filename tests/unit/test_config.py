@@ -44,6 +44,7 @@ CERTIFICATION_MISSING_FIELDS = frozenset(
         "estimation.fast_process_noise",
         "estimation.slow_process_noise",
         "trust.coverage_level",
+        "trust.highway_speed_boundary_kmh",
         "twin.physics_weight",
         "twin.ewc_lambda",
         "twin.control_effectiveness",
@@ -104,6 +105,7 @@ slow_process_noise = [1e-5, 1e-6, 1e-5]
 
 [trust]
 coverage_level = 0.95
+highway_speed_boundary_kmh = 70.0
 
 [twin]
 physics_weight = 1.0
@@ -237,7 +239,7 @@ def test_constructing_astra_settings_without_the_gate_section_fails() -> None:
                 "schema_version": CONFIG_SCHEMA_VERSION,
                 "environment": "development",
                 "estimation": {"innovation_gate_gamma": 9.0},
-                "trust": {"coverage_level": 0.95},
+                "trust": {"coverage_level": 0.95, "highway_speed_boundary_kmh": 70.0},
                 "shield": {
                     "legal_speed_limit_kmh": 50.0,
                     "friction_margin": 0.85,

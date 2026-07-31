@@ -86,6 +86,7 @@ def _profile(
     centroid: tuple[float, ...] = (0.5, 0.5, 0.5, 0.5, 0.5),
     context: ContextClass = ContextClass.HIGHWAY_CLEAR,
     validation: float = 1.0,
+    passed: bool = True,
 ) -> CalibrationProfile:
     return CalibrationProfile(
         profile_id=ProfileId(name=name, version=1),
@@ -95,6 +96,7 @@ def _profile(
         quantile_table=(0.1, 0.3, 0.7, 1.2),
         coverage_level=Probability(0.95),
         validation_fraction=Probability(validation),
+        validation_passed=passed,
         max_speed=MetresPerSecond(30.0),
         checksum="0" * 64,
         platform=PLATFORM,
@@ -132,6 +134,7 @@ def _trust() -> TrustAssessment:
         class_conditional_quantile=0.5,
         coverage_target=Probability(0.95),
         calibration_sample_count=500,
+        is_calibrated=True,
     )
 
 
@@ -408,7 +411,7 @@ def test_the_active_profile_remaining_best_yields_continue() -> None:
 
 def test_no_admissible_candidate_yields_safe_exploration() -> None:
     # The tunnel scenario: every candidate fails the admissibility conjunction.
-    invalid = _profile("partly_validated", validation=0.9)
+    invalid = _profile("failed_certification", passed=False)
     arbiter = _arbiter(profiles=[invalid], active=invalid)
 
     assert _arbitrate(arbiter).outcome is ArbitrationOutcome.SAFE_EXPLORATION

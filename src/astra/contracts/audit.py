@@ -42,7 +42,12 @@ from astra.kernel.errors import ContractViolationError
 from astra.kernel.validation import require_finite
 
 if TYPE_CHECKING:
-    from astra.contracts.actuation import ControlCommand, IssuedCommand, ProposedCommand
+    from astra.contracts.actuation import (
+        ControlCommand,
+        IssuedCommand,
+        PredictedCommand,
+        ProposedCommand,
+    )
     from astra.contracts.assurance import (
         FailSafeSnapshot,
         GateVerdict,
@@ -93,6 +98,7 @@ def _render_trust(trust: TrustAssessment) -> dict[str, JsonValue]:
         "class_conditional_quantile": trust.class_conditional_quantile,
         "coverage_target": float(trust.coverage_target),
         "calibration_sample_count": trust.calibration_sample_count,
+        "is_calibrated": trust.is_calibrated,
     }
 
 
@@ -155,6 +161,16 @@ def _render_proposal(proposal: ProposedCommand) -> dict[str, JsonValue]:
         "origin": proposal.origin.value,
         "source": str(proposal.source),
         "admissible": proposal.command.is_admissible(),
+    }
+
+
+def _render_prediction(prediction: PredictedCommand) -> dict[str, JsonValue]:
+    """Render the twin's prediction."""
+    return {
+        "command": _render_command(prediction.command),
+        "source": str(prediction.source),
+        "predicted_at": _render_instant(prediction.predicted_at),
+        "admissible": prediction.command.is_admissible(),
     }
 
 
@@ -248,9 +264,19 @@ class DecisionRecord:
         fast_state: The UKF fast state estimate.
         trust: The Trust Module assessment.
         proposal: The untrusted proposed command.
+        prediction: The digital twin's one-step prediction. Two gates score
+            against it, so a verdict cannot be reproduced from the record
+            without it.
+        twin_weights_digest: Which twin produced that prediction. The
+            counterpart of ``config_hash``: the twin is not a fixed thing --
+            it ships as a checkpoint and FB2 moves it mid-run -- so a record
+            that named only the configuration would answer "under which
+            operating point" but not "under which model".
         prediction_admissible: Whether the twin's prediction was itself
-            admissible, recorded rather than the full prediction to keep the
-            record's physical inputs to the state estimate.
+            admissible. Retained from before L5 existed, when the full
+            prediction could not be recorded; it is now derivable from
+            ``prediction`` and is kept only because removing a field from an
+            evidence schema is a schema-version change, not a tidy-up.
         safety_verdict: Core-B's combined verdict.
         failsafe: The fail-safe FSM snapshot.
         arbitration: RCM's arbitration decision.
@@ -264,6 +290,8 @@ class DecisionRecord:
     fast_state: FastStateEstimate | None = None
     trust: TrustAssessment | None = None
     proposal: ProposedCommand | None = None
+    prediction: PredictedCommand | None = None
+    twin_weights_digest: str | None = None
     prediction_admissible: bool | None = None
     safety_verdict: SafetyVerdict | None = None
     failsafe: FailSafeSnapshot | None = None
@@ -308,6 +336,10 @@ class DecisionRecord:
             "fast_state": None if self.fast_state is None else _render_fast_state(self.fast_state),
             "trust": None if self.trust is None else _render_trust(self.trust),
             "proposal": None if self.proposal is None else _render_proposal(self.proposal),
+            "prediction": (
+                None if self.prediction is None else _render_prediction(self.prediction)
+            ),
+            "twin_weights_digest": self.twin_weights_digest,
             "prediction_admissible": self.prediction_admissible,
             "safety_verdict": (
                 None if self.safety_verdict is None else _render_safety_verdict(self.safety_verdict)
