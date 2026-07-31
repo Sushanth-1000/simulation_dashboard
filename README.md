@@ -62,13 +62,23 @@ component's PASS.
 
 | | |
 |---|---|
-| **Current phase** | **All ten layers built and composed. The pipeline runs end to end.** |
-| Implemented | All of **L1–L9** · the tick loop composing them · trained digital twin · calibration corpus · replay spine · one-way Core-A→Core-B channel |
-| Not yet implemented | Trained PPO policy, the four feedback loops, the CARLA adapter, the dashboard |
-| Quality gate | Green — 2 459 tests, 98.2% coverage, `ruff` + `mypy --strict` + **12** `lint-imports` contracts clean |
-| Invariants | 10 declared; **9 mechanically enforced** including SI-8 and SI-9, which were partial until now. SI-6 is review-only until a trained policy exists. |
-| Measured | Full ten-layer tick p99 **1.98 ms** — 4% of a 50 ms tick. Software measurement. |
-| Next | Linux + CARLA (needs hardware), then the PPO policy — see [`docs/PROJECT_STATE_AND_ROADMAP.md`](docs/PROJECT_STATE_AND_ROADMAP.md) |
+| **Current phase** | **All ten layers built and composed. A trained policy drives the pipeline. FB1 closed.** |
+| Implemented | All of **L1-L9** - the tick loop composing them - trained PINN digital twin - calibration corpus - **trained PPO policy under Lagrangian constraints** - **FB1 (UKF re-anchor)** - replay spine - one-way Core-A to Core-B channel |
+| Not yet implemented | **FB2, FB3, FB4** - the ASTRA-vs-Core-A comparison harness - the ablation study - the CARLA adapter - the dashboard |
+| Quality gate | Green - **2 513 tests, 97.97% coverage**, `ruff` + `mypy --strict` + **12** `lint-imports` contracts clean |
+| Invariants | 10 declared, **all 10 mechanically enforced**. SI-6 was the last review-only invariant and is now TEST-enforced. |
+| Measured | Full ten-layer tick p99 **1.98 ms** - 4% of a 50 ms tick. Closed-loop over 400 ticks: trained policy **41.0%** veto rate and **0.383 m** mean lane deviation vs **59.8%** / **0.836 m** for the deterministic placeholder, with **400/400 ticks issuing a command** under both. |
+| Next | Linux + CARLA for non-synthetic validation, then FB2-FB4 - see [`docs/2030_2026-07-31_Tanay_S_status.md`](docs/2030_2026-07-31_Tanay_S_status.md) |
+
+> ### The limitation that governs every number above
+>
+> The digital twin, the calibration corpus and the trained policy **all descend from the
+> same kinematic bicycle model**. The generator and the judge agree by construction. So
+> these runs demonstrate that the architecture works, that a learned policy drives it, and
+> that the gates evaluate genuinely learned commands - and they support **no false-positive
+> or false-negative rate**, because nothing here is out-of-distribution in the sense the
+> statistical gate is calibrated for. Closing that gap needs CARLA on a Linux host, and it
+> is the highest-priority item on the roadmap.
 
 > **R-6 resolved.** CARLA 0.9.16 publishes an official CPython 3.12 wheel, so the interpreter
 > incompatibility that was this project's highest-rated technical risk no longer exists. CARLA has
@@ -165,6 +175,8 @@ in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 | [`docs/INSTALL.md`](docs/INSTALL.md) | Environment setup |
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Workflow, quality gate, adding a layer |
 | [`docs/adr/`](docs/adr/) | Architecture Decision Records — one per significant choice |
+| [`docs/2030_2026-07-31_Tanay_S_status.md`](docs/2030_2026-07-31_Tanay_S_status.md) | **Start here.** Full stage ledger: what is done, what is not, and what comes next |
+| [`docs/COMMERCIAL_ASSESSMENT.md`](docs/COMMERCIAL_ASSESSMENT.md) | Independent industry-grade commercialization assessment |
 | [`docs/PHASE1_COMPLETION_REPORT.md`](docs/PHASE1_COMPLETION_REPORT.md) | What Phase 1 delivered, its risks and its debt |
 | [`docs/PHASE2_COMPLETION_REPORT.md`](docs/PHASE2_COMPLETION_REPORT.md) | What Phase 2 delivered, the R-6 resolution, seven defects found |
 | [`docs/PHASE3_COMPLETION_REPORT.md`](docs/PHASE3_COMPLETION_REPORT.md) | What Phase 3 delivered: the shield, the FSM, and the unsuppressable veto |
