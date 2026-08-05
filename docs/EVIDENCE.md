@@ -5,7 +5,7 @@ it, the command that reproduces it, and the date. A number that is not in this
 table has not been measured, and a number here that cannot be reproduced by its
 command is a defect in this table.
 
-**Last verified** 2 August 2026, commit `231ce6d`, on WSL2 Ubuntu / CPython
+**Last verified** 2 August 2026, commit `16f6767`, on WSL2 Ubuntu / CPython
 3.12.13 / CPU only.
 
 > **The caveat that governs every row in the first table.** The plant, the digital
@@ -53,14 +53,15 @@ Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 tick
 | E-14 | The trained policy holds speed and lane in its own environment | Return **936.8/1000**, mean \|deviation\| **0.0913 m**, mean \|long. accel\| **0.0502 m/s²**, all three constraints satisfied | `python -m training.train_policy` | 2 Aug |
 | E-15 | The proposer respects the jerk bound far better after rescaling | Peak lateral jerk **150 → 60 → 16.7 m/s³** across three retrains | as E-14 | 2 Aug |
 | E-16 | The L1 atomicity test detects the defect it names | Hoisting the clock read out of the lock fails it **6 runs of 6**; the other **2,543** tests all pass | mutation, recorded in `tests/unit/test_l1_sensor_bus.py` | 2 Aug |
+| E-17 | CARLA installs and imports on the project's interpreter (assumption A-8) | `carla==0.9.16` installs on **CPython 3.12.13**/Linux with no dependency tree; `Client`, `World`, `Vehicle`, `Sensor`, `Transform`, `Location`, `Rotation`, `VehicleControl`, `WorldSettings` all present; a `Client` constructs and fails to connect with `RuntimeError`, correctly, with no server running | `uv venv --python 3.12 ~/carlacheck && uv pip install --python ~/carlacheck/bin/python carla==0.9.16` | 2 Aug |
 
 ### Controlled comparisons
 
 | # | Question | Result | Date |
 |:--:|---|---|:--:|
-| E-17 | Does the action-rate penalty need restricting to steering, or just more training? | **Both.** 2×2 at fixed seed: 98k/all-channels stops (return 549); 786k/all-channels stops (671); 98k/steer-only stops; 786k/steer-only holds 13.0 m/s (986) | 2 Aug |
-| E-18 | Does regenerating the corpus from the deployed policy matter? | **Yes.** HIGHWAY_CLEAR quantile **1.18 → 2.43**; the threshold in production was less than half what the deployed proposer routinely produces | 2 Aug |
-| E-19 | Is the veto latch a property of the policy? | **No.** Three policies — one that stopped the car, one holding 13 m/s at 0.03 m, one with an explicit jerk penalty — all reached the identical terminal state | 2 Aug |
+| E-18 | Does the action-rate penalty need restricting to steering, or just more training? | **Both.** 2×2 at fixed seed: 98k/all-channels stops (return 549); 786k/all-channels stops (671); 98k/steer-only stops; 786k/steer-only holds 13.0 m/s (986) | 2 Aug |
+| E-19 | Does regenerating the corpus from the deployed policy matter? | **Yes.** HIGHWAY_CLEAR quantile **1.18 → 2.43**; the threshold in production was less than half what the deployed proposer routinely produces | 2 Aug |
+| E-20 | Is the veto latch a property of the policy? | **No.** Three policies — one that stopped the car, one holding 13 m/s at 0.03 m, one with an explicit jerk penalty — all reached the identical terminal state | 2 Aug |
 
 ---
 

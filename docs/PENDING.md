@@ -425,6 +425,23 @@ long and well-evidenced list.
 reality.
 **Estimate:** 0.5–1 day.
 
+## ~~P1.5 — Close assumption A-8~~ — DONE, 2 Aug 2026
+
+`carla==0.9.16` installs and imports on **CPython 3.12.13**/Linux, as a single
+package with no dependency tree, exposing every symbol the adapter design needs.
+A `Client` constructs and `get_server_version()` raises `RuntimeError` with no
+server listening — the correct failure, and confirmation the client is live
+rather than inert. Run in a throwaway venv so nothing reached the project
+environment or the lockfile.
+
+**The interpreter risk is closed** — no sidecar, no IPC hop, no unofficial
+binary, and the 10 ms budget is untouched. What remains is the *connection* half,
+which needs a running simulator and therefore the Linux GPU host of P5: a
+hardware dependency, not a compatibility one. Recorded as E-17 and in
+[`ASSUMPTIONS.md`](ASSUMPTIONS.md) A-8.
+
+<details><summary>Original entry</summary>
+
 ## P1.5 — Close assumption A-8 (work plan §7.1)
 
 Ten minutes, no GPU, no hardware. Unverified since Phase 2 and the entire CARLA
@@ -438,6 +455,8 @@ python -c "import carla; c = carla.Client('localhost', 2000); c.set_timeout(10.0
 The install half runs on Colab free. **Do the install half now**; the connect
 half waits for P5.
 **Estimate:** 0.5 days.
+
+</details>
 
 ## P1.6 — The paper's validation section (work plan §1.1) — *deferred by instruction*
 
