@@ -29,11 +29,15 @@ are 2–3× what the same change would cost in an ordinary codebase, deliberatel
 
 **Current state, 2 August 2026 (evening):** ten layers built, 12 import contracts
 kept, **2,611 tests**, 97.89% coverage, gate green. One of four feedback loops
-wired. **The closed loop is stable over 100,000 ticks on all ten soak criteria**
-— lane deviation 0.0003 m, veto rate 0.00%, the proposer driving 99.97% of ticks
-unmodified. Everything in P0 is closed; what remains below is P1 and later.
+wired. **The closed loop is stable over 100,000 ticks on all ten soak criteria**,
+at a timestep that now matches the control period — lane deviation 0.0331 m, veto
+rate 0.00%, the proposer driving 99,997 of 100,000 ticks unmodified, the fail-safe
+machine never leaving NOMINAL. All of P0 and P1.1–P1.2 are closed.
+
 Roughly **85% built, 15% validated** — the second number moved because the loop
-now demonstrably runs, not because anything non-self-referential was measured.
+demonstrably runs, not because anything non-self-referential was measured. The
+plant, the twin and the corpus still share one set of kinematic equations, so no
+false-positive or false-negative rate exists and none can before Phase 7.
 
 ---
 
@@ -295,7 +299,37 @@ proposer's — a transition the vehicle would never actually make.
 
 # P1 — Cheap now, expensive later
 
-## P1.1 — Match the training step to the tick period, then regenerate
+## ~~P1.1 — Match the training step to the tick period~~ — DONE, 2 Aug 2026
+
+Corrected to 0.05. **The cascade was smaller than feared:** the twin is
+self-labelling from kinematics and takes no timestep, and the corpus generator
+drives its own sweep at the pipeline rate, so only the plant and the policy were
+affected.
+
+**Correcting it exposed what the error had been hiding.** With the plant at 0.02
+and L7b computing jerk over 0.05, the gate was 2.5× more permissive than
+configured and the policy's steering fitted inside the slack. Corrected, the same
+policy was vetoed on 99.7% of ticks and parked 3.14 m outside its lane. The
+proposer had never been trained against the bound it is judged by, and the
+previous stable run depended on the mismatch.
+
+That retires ADR-0017's *"do not tune the proposer"* conclusion, which was
+measured under the error. The fix was not a new objective term — one was tried
+and failed — but the **existing** one at a derived scale. Lateral acceleration is
+linear in steering, so a penalty on squared change in normalised steer already
+*is* a penalty on squared change in lateral acceleration. At 6.0, a step at
+exactly L7b's limit cost 2×10⁻⁴ against a maximum per-step reward of 2.0. Set so
+that step costs 5% of the reward instead: `0.05 / 3.265e-5` = **1531**.
+
+Peak lateral jerk across three retrains: **150 → 60 → 16.7 m/s³**.
+
+**Result: all ten criteria pass over 100,000 ticks at the corrected timestep.**
+`PROPOSED` on 99,997 ticks, `RATE_LIMITED` on 3, the fail-safe machine never
+leaving NOMINAL, lane deviation 0.0331 m, veto rate 0.00%. Better than the run it
+replaced, *and* the figures now mean what they say. Corpus regenerated from the
+deployed policy afterwards, per trap 9.
+
+<details><summary>Original entry, kept for the reasoning</summary>
 
 **Finding F1b.** `EnvironmentSpec.step_seconds = 0.02`, and its docstring reads
 *"Integration step. Matched to the pipeline's fast rate."* The pipeline's rate is
@@ -326,6 +360,17 @@ policy regenerated; the soak matrix re-run; per-class coverage back in the
 94.9–95.1% band.
 **Estimate:** 2–3 days including regeneration and re-validation.
 
+</details>
+
+## ~~P1.2 — Correct the three docstrings that claim speed-cap enforcement~~ — DONE, 2 Aug 2026
+
+`CommandOrigin.SPEED_CAPPED`, `FailSafeState.LIMP` and `FailSafeState.HALT` now
+say what the code does, with `FailSafeSnapshot.speed_cap` marked *reported, not
+enforced* and a pointer to P2.1 for the enforcement question. The README's *"every
+proposed command is validated three ways"* was corrected at the same time.
+
+<details><summary>Original entry</summary>
+
 ## P1.2 — Correct the three docstrings that claim speed-cap enforcement
 
 The documentation half of finding F2, separable from the implementation half
@@ -354,6 +399,8 @@ docstrings claim more:
 **Exit:** each docstring states what the code does, with a pointer to P2.1 for
 the enforcement question.
 **Estimate:** 0.5 days.
+
+</details>
 
 ## P1.3 — Evidence pack (work plan §2.2)
 

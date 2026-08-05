@@ -84,7 +84,22 @@ class EnvironmentSpec:
     the discrepancy visible.
 
     Attributes:
-        step_seconds: Integration step. Matched to the pipeline's fast rate.
+        step_seconds: Integration step. Matched to the pipeline's fast rate --
+            ``1 / estimation.fast_rate_hz``, which is 20 Hz, so 0.05 s.
+
+            It said that and was 0.02 until 2 August 2026, so the plant
+            integrated 2.5x faster than the controller driving it assumed. Every
+            "simulated time" figure taken through
+            :func:`~training.closed_loop.drive_closed_loop` before that date is
+            2.5x optimistic -- a 100,000-tick run is 5,000 s of pipeline time and
+            was 2,000 s of vehicle motion. The policy also learned a rate of
+            change per 0.02 s and was judged by a gate computing jerk over
+            0.05 s, which made the gate 2.5x more permissive than training.
+
+            **Changing this invalidates any policy trained before it.** The twin
+            is unaffected -- it is self-labelling from kinematics and takes no
+            timestep -- and so is the calibration corpus, which drives its own
+            sweep at the pipeline rate rather than through this plant.
         episode_steps: Steps before truncation.
         reference_speed_mps: Target speed for the progress reward.
         lane_half_width_m: Normaliser for the lateral offset feature.
@@ -132,13 +147,28 @@ class EnvironmentSpec:
             0.10 m and was vetoed by L7b on 100% of ticks, because it reached
             its target lateral acceleration in a single step.
 
-            **It is a proxy, and at the gate's boundary it is inert.** L7b
-            permits ``max_lateral_jerk_mps3 = 8.0`` over a 0.05 s tick, i.e. a
-            change of 0.4 m/s^2 in lateral acceleration, i.e. 0.00286 rad of
-            steer, i.e. a normalised action change of 0.0057. This term charges
-            ``6.0 x 0.0057^2 = 2e-4`` for that -- against a centring reward of
-            1.0. It smooths the action and cannot express the bound it was
-            introduced to approximate.
+            **Derived from L7b's bound rather than chosen.** Lateral
+            acceleration is linear in the steering command --
+            ``a_lat = steer x steer_effectiveness`` -- so a penalty on the
+            squared change in normalised steer *is* a penalty on the squared
+            change in lateral acceleration, up to a constant. The term was
+            always the right shape; it was about five hundred times too small.
+
+            The bound: L7b permits ``max_lateral_jerk_mps3 = 8.0`` over a 0.05 s
+            tick, so 0.4 m/s^2 of lateral acceleration, so 0.00286 rad of steer,
+            so a normalised action change of 0.005714, whose square is
+            3.265e-5. At the old weight of 6.0 a step at exactly the limit cost
+            2e-4 against a maximum per-step reward of 2.0 -- one part in ten
+            thousand, which is inert. The weight is now set so that a step at
+            the limit costs **5% of the maximum per-step reward**, which is
+            ``0.05 / 3.265e-5``.
+
+            That this was only discovered on 2 August is itself the finding: the
+            plant integrated at 0.02 s while the gate computed jerk over 0.05 s,
+            so L7b was 2.5x more permissive than configured and the policy's
+            steering fitted inside the slack. Correcting the timestep removed
+            the slack and exposed a proposer that had never been trained against
+            the bound it is judged by.
 
             **Replacing it with a real jerk penalty was tried and did not
             help.** A term charging ``w x max(0, jerk - 8.0) / 8.0`` per step,
@@ -152,7 +182,7 @@ class EnvironmentSpec:
             the proposer. See ``docs/SOAK_REPORT.md``.
     """
 
-    step_seconds: float = 0.02
+    step_seconds: float = 0.05
     episode_steps: int = 500
     reference_speed_mps: float = 13.0
     lane_half_width_m: float = 1.75
@@ -162,7 +192,7 @@ class EnvironmentSpec:
     braking_authority_mps2: float = 8.0
     initial_offset_m: float = 1.0
     initial_speed_fraction: float = 0.25
-    action_rate_weight: float = 6.0
+    action_rate_weight: float = 1531.0
     channel_lower: tuple[float, float, float] = (0.0, 0.0, -0.5)
     channel_upper: tuple[float, float, float] = (1.0, 1.0, 0.5)
 
