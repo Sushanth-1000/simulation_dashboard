@@ -74,10 +74,10 @@ component's PASS.
 | **Current phase** | **All ten layers built and composed. A trained policy drives the pipeline. FB1 closed.** |
 | Implemented | All of **L1-L9** - the tick loop composing them - trained PINN digital twin - calibration corpus - **trained PPO policy under Lagrangian constraints** - **FB1 (UKF re-anchor)** - replay spine - one-way Core-A to Core-B channel |
 | Not yet implemented | **FB2, FB3, FB4** - the ASTRA-vs-Core-A comparison harness - the ablation study - the CARLA adapter - the dashboard |
-| Quality gate | Green - **2 513 tests, 97.97% coverage**, `ruff` + `mypy --strict` + **12** `lint-imports` contracts clean |
-| Invariants | 10 declared, **all 10 mechanically enforced**. SI-6 was the last review-only invariant and is now TEST-enforced. |
-| Measured | Full ten-layer tick p99 **1.98 ms** - 4% of a 50 ms tick. Closed-loop over 400 ticks: trained policy **41.0%** veto rate and **0.383 m** mean lane deviation vs **59.8%** / **0.836 m** for the deterministic placeholder, with **400/400 ticks issuing a command** under both. |
-| Next | Linux + CARLA for non-synthetic validation, then FB2-FB4 - see [`docs/2030_2026-07-31_Tanay_S_status.md`](docs/2030_2026-07-31_Tanay_S_status.md) |
+| Quality gate | Green - **2 611 tests, 97.89% coverage**, `ruff` + `mypy --strict` over 140 files + **12** `lint-imports` contracts clean |
+| Invariants | 10 declared, **all 10 mechanically enforced**. SI-3 now also covers issuance and abstention ([ADR-0016](docs/adr/0016-exploration-may-not-override-a-deterministic-veto.md)). |
+| Measured | **100 000 ticks, all ten soak criteria pass.** 100 000/100 000 commands issued - proposer accepted on **99 997** ticks - mean lane deviation **0.0332 m** - resident set **+0.2 MiB** - full-tick p99 **9.3 ms** against a 50 ms tick - **0** audit records dropped. Every figure traces to a row in [`docs/EVIDENCE.md`](docs/EVIDENCE.md). |
+| Next | Linux + CARLA for non-synthetic validation, then FB2-FB4 - see [`docs/PENDING.md`](docs/PENDING.md) |
 
 > ### The limitation that governs every number above
 >

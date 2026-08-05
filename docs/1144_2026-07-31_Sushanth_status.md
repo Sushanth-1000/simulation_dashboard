@@ -1,5 +1,20 @@
 # ASTRA — Status and Route to a Working Prototype
 
+> ## ⚠ SUPERSEDED — do not cite
+>
+> Superseded on 31 July 2026 by [`2030_2026-07-31_Tanay_S_status.md`](2030_2026-07-31_Tanay_S_status.md),
+> and its measurements superseded again on 2 August 2026 by
+> [`SOAK_REPORT.md`](SOAK_REPORT.md) and [`EVIDENCE.md`](EVIDENCE.md).
+>
+> Every closed-loop figure in this document was taken before four defects were
+> found that invalidate them: lateral position was observed by no sensor, the
+> training plant integrated 2.5× faster than the control period, the calibration
+> corpus was harvested from a different proposer than the one deployed, and the
+> trained policy brought the vehicle to a stop inside its own environment.
+>
+> Kept for the reasoning and the history. **For current numbers use
+> [`EVIDENCE.md`](EVIDENCE.md); for current work use [`PENDING.md`](PENDING.md).**
+
 **Prepared** Friday, 31 July 2026, 11:44 IST (UTC+05:30) · `2026-07-31T06:14Z`
 **Author** Sushanth C.
 **Branch** `phase4-l5-twin-l7b-physical` · 7 commits ahead of `main`

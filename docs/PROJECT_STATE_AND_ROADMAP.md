@@ -17,7 +17,18 @@ Runtime governance for AI-controlled cyber-physical systems.
 | **Guide** | Dr. Chaitra R., Associate Professor |
 | **Phases complete** | **1, 2 (except CARLA adapter), 3** |
 | **Phases remaining** | **4, 5, 6, 7, 8, 9** |
-| **Quality gate** | **GREEN** — 1 953 tests, 99.10% coverage, 8 architecture contracts |
+| **Quality gate** | **GREEN** — 2 611 tests, 97.89% coverage, 12 architecture contracts *(verified 2 Aug 2026)* |
+
+> **Read this document as history, not as status.** It was written on 30 July as a
+> phase-by-phase context transfer, and the per-phase figures below are correct
+> *for the phase they describe* — Phase 1's "1 953 tests, 8 contracts" is what
+> Phase 1 ended with, and rewriting it would destroy the record.
+>
+> For **current** numbers use [`EVIDENCE.md`](EVIDENCE.md), where every figure
+> carries the command that reproduces it. For **current work** use
+> [`PENDING.md`](PENDING.md). The coverage figure fell from 99.10% to 97.89%
+> because the codebase roughly doubled, not because tests were removed: 1 953 →
+> 2 611.
 
 ---
 
