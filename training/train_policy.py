@@ -67,8 +67,25 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
 DEFAULT_OUT: Final = Path("var/policy/synthetic.pt")
-DEFAULT_ROUNDS: Final = 12
-DEFAULT_STEPS_PER_ROUND: Final = 8_192
+DEFAULT_ROUNDS: Final = 48
+DEFAULT_STEPS_PER_ROUND: Final = 16_384
+"""786k timesteps, about five minutes on a laptop CPU.
+
+Raised from 12 x 8,192 after the first soak run. At 98k timesteps the policy
+learns lane centring and **not** speed control: it comes to a complete stop by
+step 250 of a 500-step episode, holds the lane perfectly while stationary, and
+satisfies every constraint. The measured difference, at a fixed seed and with
+the action-rate fix in :class:`~training.environment.EnvironmentSpec` in place:
+
+| timesteps | return | mean \\|long. acceleration\\| |
+|---|---|---|
+| 98k  | 549 | 1.289 m/s^2 -- decelerates, then sits at rest |
+| 786k | 986 | 0.158 m/s^2 -- converges on 13.0 m/s and holds it |
+
+Both changes were needed. 786k timesteps with the action-rate penalty still
+applied to throttle and brake produces a return of 671 and the same 1.289
+m/s^2: a stopping vehicle, more thoroughly trained. See ``docs/SOAK_REPORT.md``.
+"""
 DEFAULT_EVALUATION_EPISODES: Final = 8
 DEFAULT_SEED: Final = 20260731
 

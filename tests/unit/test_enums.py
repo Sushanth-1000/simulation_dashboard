@@ -99,6 +99,47 @@ def test_merging_the_result_of_a_merge_is_stable() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Abstention (ADR-0016) -- withdrawing from the judgement, never clearing it
+# --------------------------------------------------------------------------- #
+
+
+def test_merge_of_all_abstentions_is_veto_exactly_as_an_empty_set_is() -> None:
+    # THE test for this feature. An abstention removes a gate from the
+    # aggregation; if every gate withdraws, nothing judged the command, and a
+    # command nothing judged has not been cleared. Returning PASS here would let
+    # a gate clear a command by declining to look at it, which is the fail-open
+    # mode SI-3 exists to prevent -- reached by a new route.
+    assert Verdict.merge([Verdict.ABSTAIN]) is Verdict.VETO
+    assert Verdict.merge([Verdict.ABSTAIN, Verdict.ABSTAIN, Verdict.ABSTAIN]) is Verdict.VETO
+    assert Verdict.merge([Verdict.ABSTAIN] * 3) is Verdict.merge([])
+
+
+def test_an_abstention_does_not_block_a_command_the_others_cleared() -> None:
+    # The other half: an abstention is not a veto either. One gate having no
+    # basis to judge must not stop the two that do.
+    assert Verdict.merge([Verdict.PASS, Verdict.ABSTAIN]) is Verdict.PASS
+    assert Verdict.merge([Verdict.ABSTAIN, Verdict.PASS, Verdict.PASS]) is Verdict.PASS
+
+
+def test_an_abstention_cannot_rescue_a_vetoed_command() -> None:
+    assert Verdict.merge([Verdict.VETO, Verdict.ABSTAIN]) is Verdict.VETO
+    assert Verdict.merge([Verdict.ABSTAIN, Verdict.VETO, Verdict.PASS]) is Verdict.VETO
+
+
+@pytest.mark.parametrize(
+    "verdicts",
+    [
+        [Verdict.ABSTAIN, Verdict.PASS],
+        [Verdict.PASS, Verdict.ABSTAIN],
+        [Verdict.ABSTAIN, Verdict.VETO],
+        [Verdict.VETO, Verdict.ABSTAIN],
+    ],
+)
+def test_merge_stays_order_independent_with_abstentions(verdicts: list[Verdict]) -> None:
+    assert Verdict.merge(verdicts) is Verdict.merge(list(reversed(verdicts)))
+
+
+# --------------------------------------------------------------------------- #
 # Verdict.is_blocking
 # --------------------------------------------------------------------------- #
 
@@ -115,8 +156,17 @@ def test_exactly_one_verdict_is_blocking() -> None:
     assert [verdict for verdict in Verdict if verdict.is_blocking] == [Verdict.VETO]
 
 
-def test_verdict_has_exactly_two_members() -> None:
-    assert len(Verdict) == 2
+def test_verdict_has_exactly_three_members() -> None:
+    # Two judgements and one refusal to judge. ADR-0016 added ABSTAIN; the count
+    # is pinned because a fourth value would be a change to what a gate is
+    # allowed to say, which is an architectural decision and not a tidy-up.
+    assert len(Verdict) == 3
+
+
+def test_only_an_abstention_declines_to_participate() -> None:
+    assert Verdict.PASS.participates
+    assert Verdict.VETO.participates
+    assert not Verdict.ABSTAIN.participates
 
 
 # --------------------------------------------------------------------------- #
@@ -337,7 +387,7 @@ def test_str_enum_members_compare_equal_to_their_string_value() -> None:
     [
         (LayerId, 9),
         (ExecutionDomain, 4),
-        (Verdict, 2),
+        (Verdict, 3),
         (GateId, 3),
         (FailSafeState, 4),
         (ContextClass, 5),

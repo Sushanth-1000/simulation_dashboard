@@ -175,21 +175,28 @@ def test_the_layer_enumeration_has_exactly_one_layer_with_actuation_authority() 
 # --------------------------------------------------------------------------- #
 
 
+# Exhaustive over the whole vocabulary, not a chosen subset. When ADR-0016 added
+# ABSTAIN, enumerating only (PASS, VETO) would have kept these tests green while
+# leaving the new value entirely uncovered -- passing quietly rather than
+# passing. Deriving the alphabet from the enum means the next value added is
+# covered on the day it is added, or these tests fail and say so.
+_VERDICT_ALPHABET = tuple(Verdict)
+
+
 @pytest.mark.parametrize(
     "verdicts",
     [
         combination
         for size in range(4)
-        for combination in itertools.product((Verdict.PASS, Verdict.VETO), repeat=size)
+        for combination in itertools.product(_VERDICT_ALPHABET, repeat=size)
     ],
     ids=lambda verdicts: "-".join(verdict.value for verdict in verdicts) or "empty",
 )
-def test_merging_passes_only_when_the_set_is_non_empty_and_entirely_pass(
+def test_merging_passes_only_when_something_judged_and_every_judgement_was_pass(
     verdicts: tuple[Verdict, ...],
 ) -> None:
-    expected = (
-        Verdict.PASS if verdicts and all(v is Verdict.PASS for v in verdicts) else Verdict.VETO
-    )
+    judged = [verdict for verdict in verdicts if verdict.participates]
+    expected = Verdict.PASS if judged and all(v is Verdict.PASS for v in judged) else Verdict.VETO
     assert Verdict.merge(verdicts) is expected
 
 
@@ -198,7 +205,7 @@ def test_merging_passes_only_when_the_set_is_non_empty_and_entirely_pass(
     [
         combination
         for size in range(1, 4)
-        for combination in itertools.product((Verdict.PASS, Verdict.VETO), repeat=size)
+        for combination in itertools.product(_VERDICT_ALPHABET, repeat=size)
         if Verdict.VETO in combination
     ],
     ids=lambda verdicts: "-".join(verdict.value for verdict in verdicts),
@@ -206,6 +213,24 @@ def test_merging_passes_only_when_the_set_is_non_empty_and_entirely_pass(
 def test_a_single_veto_survives_any_number_of_passes(verdicts: tuple[Verdict, ...]) -> None:
     assert Verdict.merge(verdicts) is Verdict.VETO
     assert Verdict.merge(verdicts).is_blocking
+
+
+@pytest.mark.parametrize(
+    "verdicts",
+    [
+        combination
+        for size in range(1, 4)
+        for combination in itertools.product(_VERDICT_ALPHABET, repeat=size)
+        if all(verdict is Verdict.ABSTAIN for verdict in combination)
+    ],
+    ids=lambda verdicts: "-".join(verdict.value for verdict in verdicts),
+)
+def test_a_set_in_which_every_gate_abstained_is_a_veto(verdicts: tuple[Verdict, ...]) -> None:
+    # SI-3, extended by ADR-0016. A command that nothing judged has not been
+    # cleared -- whether the verdict set was empty because no gate ran, or
+    # because every gate that ran declined to judge.
+    assert Verdict.merge(verdicts) is Verdict.VETO
+    assert Verdict.merge(verdicts) is Verdict.merge(())
 
 
 def test_an_empty_verdict_set_is_a_veto_because_an_uninspected_command_is_not_a_cleared_one() -> (

@@ -63,9 +63,25 @@ minimum_stopping_distance_m = 5.0
 assured_clear_distance_m = 150.0
 
 [failsafe]
-ood_threshold_degraded = 5
-ood_threshold_limp = 12
-ood_threshold_halt = 20
+# The out-of-distribution counter increments on a VETO and decrements on a PASS,
+# so a threshold is a duration of *sustained* refusal divided by the tick period.
+# At fast_rate_hz = 20 these are 0.5 s, 1.5 s and 5.0 s.
+#
+# They were 5 / 12 / 20 until 2 August 2026 -- 0.25 s, 0.6 s and 1.0 s. Nobody
+# had converted them, and one second turned out to be shorter than a legitimate
+# recovery: a vehicle starting 1 m off the lane centre needs about 21 ticks to
+# correct, because L7b's jerk bound permits 0.4 m/s^2 of lateral acceleration per
+# tick and L9 rate-limits the approach (ADR-0017). Every one of those ticks is a
+# VETO. So a 100,000-tick run in which the vehicle held the lane to 0.0003 m
+# spent 99,000 ticks in HALT, entered during the first second and terminal
+# thereafter.
+#
+# Chosen as durations rather than counts, and the question they answer is: how
+# long should a system whose thesis is that stopping is the hazard tolerate
+# sustained refusal before giving up? One second is not it.
+ood_threshold_degraded = 10
+ood_threshold_limp = 30
+ood_threshold_halt = 100
 degraded_speed_cap_kmh = 60.0
 limp_speed_cap_kmh = 20.0
 

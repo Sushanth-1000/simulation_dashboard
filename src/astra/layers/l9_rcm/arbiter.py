@@ -38,19 +38,36 @@ ordinary clamp domain-independent makes the exploration clamp domain-independent
 
 The order of restriction
 ------------------------
-Four regimes, most governing first: bounded exploration, then a blocking
-verdict, then a fail-safe speed cap, then nominal. The origin recorded on the
-issued command names which one applied, and that field is what lets the audit
-log answer "why did the vehicle do that" -- finding R-7's definition of
-explainability, which is decision provenance rather than model attribution.
+A blocking verdict first, then bounded exploration, then a fail-safe speed cap,
+then nominal. The origin recorded on the issued command names which one applied,
+and that field is what lets the audit log answer "why did the vehicle do that" --
+finding R-7's definition of explainability, which is decision provenance rather
+than model attribution.
 
-Exploration outranks a blocking verdict because it is the regime in which least
-is known: under an uncertified profile the fallback controller's assumptions are
-no better supported than the policy's.
+**The verdict comes first, and that ordering is ADR-0016.** It used to be the
+other way round, on the reasoning that under an uncertified profile the
+fallback's assumptions are no better supported than the policy's. That reasoning
+is sound and the conclusion did not follow: it made a veto advisory whenever the
+envelope was engaged, and at the shipped operating point the envelope is engaged
+almost always. Measured before the change: 99,808 of 100,000 ticks issued the
+proposal under a blocking verdict. What was really wrong was upstream -- a gate
+with no calibration for the context was *vetoing* rather than abstaining, so
+exploration had to override something that should never have been said.
+
+What a blocked tick yields
+--------------------------
+The fallback's command, or -- where the objection was specifically that the
+proposal changed lateral acceleration too fast -- the largest step toward it that
+the jerk bound permits. That second case is ADR-0017, and it exists because zero
+steering is, of every available command, the one that most guarantees the *next*
+proposal is equally inadmissible: it pins the achieved acceleration at zero,
+which is exactly what the bound is measured from. The vetoed proposal is still
+not issued; a different, admissible command is.
 """
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, Final, Protocol, runtime_checkable
 
 from astra.contracts.actuation import CommandOrigin, ControlCommand, IssuedCommand
@@ -71,8 +88,19 @@ if TYPE_CHECKING:
     from astra.kernel.identifiers import ComponentId, TickId
     from astra.kernel.time import Clock
     from astra.layers.l9_rcm.knowledge_base import SearchWeights
+    from astra.ports.pipeline import CommandProjector
 
 __all__ = ["SHADOW_PATIENCE", "FallbackController", "RuntimeCalibrationManager"]
+
+# The physical gate's evidence keys that rate limiting reads. Named here rather
+# than imported from L7b: the arbitrator must not depend on a gate's module, and
+# these three are part of the evidence *record* -- a schema shared through the
+# audit log, not a private detail of the component that writes it. Pinned by
+# `test_l9_arbiter.py`, which fails if either side renames one.
+_EVIDENCE_CURRENT: Final = "current_lateral_acceleration_mps2"
+_EVIDENCE_PROPOSED: Final = "proposed_lateral_acceleration_mps2"
+_EVIDENCE_JERK: Final = "demanded_jerk_mps3"
+_EVIDENCE_JERK_LIMIT: Final = "max_lateral_jerk_mps3"
 
 SHADOW_PATIENCE: Final = 200
 """Comparisons after which a staging period that has not cleared is rolled back.
@@ -118,6 +146,8 @@ class RuntimeCalibrationManager:
         "_exploration_space",
         "_fallback",
         "_profiles",
+        "_projector",
+        "_rate_limited_reasons",
         "_shadow",
         "_space",
         "_weights",
@@ -133,6 +163,8 @@ class RuntimeCalibrationManager:
         profiles: Sequence[CalibrationProfile],
         weights: SearchWeights,
         active: CalibrationProfile,
+        projector: CommandProjector | None = None,
+        rate_limited_reasons: frozenset[str] = frozenset(),
     ) -> None:
         """Build the arbiter.
 
@@ -148,6 +180,22 @@ class RuntimeCalibrationManager:
                 is "the active profile no longer matches", not "there is no
                 active profile". An optional active profile would make every
                 downstream record ambiguous about which of those it meant.
+            projector: Turns a target lateral acceleration back into a command
+                vector. ``None`` disables rate limiting entirely and the
+                fallback governs every blocked tick, which is the behaviour
+                every run before ADR-0017 had.
+            rate_limited_reasons: The gate reason codes a bounded approach can
+                satisfy. Empty by default, and supplied by the composition root
+                rather than imported: which reasons are rate-limitable is a fact
+                about how the gates are configured, and
+                :mod:`astra.runtime.assembly` is the module that decides what
+                every layer is. Importing the constant from L7b would give the
+                arbitrator an opinion about a gate's internal vocabulary.
+
+                **Only reasons that are genuinely about rate belong here.** A
+                twin-divergence veto is not a rate problem, and ratcheting
+                toward a divergent proposal would walk the vehicle to it in
+                bounded steps -- defeating the gate rather than respecting it.
 
         Raises:
             ConfigurationError: If the component is not an L9 component. The
@@ -168,6 +216,8 @@ class RuntimeCalibrationManager:
         self._profiles = tuple(profiles)
         self._weights = weights
         self._active = active
+        self._projector = projector
+        self._rate_limited_reasons = rate_limited_reasons
         self._shadow: ShadowExecution | None = None
         self._exploration_space: ActuationSpace | None = None
 
@@ -255,12 +305,29 @@ class RuntimeCalibrationManager:
         """
         del trust  # cold-path routing input; the hot-path decision does not read it
 
+        # The verdict is tested first, and nothing below it can reach the
+        # actuators past a VETO. That ordering is ADR-0016, and it replaced one
+        # in which the exploration envelope was tested *first* -- which made a
+        # veto advisory whenever exploration was engaged. Measured before the
+        # change: 99,808 of 100,000 ticks issued the proposal under a blocking
+        # verdict, because at the shipped operating point exploration is engaged
+        # almost always.
+        #
+        # Exploration no longer needs to out-rank anything. The verdicts it used
+        # to override were L6 declaring a proposal anomalous against a
+        # calibration it does not hold for the context; L6 now abstains there,
+        # so there is no veto left to work around, and the two gates whose
+        # bounds are configuration rather than calibration keep full authority
+        # inside the envelope exactly as they do outside it.
+        if verdict.is_blocking:
+            limited = self._rate_limited(proposal, verdict)
+            if limited is not None:
+                return self._build(tick, limited, CommandOrigin.RATE_LIMITED)
+            return self._build(tick, self._fallback_values(tick), CommandOrigin.FALLBACK_PID)
         if self._exploration_space is not None:
             return self._build(
                 tick, self._clamp(proposal.command.values), CommandOrigin.EXPLORATION_BOUNDED
             )
-        if verdict.is_blocking:
-            return self._build(tick, self._fallback_values(tick), CommandOrigin.FALLBACK_PID)
         if failsafe.speed_cap is not None:
             return self._build(
                 tick, self._clamp(proposal.command.values), CommandOrigin.SPEED_CAPPED
@@ -377,6 +444,98 @@ class RuntimeCalibrationManager:
             trust_score=score,
             calibration_divergence_index=index,
         )
+
+    def _rate_limited(
+        self, proposal: ProposedCommand, verdict: SafetyVerdict
+    ) -> tuple[float, ...] | None:
+        """Return the largest admissible step toward a rate-vetoed proposal.
+
+        The deadlock this exists to break, in four lines: the fallback commands
+        zero steering, so the vehicle's lateral acceleration is pinned at zero; a
+        proposal correcting a large lane error is then always a step too big from
+        there; it is vetoed; and the fallback governs again, re-establishing the
+        pin. A proposal only moves the achieved acceleration if it is *executed*,
+        so no proposer -- however well trained -- can climb a ramp it is never
+        allowed to stand on. Measured across three policies: the vehicle left the
+        lane and never came back.
+
+        The answer is the one every physical actuator already implements. The
+        gate is not wrong; the tyres genuinely cannot make that transition in one
+        tick. What was wrong was substituting the single worst command for
+        re-approaching the target. This issues the step the bound permits, in the
+        direction asked for, so the achieved acceleration advances by at most the
+        limit per tick and the proposal becomes admissible on its own after a few
+        of them.
+
+        **The veto is not overridden.** The proposal is not issued; a different
+        command is, derived from the very bound that refused it and therefore
+        admissible under it by construction. ADR-0016 is untouched.
+
+        Returns ``None`` -- deferring to the fallback -- whenever anything is not
+        exactly right: no projector, no rate-limitable reason, a blocking verdict
+        from any other gate, or evidence that does not carry the three numbers
+        this needs. Every one of those is a case where a bounded approach is not
+        obviously correct, and the fallback is the answer that needs no argument.
+
+        Args:
+            proposal: The vetoed proposal.
+            verdict: Core-B's combined verdict, whose gate evidence supplies the
+                current and proposed lateral accelerations and the bound. Read
+                from the record rather than recomputed, so that one projection
+                exists in the system rather than two that could disagree.
+
+        Returns:
+            An admissible command vector, or ``None`` to use the fallback.
+        """
+        if self._projector is None or not self._rate_limited_reasons:
+            return None
+
+        blocking = [gate for gate in verdict.gate_verdicts if gate.verdict.is_blocking]
+        if not blocking or any(
+            gate.reason_code not in self._rate_limited_reasons for gate in blocking
+        ):
+            # Something other than a rate bound objected. Approaching the
+            # proposal in small steps would not answer it -- it would arrive at
+            # the refused command a few ticks later, which is worse than
+            # refusing it outright because it looks like compliance.
+            return None
+
+        evidence = dict(blocking[0].evidence)
+        try:
+            current = evidence[_EVIDENCE_CURRENT]
+            proposed = evidence[_EVIDENCE_PROPOSED]
+            limit = evidence[_EVIDENCE_JERK_LIMIT]
+        except KeyError:
+            return None
+        if not all(math.isfinite(value) for value in (current, proposed, limit)):
+            return None
+
+        step = limit * self._tick_period_from(evidence)
+        target = current + math.copysign(min(step, abs(proposed - current)), proposed - current)
+        return self._clamp(
+            self._projector.with_lateral_acceleration(proposal.command.values, target)
+        )
+
+    @staticmethod
+    def _tick_period_from(evidence: dict[str, float]) -> float:
+        """Recover the tick period the gate computed its jerk over.
+
+        The gate publishes the demanded jerk and the accelerations it came from,
+        so the period is recoverable rather than needing to be injected -- which
+        keeps the arbitrator from holding a second copy of a number that would
+        silently disagree if the tick rate changed.
+
+        Args:
+            evidence: The physical gate's evidence for this tick.
+
+        Returns:
+            The period in seconds, or ``0.0`` if the jerk was zero and the
+            period cannot be recovered -- in which case the step is zero and the
+            caller issues the current acceleration unchanged, which is safe.
+        """
+        jerk = abs(evidence.get(_EVIDENCE_JERK, 0.0))
+        delta = abs(evidence[_EVIDENCE_PROPOSED] - evidence[_EVIDENCE_CURRENT])
+        return delta / jerk if jerk > 0.0 else 0.0
 
     def _fallback_values(self, tick: TickId) -> tuple[float, ...]:
         """Return the fallback controller's command, width-checked and clamped.

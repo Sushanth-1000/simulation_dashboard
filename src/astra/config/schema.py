@@ -435,13 +435,28 @@ class ShieldSettings(_Section):
 class FailSafeSettings(_Section):
     """L8 -- the fail-safe state machine's thresholds and speed caps.
 
+    **The thresholds are durations wearing counts.** The out-of-distribution
+    counter increments on a VETO and decrements on a PASS, so a threshold
+    divided by ``estimation.fast_rate_hz`` is how long sustained refusal must
+    last before the posture escalates. Choosing them as bare integers is how
+    ``ood_threshold_halt = 20`` came to mean "declare a terminal pull-over after
+    one second", which is shorter than a legitimate recovery from 1 m off the
+    lane centre -- see the note in ``config/environments/simulation.toml``.
+
+    Set them by deciding the duration first.
+
     Attributes:
         ood_threshold_degraded: ``theta-1``. OOD counter above this enters
             DEGRADED. **No default** (A-4).
         ood_threshold_limp: ``theta-2``. Enters LIMP. **No default** (A-4).
-        ood_threshold_halt: ``theta-3``. Enters HALT. **No default** (A-4).
-        degraded_speed_cap_kmh: Speed cap imposed in DEGRADED.
-        limp_speed_cap_kmh: Speed cap imposed in LIMP.
+        ood_threshold_halt: ``theta-3``. Enters HALT, which is terminal --
+            :meth:`~astra.layers.l8_failsafe.machine.FailSafeStateMachine.reset`
+            is its only exit. A threshold reachable by a transient therefore
+            makes the transient permanent. **No default** (A-4).
+        degraded_speed_cap_kmh: Speed cap imposed in DEGRADED. Reported to L9
+            and, today, enforced on no actuator -- see
+            :class:`~astra.kernel.enums.FailSafeState`.
+        limp_speed_cap_kmh: Speed cap imposed in LIMP. The same caveat applies.
     """
 
     ood_threshold_degraded: PositiveInt

@@ -90,6 +90,12 @@ assured_clear_distance_m = 60.0
 [failsafe]
 # Deliberately small so that state transitions are reachable in short
 # development runs and the FSM can be exercised by hand.
+#
+# As durations at 20 Hz these are 0.15 s, 0.3 s and 0.5 s -- far too twitchy to
+# run anything against, which is the point: they exist to make the graduated
+# response easy to trigger, not to describe a defensible operating point. Do not
+# read them as a model for `simulation.toml`, whose values are chosen as
+# durations and explained there.
 ood_threshold_degraded = 3
 ood_threshold_limp = 6
 ood_threshold_halt = 10

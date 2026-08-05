@@ -55,6 +55,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from astra.contracts.actuation import (
         ControlCommand,
         IssuedCommand,
@@ -78,6 +80,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "CalibrationArbiter",
+    "CommandProjector",
     "CommandProposer",
     "DeterministicShield",
     "DynamicsPredictor",
@@ -354,6 +357,50 @@ class PhysicalAdmissibilityChecker(Protocol):
 
         Raises:
             SafetyPathError: If admissibility could not be determined.
+        """
+        ...
+
+
+@runtime_checkable
+class CommandProjector(Protocol):
+    """Turns a target lateral acceleration back into a command vector.
+
+    The one piece of platform knowledge L9 needs and cannot derive: which
+    channel steers, and how much lateral acceleration a unit of it produces.
+    Supplied by the adapter, exactly as the actuation space is, so that NFR5's
+    domain independence survives -- a warehouse AGV supplies a different
+    projector and no layer changes.
+
+    Why only the inverse direction
+    -------------------------------
+    The forward projection already exists and is already published. L7b computes
+    the proposal's implied lateral acceleration to evaluate its jerk bound, and
+    records it, the current value and the limit in the verdict's evidence. L9
+    reads those three numbers rather than recomputing them, which keeps one
+    projection in the system instead of two that could disagree -- and two that
+    disagreed would mean the arbitrator was rate-limiting toward a target the
+    gate would not recognise.
+
+    See ADR-0017 for why L9 needs this at all.
+    """
+
+    def with_lateral_acceleration(
+        self, values: Sequence[float], target: float
+    ) -> tuple[float, ...]:
+        """Return the command vector that produces a target lateral acceleration.
+
+        Every other channel is carried through unchanged: the projector adjusts
+        the vehicle's *path*, never its speed. A rate-limited command is a
+        bounded step toward what the proposer asked for laterally, and it must
+        not quietly become a longitudinal intervention as well.
+
+        Args:
+            values: The command vector to adjust, in actuation-space order.
+            target: The lateral acceleration the result should imply, in m/s^2.
+
+        Returns:
+            A vector in the same space. Not clamped to it: the caller owns
+            admissibility, as it does everywhere else on this path.
         """
         ...
 

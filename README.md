@@ -23,9 +23,18 @@ idea.
 
 ASTRA governs the **actuation boundary**. It treats the AI controller as an *untrusted
 proposer* and interposes an independent nine-layer pipeline between it and the actuators. Every
-proposed command is validated three ways — statistically, physically, and against hard
+proposed command is evaluated three ways — statistically, physically, and against hard
 deterministic bounds — by gates with structurally different failure modes, and the whole system
 recalibrates itself from what actually happened.
+
+> **Measured, August 2026.** This was not true until
+> [ADR-0016](docs/adr/0016-exploration-may-not-override-a-deterministic-veto.md). A 100,000-tick
+> run found the proposer's command issued on **99.8% of ticks despite a blocking verdict**, because
+> bounded safe exploration was tested ahead of the verdict and, at the shipped operating point,
+> exploration is engaged almost always. A gate with no calibration for its context now abstains
+> instead of vetoing, no path overrides a veto, and the figure is zero. Six other findings from
+> that run remain open — see [`docs/SOAK_REPORT.md`](docs/SOAK_REPORT.md) and
+> [`docs/PENDING.md`](docs/PENDING.md).
 
 ```
                     L1  Shared Sensor Bus

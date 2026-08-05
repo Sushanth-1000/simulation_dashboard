@@ -106,26 +106,50 @@ class EnvironmentSpec:
         initial_speed_fraction: Half-range of the uniform initial speed error, as
             a fraction of the reference.
         action_rate_weight: Weight on the squared change in the normalised
-            action between consecutive steps.
+            **steering** command between consecutive steps.
 
-            Not a constraint, and deliberately not one: C1--C3 are fixed by the
-            architecture and none of them bounds how fast the *lateral* command
-            may move. L7b does -- it requires
-            ``|a_proposed - a_current| / dt <= max_lateral_jerk`` -- and a policy
-            optimised against C1--C3 alone has no reason to respect it. Measured
-            rather than assumed: the first policy trained here satisfied all
-            three constraints with a mean lane deviation of 0.10 m and was
-            vetoed by L7b on 100% of ticks, because it reached its target
-            lateral acceleration in a single 20 ms step.
+            Applied to the steering channel alone. It was written to cover all
+            three, and that cost the project a policy: at a weight of 6.0
+            against a task reward whose two terms each cap at 1.0, penalising
+            throttle and brake rate made a *constant* longitudinal command by
+            far the cheapest behaviour available. The cheapest constant one is
+            the initial one, and a Gaussian policy starts near a normalised
+            action of zero, which on this platform maps to half throttle and
+            half brake -- a net 2.5 m/s^2 of deceleration. The vehicle stopped,
+            stayed centred, collected the centring reward for the rest of the
+            episode, and never had an incentive to move its action again. The
+            checkpoint that produced ran an entire 100,000-tick soak without
+            the defect being visible, because nothing measured speed. See
+            ``docs/SOAK_REPORT.md``.
 
-            This term closes that gap without touching the constraint set or
-            :class:`~astra.layers.l4_proposer.signal.TrainingSignal`, because it
-            reads neither the vehicle nor any safety component -- only the
-            policy's own consecutive outputs. It is ordinary action-rate
-            regularisation, and the honest description of it is that the
-            architecture's stated constraints are insufficient to produce a
-            physically admissible proposer, and this is the objective term that
-            compensates.
+            Restricting it to steering is not a tuning choice; it is what the
+            rest of this entry always said the term was for: C1--C3 are fixed by
+            the architecture and none of them bounds how fast the *lateral*
+            command may move. L7b does -- ``|a_prop - a_now| / dt <= jerk_max``
+            -- and a policy optimised against C1--C3 alone has no reason to
+            respect it. Measured rather than assumed: the first policy trained
+            here satisfied all three constraints with a mean lane deviation of
+            0.10 m and was vetoed by L7b on 100% of ticks, because it reached
+            its target lateral acceleration in a single step.
+
+            **It is a proxy, and at the gate's boundary it is inert.** L7b
+            permits ``max_lateral_jerk_mps3 = 8.0`` over a 0.05 s tick, i.e. a
+            change of 0.4 m/s^2 in lateral acceleration, i.e. 0.00286 rad of
+            steer, i.e. a normalised action change of 0.0057. This term charges
+            ``6.0 x 0.0057^2 = 2e-4`` for that -- against a centring reward of
+            1.0. It smooths the action and cannot express the bound it was
+            introduced to approximate.
+
+            **Replacing it with a real jerk penalty was tried and did not
+            help.** A term charging ``w x max(0, jerk - 8.0) / 8.0`` per step,
+            read from the plant's own lateral acceleration, was measured at two
+            weights: at ``w = 1.0`` it swamps a task reward that caps at 2.0 and
+            training collapses (return 63, collision rate 1.0); at ``w = 0.1``
+            training is healthy (return 897, deviation 0.114 m) and the closed
+            loop is *worse* -- a 97% veto rate in the first thousand ticks
+            against 36% without it. The term was removed rather than tuned
+            further, because the lock it was meant to break is not a property of
+            the proposer. See ``docs/SOAK_REPORT.md``.
     """
 
     step_seconds: float = 0.02
@@ -332,7 +356,7 @@ class SyntheticDrivingEnv(gym.Env[NDArray[np.float32], NDArray[np.float32]]):
         """
         spec = self.spec_
         normalised = np.asarray(action, dtype=np.float64).reshape(-1)
-        roughness = float(np.sum((normalised - self._previous_action) ** 2))
+        roughness = float((normalised[_STEER] - self._previous_action[_STEER]) ** 2)
         self._previous_action = normalised.copy()
         command = np.clip(
             command_from_normalised(

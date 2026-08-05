@@ -159,7 +159,7 @@ SEPARATION_INVARIANTS: tuple[SeparationInvariant, ...] = (
         title="Unconditional veto",
         statement=(
             "No PASS from any component can suppress a VETO. Aggregation is fail-closed, "
-            "and an empty verdict set is a VETO."
+            "and a verdict set that is empty -- or in which every gate abstained -- is a VETO."
         ),
         rationale=(
             "The Hard Safety Shield's authority is only meaningful if it is unconditional. "
@@ -180,7 +180,7 @@ SEPARATION_INVARIANTS: tuple[SeparationInvariant, ...] = (
         identifier="SI-4",
         title="Trust isolation",
         statement=(
-            "The Trust Index must not participate in Core-B's binary verdict. It flows to "
+            "The Trust Index must not participate in Core-B's verdict. It flows to "
             "L4 for monitoring and L9 for routing only."
         ),
         rationale=(

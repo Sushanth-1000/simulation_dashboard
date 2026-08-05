@@ -251,13 +251,35 @@ def test_a_significance_level_outside_the_open_unit_interval_is_refused(
 # --------------------------------------------------------------------------- #
 
 
-def test_an_uncalibrated_class_vetoes_rather_than_passing() -> None:
+def test_an_uncalibrated_class_abstains_rather_than_passing_or_vetoing() -> None:
     # A gate that cannot make a statistical claim must not report that the
-    # proposal satisfied one.
+    # proposal satisfied one -- and, by ADR-0016, must not report that it
+    # violated one either. Both are assertions about a distribution this gate
+    # holds no sample of.
+    #
+    # Until ABSTAIN existed the gate had to pick one of the two lies and picked
+    # VETO, which is the safer lie and still a lie. The cost was measurable: at
+    # the shipped operating point no profile is reachable for most of a drive,
+    # so this branch fired on ~100% of ticks, drove the OOD counter to HALT, and
+    # was then overridden wholesale by bounded safe exploration -- which is how
+    # 99.8% of ticks came to be issued under a blocking verdict.
     verdict = _evaluate(_gate(scores=[]), proposed=0.3, predicted=0.3)
 
-    assert verdict.verdict is Verdict.VETO
+    assert verdict.verdict is Verdict.ABSTAIN
     assert verdict.reason_code == REASON_UNCALIBRATED
+
+
+def test_an_abstaining_gate_neither_clears_nor_blocks_on_its_own() -> None:
+    # The property that makes the abstention safe. It withdraws from the
+    # aggregation; it does not vote in it. Whether the tick proceeds is then
+    # entirely a question for the two gates whose bounds are configuration
+    # rather than calibration -- and if neither of those judged either,
+    # `Verdict.merge` fails closed exactly as it does for an empty set.
+    verdict = _evaluate(_gate(scores=[]), proposed=0.3, predicted=0.3)
+
+    assert not verdict.verdict.is_blocking
+    assert not verdict.verdict.participates
+    assert Verdict.merge([verdict.verdict]) is Verdict.VETO
 
 
 def test_the_uncalibrated_quantile_is_logged_as_a_sentinel_not_an_infinity() -> None:

@@ -32,6 +32,7 @@ generates the data and another fitted to the same equations judges it.
 from __future__ import annotations
 
 import tempfile
+import time
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -45,6 +46,7 @@ from astra.kernel.enums import SensorModality
 from astra.kernel.identifiers import RunId, TickId
 from astra.kernel.time import Instant, ManualClock, Timeline
 from astra.kernel.units import Probability, Seconds
+from astra.layers.l1_sensing.bus import SharedSensorBus
 from astra.layers.l2_estimation.measurement import fast_measurement, slow_measurement
 from astra.layers.l3_trust.corpus import CalibrationCorpus
 from astra.observability.audit import JsonlAuditSink
@@ -52,10 +54,22 @@ from astra.runtime.assembly import AssembledPipeline, assemble_pipeline
 from training.environment import EnvironmentSpec, SyntheticDrivingEnv
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from astra.contracts.audit import DecisionRecord
     from astra.layers.l2_estimation.measurement import Measurement
     from astra.layers.l4_proposer.proposer import Policy
+    from astra.runtime.pipeline import ColdPathContext
 
-__all__ = ["ClosedLoopResult", "drive_closed_loop"]
+__all__ = ["ClosedLoopResult", "TickSample", "drive_closed_loop"]
+
+ENVIRONMENT = "simulation"
+"""The configuration every closed-loop run resolves.
+
+Named rather than repeated, because a caller that builds a
+:class:`~astra.runtime.pipeline.ColdPathContext` has to read the same settings
+this function does -- and two literals drift.
+"""
 
 TWIN = Path("var/twin/synthetic.pt")
 CORPUS = Path("var/calibration/synthetic.json")
@@ -63,6 +77,32 @@ CORPUS = Path("var/calibration/synthetic.json")
 _SENSOR_QUALITY = Probability(0.95)
 _SPEED_SIGMA = 0.01
 _LATERAL_SIGMA = 0.04
+_POSITION_SIGMA = 0.1
+"""Lateral-position measurement noise, in metres.
+
+Representative of lane detection from a forward camera, which is where a real
+vehicle gets this quantity. The number matters less than the fact that the
+quantity is observed at all.
+
+**Why this exists, and what its absence cost.** Until 2 August this extractor
+published speed and lateral acceleration and nothing else, so ``position_y`` was
+never measured -- the UKF propagated it from a heading that is also unobserved,
+which is dead reckoning with no correction term. In a 2,000-tick run the estimate
+sat at zero while the plant drifted to 2.07 m off a lane 1.75 m wide, and the
+estimator error tracked the true deviation to three decimals because the estimate
+never moved at all.
+
+Nothing noticed. **The veto rate over those ticks was 0.00 and the Trust Index
+was exactly 1.00**, because no gate in Core-B measures where the vehicle is: L7a
+bounds speed, lateral acceleration and friction margin; L7b bounds jerk and
+divergence from the twin; L6 scores the proposal against the twin. A lane
+departure is invisible to all three. The proposer, reading the same estimate,
+believed it was centred and had no reason to correct.
+
+Every failure the soak reported downstream of that -- the veto latch, the
+statistical gate refusing every correction, the fail-safe machine reaching HALT --
+begins here. See ``docs/SOAK_REPORT.md``.
+"""
 _FRICTION_SIGMA = 4e-4
 _FRICTION = 0.85
 
@@ -77,7 +117,7 @@ class _Extractor:
             frame: The fused sensor frame.
 
         Returns:
-            Speed and lateral acceleration, or ``None``.
+            Lateral position, speed and lateral acceleration, or ``None``.
         """
         sample = frame.sample_for(SensorModality.IMU)  # type: ignore[attr-defined]
         if sample is None:
@@ -85,6 +125,7 @@ class _Extractor:
         payload = sample.payload
         return fast_measurement(
             [
+                ("position_y", float(payload["y"]), _POSITION_SIGMA),
                 ("speed", float(payload["v"]), _SPEED_SIGMA),
                 ("lateral_acceleration", float(payload["a"]), _LATERAL_SIGMA),
             ]
@@ -103,6 +144,73 @@ class _Extractor:
         return slow_measurement([("road_friction_coefficient", _FRICTION, _FRICTION_SIGMA)])
 
 
+def _publish_state(bus: SharedSensorBus[Any], *, plant: SyntheticDrivingEnv, at: Instant) -> None:
+    """Publish the plant's observable state to every sensor modality.
+
+    Every modality carries the same payload because the synthetic plant has one
+    ground truth and no per-sensor models; what differs between modalities in a
+    real adapter is noise and latency, and neither is simulated here.
+
+    Args:
+        bus: The shared sensor bus.
+        plant: The synthetic plant, read directly as the test fixture it is.
+        at: The observation instant, from the injected clock.
+    """
+    state = plant._state  # noqa: SLF001 - the plant is the test fixture
+    payload = {
+        "y": float(state[1]),
+        "v": float(state[2]),
+        "a": float(state[4]),
+    }
+    for modality in SensorModality:
+        bus.publish(
+            SensorSample(
+                modality=modality,
+                observed_at=at,
+                quality=_SENSOR_QUALITY,
+                payload=payload,
+            )
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class TickSample:
+    """One tick, as an observer sees it.
+
+    Why an observer rather than a longer result record
+    ---------------------------------------------------
+    :class:`ClosedLoopResult` accumulates scalars, which is right for a
+    four-hundred-tick comparison and useless for a hundred-thousand-tick soak:
+    the question there is not *what was the mean* but *did the mean move*. An
+    observer lets the caller decide what to keep, and a soak that keeps only
+    per-window aggregates holds its own memory flat -- which is what makes the
+    pipeline's resident memory attributable to the pipeline.
+
+    Attributes:
+        tick: The tick index.
+        record: The full decision record the pipeline produced this tick.
+        was_issued: Whether a command reached the actuation sink.
+        lane_deviation_m: The plant's true lateral offset **after** the step.
+            The truth, not the estimate -- the estimate is in
+            ``record.fast_state``, and the pair is what makes estimator drift
+            visible.
+        speed_mps: The plant's true speed after the step.
+        lateral_acceleration_mps2: The plant's true lateral acceleration after
+            the step.
+        pipeline_duration_ns: Wall-clock cost of ``pipeline.tick`` alone. The
+            sensor publish, the plant step and this callback are outside it, so
+            the figure describes ASTRA rather than the harness around it.
+    """
+
+    tick: int
+    record: DecisionRecord
+    was_issued: bool
+    lane_deviation_m: float
+    speed_mps: float
+    lateral_acceleration_mps2: float
+    pipeline_duration_ns: int
+
+
 @dataclass(slots=True)
 class ClosedLoopResult:
     """What a closed-loop run produced.
@@ -117,6 +225,18 @@ class ClosedLoopResult:
         peak_lateral_jerk_mps3: Largest single-tick lateral jerk the *proposals*
             demanded, whether or not they were issued.
         mean_absolute_deviation_m: Mean ``|lane deviation|`` the vehicle held.
+        final_absolute_deviation_m: |lane deviation| after the last tick. The
+            mean hides a slow drift -- early ticks are near zero and dilute it --
+            so where the vehicle *ended* is the figure that catches a departure.
+        final_speed_mps: The plant's speed after the last tick. Recorded because
+            every other field here is satisfied perfectly by a vehicle that has
+            come to a stop, and one did: the first trained checkpoint halted the
+            car inside 250 ticks and passed every assertion in the suite.
+        dropped_records: Audit records discarded because the sink's queue was
+            full. Non-zero means this run's evidence has a gap, and a run whose
+            evidence has a gap cannot be reported as complete. Invisible at
+            four hundred ticks and the first thing a long run can lose.
+        audit_path: Where the evidence for this run was written.
     """
 
     ticks: int = 0
@@ -125,6 +245,10 @@ class ClosedLoopResult:
     reasons: Counter[str] = field(default_factory=Counter)
     peak_lateral_jerk_mps3: float = 0.0
     mean_absolute_deviation_m: float = 0.0
+    final_speed_mps: float = 0.0
+    final_absolute_deviation_m: float = 0.0
+    dropped_records: int = 0
+    audit_path: Path | None = None
 
     @property
     def veto_rate(self) -> float:
@@ -144,8 +268,14 @@ def drive_closed_loop(
     seed: int = 20260731,
     spec: EnvironmentSpec | None = None,
     directory: Path | None = None,
+    observer: Callable[[TickSample], None] | None = None,
+    cold_path: ColdPathContext | None = None,
 ) -> ClosedLoopResult:
     """Run the pipeline against the plant, feeding issued commands back in.
+
+    The plant is never reset. An episode boundary would wash out exactly the
+    slow drift a long run exists to find, so the vehicle drives continuously for
+    however many ticks it is given.
 
     Args:
         policy: The proposer's policy, or ``None`` for the placeholder.
@@ -154,11 +284,20 @@ def drive_closed_loop(
         spec: The plant definition. Defaults to :class:`EnvironmentSpec`.
         directory: Where to write the audit log. A temporary directory by
             default.
+        observer: Called once per tick with a :class:`TickSample`, after the
+            plant has applied the issued command. ``None`` -- the default --
+            leaves the loop as it was.
+        cold_path: What RCM needs to evaluate the knowledge base. ``None`` --
+            the default, and what every run before the first soak used --
+            leaves the cold path dormant: the arbitrator keeps its initial
+            profile and bounded safe exploration can never engage. That is a
+            materially different system from the one the architecture
+            describes, so a run that leaves it ``None`` must say so.
 
     Returns:
         The run's outcome.
     """
-    resolved = load_settings(environment="simulation", include_environment_variables=False)
+    resolved = load_settings(environment=ENVIRONMENT, include_environment_variables=False)
     settings = resolved.settings
     plant = SyntheticDrivingEnv(spec or EnvironmentSpec())
     plant.reset(seed=seed)
@@ -180,6 +319,7 @@ def drive_closed_loop(
         initial_speed=settings.shield.legal_speed_limit,
         twin_checkpoint=TWIN,
         corpus=CalibrationCorpus.read(CORPUS),
+        cold_path=cold_path,
         policy=policy,
     )
 
@@ -191,19 +331,11 @@ def drive_closed_loop(
     deviation_total = 0.0
 
     for index in range(ticks):
-        speed = float(plant._state[2])  # noqa: SLF001 - the plant is the test fixture
-        lateral = float(plant._state[4])  # noqa: SLF001
-        for modality in SensorModality:
-            built.sensor_bus.publish(
-                SensorSample(
-                    modality=modality,
-                    observed_at=clock.now(),
-                    quality=_SENSOR_QUALITY,
-                    payload={"v": speed, "a": lateral},
-                )
-            )
+        _publish_state(built.sensor_bus, plant=plant, at=clock.now())
 
+        started_at = time.perf_counter_ns()
         outcome = built.pipeline.tick(TickId(index))
+        duration_ns = time.perf_counter_ns() - started_at
         record = outcome.record
         if record.fast_state is not None:
             built.fallback.observe(record.fast_state)
@@ -233,11 +365,27 @@ def drive_closed_loop(
         plant.step(action.astype(np.float32))
         previous_lateral = float(plant._state[4])  # noqa: SLF001
         deviation_total += abs(float(plant._state[1]))  # noqa: SLF001
+        if observer is not None:
+            observer(
+                TickSample(
+                    tick=index,
+                    record=record,
+                    was_issued=outcome.was_issued,
+                    lane_deviation_m=float(plant._state[1]),  # noqa: SLF001
+                    speed_mps=float(plant._state[2]),  # noqa: SLF001
+                    lateral_acceleration_mps2=previous_lateral,
+                    pipeline_duration_ns=duration_ns,
+                )
+            )
         clock.advance(period)
 
     sink.flush()
     sink.close()
     result.mean_absolute_deviation_m = deviation_total / ticks
+    result.final_speed_mps = float(plant._state[2])  # noqa: SLF001
+    result.final_absolute_deviation_m = abs(float(plant._state[1]))  # noqa: SLF001
+    result.dropped_records = sink.dropped_records
+    result.audit_path = sink.path
     return result
 
 

@@ -136,8 +136,14 @@ RCS_DIMENSION: Final = len(RCS_FIELDS)
 # after the schema has moved on. A version field is the cheapest possible
 # insurance against an unreadable evidence archive.
 
-AUDIT_SCHEMA_VERSION: Final = 1
-"""Schema version stamped on every audit record. Increment on any field change."""
+AUDIT_SCHEMA_VERSION: Final = 2
+"""Schema version stamped on every audit record. Increment on any field change.
+
+Version 2 (ADR-0016) widened the verdict vocabulary: a gate verdict may now read
+``ABSTAIN`` as well as ``PASS`` or ``VETO``. No field was added or removed, so a
+version-1 reader will parse a version-2 record structurally -- and will
+mis-classify an abstention, most likely as an unrecognised veto. That is exactly
+the failure the version field exists to make loud rather than silent."""
 
 CONFIG_SCHEMA_VERSION: Final = 1
 """Schema version required in every configuration file. Rejected if mismatched."""

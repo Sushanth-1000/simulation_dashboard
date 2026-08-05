@@ -31,6 +31,8 @@ is also recorded in the source, the module docstring is named — the reader who
 | [0013](0013-append-only-jsonl-audit-log.md) | Append-only JSONL audit log as the certification evidence artefact | `src/astra/observability/audit.py`, `src/astra/contracts/audit.py` |
 | [0014](0014-proprietary-licence-pending-patent.md) | Proprietary licence while the patent filing is pending | `LICENSE`, `NOTICE` |
 | [0015](0015-carla-interpreter-strategy.md) | Target CARLA 0.9.16 on Linux; no sidecar, no unofficial wheel | `.importlinter`, [`../spikes/R6-carla-interpreter.md`](../spikes/R6-carla-interpreter.md) |
+| [0016](0016-exploration-may-not-override-a-deterministic-veto.md) | A gate that cannot judge abstains; no path overrides a veto | `src/astra/kernel/enums.py` (`Verdict`), `src/astra/layers/l9_rcm/arbiter.py` |
+| [0017](0017-rate-limited-approach-to-a-jerk-vetoed-proposal.md) | A jerk veto yields the largest admissible step, not zero steering | `src/astra/layers/l9_rcm/arbiter.py`, `src/astra/ports/pipeline.py` (`CommandProjector`) |
 
 ## Format
 

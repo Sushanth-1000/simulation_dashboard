@@ -12,6 +12,16 @@ The answer here is not to relax the gates. It is to shrink the envelope until
 the vehicle's behaviour is defensible *without* a certified profile, and keep
 moving inside it.
 
+That sentence was aspirational until ADR-0016. The envelope was tested *before*
+the verdict in
+:meth:`~astra.layers.l9_rcm.arbiter.RuntimeCalibrationManager.issue`, so
+exploration did relax the gates, completely: 99,808 of 100,000 ticks in a soak
+run issued the proposal under a blocking verdict. It holds literally now. A gate
+with no calibration for the context abstains rather than vetoing, so no verdict
+is left for the envelope to work around, and any veto that does survive came
+from a gate whose bounds are configuration -- as binding inside the envelope as
+outside it.
+
 Why each bound is what it is
 -----------------------------
 **Speed at half the nearest profile's certified maximum.** Halving is not a

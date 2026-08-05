@@ -132,13 +132,54 @@ _LAYER_DOMAIN: dict[LayerId, ExecutionDomain] = {
 
 @unique
 class Verdict(StrEnum):
-    """The binary judgement a Core-B gate returns for a proposed command."""
+    """The judgement a Core-B gate returns for a proposed command.
+
+    Two of the three values are judgements. The third records that the gate had
+    no basis to make one, which is a different statement from either and was
+    previously inexpressible -- see :attr:`ABSTAIN` and ADR-0016.
+    """
 
     PASS = "PASS"  # noqa: S105 - a safety verdict, not a credential
     """The gate found no reason to block the command."""
 
     VETO = "VETO"
     """The gate blocks the command. Never overridable by another gate's PASS."""
+
+    ABSTAIN = "ABSTAIN"
+    """The gate had no basis on which to judge, and says so rather than guessing.
+
+    Introduced by ADR-0016 for one specific, checkable condition: the statistical
+    gate holds no finite conformal threshold for the context class it was handed,
+    because no calibration data covers it. Before this value existed the gate had
+    to choose between two lies -- a PASS asserting the proposal satisfied a
+    threshold that does not exist, or a VETO asserting it violated one. It chose
+    VETO, correctly, and the comment above that branch in
+    :mod:`astra.layers.l6_statistical_gate.gate` says exactly why: *"a gate that
+    cannot make a statistical claim must not report that the proposal satisfied
+    one."* That reasoning wanted this third value.
+
+    **An abstention is not a PASS.** It does not clear anything; it removes the
+    gate from the aggregation for that tick. Two consequences follow and both are
+    load-bearing:
+
+    - A verdict set that is empty **or entirely abstentions** aggregates to
+      ``VETO``. Nothing judged the command, so the command was not cleared. This
+      is the same fail-closed rule that has always covered the empty set, and
+      extending it is what stops abstention becoming a fail-open mode.
+    - It must never be returned on a condition a reviewer cannot check after the
+      fact. "I was uncertain" is not a licence to abstain; "I hold no threshold
+      for this class, and the evidence record shows the sample count was zero"
+      is.
+    """
+
+    @property
+    def participates(self) -> bool:
+        """Return whether this verdict counts toward the aggregate.
+
+        Returns:
+            ``True`` for ``PASS`` and ``VETO``, ``False`` for ``ABSTAIN``.
+        """
+        return self is not Verdict.ABSTAIN
 
     @classmethod
     def merge(cls, verdicts: Iterable[Verdict]) -> Verdict:
@@ -156,17 +197,24 @@ class Verdict(StrEnum):
         FMEA mitigation for a silent Core-B crash, where the hardware crossbar
         defaults to VETO on a missed heartbeat.
 
+        **Abstentions are removed before that rule is applied, never counted as
+        PASS.** An input consisting only of abstentions is therefore
+        indistinguishable from an empty one and yields ``VETO`` for the same
+        reason: nothing judged the command. Returning ``PASS`` there would let a
+        gate clear a command by declining to look at it, which is precisely the
+        fail-open mode this method exists to prevent.
+
         Args:
             verdicts: Any iterable of :class:`Verdict` values.
 
         Returns:
-            ``PASS`` only if the iterable is non-empty and every element is
-            ``PASS``; otherwise ``VETO``.
+            ``PASS`` only if at least one verdict participated and every
+            participating verdict is ``PASS``; otherwise ``VETO``.
         """
-        materialised = tuple(verdicts)
-        if not materialised:
+        judged = tuple(verdict for verdict in verdicts if verdict.participates)
+        if not judged:
             return cls.VETO
-        if all(verdict is cls.PASS for verdict in materialised):
+        if all(verdict is cls.PASS for verdict in judged):
             return cls.PASS
         return cls.VETO
 
@@ -174,8 +222,12 @@ class Verdict(StrEnum):
     def is_blocking(self) -> bool:
         """Return whether this verdict prevents the proposed command from being issued.
 
+        An abstention does not block on its own -- it withdraws from the
+        judgement rather than opposing it. Whether the *tick* is blocked is a
+        question for the aggregate, which fails closed when nothing judged.
+
         Returns:
-            ``True`` for ``VETO``, ``False`` for ``PASS``.
+            ``True`` for ``VETO``, ``False`` for ``PASS`` and ``ABSTAIN``.
         """
         return self is Verdict.VETO
 
@@ -207,21 +259,42 @@ class FailSafeState(StrEnum):
     """The four states of the Core-B fail-safe state machine (L8).
 
     Transitions are driven by an out-of-distribution counter that increments on
-    every VETO and decrements on every PASS, which is what makes recovery
-    bidirectional and automatic without a restart.
+    every VETO and decrements on every PASS, which is what makes recovery from
+    DEGRADED and LIMP bidirectional and automatic without a restart. HALT is
+    terminal by design: :meth:`~astra.layers.l8_failsafe.machine.FailSafeStateMachine.reset`
+    is the only exit, because leaving a pull-over is an engineering or operator
+    decision rather than something a run of clean ticks should accomplish.
+
+    **The speed caps these states report are not enforced on any actuator.**
+    :attr:`~astra.contracts.assurance.FailSafeSnapshot.speed_cap` is recorded in
+    the evidence and read by nothing:
+    :meth:`~astra.layers.l9_rcm.arbiter.RuntimeCalibrationManager.issue` returns
+    on the blocked path before the cap is consulted, and the branch that does
+    consult it clamps only to the actuation space -- the identical call the
+    uncapped path makes. Converting a cap in m/s into a throttle and brake
+    vector needs to know which channel brakes and how hard, which is platform
+    knowledge NFR5 keeps out of the core; the seam for it is the open question
+    recorded as P2.1 in ``docs/PENDING.md``. Measured: a 100,000-tick run held
+    17.2 m/s in HALT, whose cap is 0.0 m/s.
     """
 
     NOMINAL = "NOMINAL"
     """Commands pass unmodified."""
 
     DEGRADED = "DEGRADED"
-    """OOD counter above theta-1. Fallback PID governs; speed reduced."""
+    """OOD counter above theta-1. Fallback PID governs. Reports a reduced speed
+    cap, which is recorded and not enforced -- see the class docstring."""
 
     LIMP = "LIMP"
-    """OOD counter above theta-2. Hard speed cap; lane changes excluded."""
+    """OOD counter above theta-2. Lane changes excluded. Reports a hard speed
+    cap, which is recorded and not enforced -- see the class docstring."""
 
     HALT = "HALT"
-    """Hardware fault, BIST failure, or counter above theta-3. Controlled pull-over."""
+    """Hardware fault, BIST failure, or counter above theta-3. Reports a cap of
+    0.0 m/s -- a commanded stop -- which is recorded and not enforced. The
+    intent is a controlled pull-over; the implemented behaviour is a terminal
+    state that constrains nothing but the origin label. See the class
+    docstring."""
 
     @property
     def severity_rank(self) -> int:

@@ -163,11 +163,12 @@ src = ["src", "tests"]
 extend-exclude = [".venv", "build", "dist"]
 
 [tool.ruff.lint.isort]
-# `training` is first-party even though it is not installed: it lives outside
-# `src/` so the RL frameworks stay off the runtime import graph, not because it
-# belongs to somebody else. Without this it sorts as a third-party package and
-# the import block reads as though the pipeline depended on an external trainer.
-known-first-party = ["astra", "training"]
+# `training` and `benchmarks` are first-party even though neither is installed:
+# they live outside `src/` so the RL frameworks and the measurement scripts stay
+# off the runtime import graph, not because they belong to somebody else.
+# Without this they sort as third-party packages and the import block reads as
+# though the pipeline depended on an external trainer.
+known-first-party = ["astra", "benchmarks", "training"]
 
 [tool.ruff.lint]
 select = [

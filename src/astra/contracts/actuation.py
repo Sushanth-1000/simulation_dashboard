@@ -74,10 +74,33 @@ class CommandOrigin(StrEnum):
     """The deterministic PID controller governed, because a gate vetoed or the FSM left NOMINAL."""
 
     SPEED_CAPPED = "SPEED_CAPPED"
-    """A command clamped to a fail-safe speed cap by the L8 state machine."""
+    """Issued while the L8 state machine reported a speed cap.
+
+    **An attribution label, not a transformation.** The command carrying it is
+    clamped to the actuation space and nothing else -- the identical call the
+    ``PROPOSED`` branch makes -- so a ``SPEED_CAPPED`` record and a ``PROPOSED``
+    one describe the same vector. The repository's own test says so in its name:
+    ``test_a_fail_safe_cap_is_recorded_in_the_origin``. Why the cap is not
+    applied, and what it would take to apply it, are in
+    :class:`~astra.kernel.enums.FailSafeState`."""
 
     EXPLORATION_BOUNDED = "EXPLORATION_BOUNDED"
     """A bounded safe-exploration command, issued when no admissible profile was found."""
+
+    RATE_LIMITED = "RATE_LIMITED"
+    """The largest step toward a vetoed proposal that the jerk bound permits.
+
+    Issued when L7b refused a proposal solely because the change in lateral
+    acceleration it demanded was too fast. **The veto stands and the proposal is
+    not issued**; what goes out is a different command, derived from the bound
+    that refused it and therefore admissible under that bound by construction.
+
+    It exists because the alternative was a deadlock. The fallback commands zero
+    steering, so under a sustained veto the vehicle's lateral acceleration is
+    pinned at zero, every correction the proposer offers is a step too large
+    from there, and the veto that follows re-establishes the condition that
+    caused it. Measured: the vehicle left the lane and never returned, at 2.9 km
+    by tick 100,000, under three different policies. See ADR-0017."""
 
 
 @dataclass(frozen=True, slots=True)

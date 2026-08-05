@@ -13,6 +13,12 @@ from astra.ports import infrastructure, pipeline
 _INFRASTRUCTURE_PORTS = ("ActuationSink", "EventSink", "FeedbackBus", "ProfileRepository")
 _PIPELINE_PORTS = (
     "CalibrationArbiter",
+    # Not a layer's role, unlike its neighbours here: the seam through which the
+    # adapter supplies the one piece of platform knowledge L9 needs and cannot
+    # derive -- how much lateral acceleration a unit of steering produces. Added
+    # by ADR-0017. It is a port for the same reason the actuation space is a
+    # parameter: NFR5 keeps vehicles out of the layers.
+    "CommandProjector",
     "CommandProposer",
     "DeterministicShield",
     "DynamicsPredictor",

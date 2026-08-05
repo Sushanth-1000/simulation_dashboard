@@ -260,9 +260,25 @@ class IcpStatisticalGate:
         if math.isinf(quantile):
             # No finite threshold exists for this class. A gate that cannot make
             # a statistical claim must not report that the proposal satisfied
-            # one. The quantile is logged as -1 above because the evidence
-            # schema carries floats and an infinity would not round-trip.
-            return self._veto(tick, REASON_UNCALIBRATED, evidence)
+            # one -- and, by ADR-0016, must not report that it violated one
+            # either. Both are claims about a distribution this gate has no
+            # sample of. It abstains, and the aggregate falls to the two gates
+            # whose bounds do not depend on calibration; if neither of those
+            # judged either, `Verdict.merge` fails closed exactly as it does for
+            # an empty verdict set.
+            #
+            # The quantile is logged as -1 above because the evidence schema
+            # carries floats and an infinity would not round-trip. The
+            # calibration sample count is in the evidence too, which is what
+            # makes this abstention checkable after the fact rather than taken
+            # on trust.
+            return GateVerdict(
+                tick=tick,
+                gate=GateId.STATISTICAL,
+                verdict=Verdict.ABSTAIN,
+                reason_code=REASON_UNCALIBRATED,
+                evidence=evidence,
+            )
         if score > quantile:
             return self._veto(tick, REASON_SCORE_ABOVE_QUANTILE, evidence)
         return GateVerdict(

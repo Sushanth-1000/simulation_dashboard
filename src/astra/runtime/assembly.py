@@ -35,6 +35,7 @@ error a demo does not surface.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final
 
@@ -42,7 +43,7 @@ from astra.contracts.actuation import ActuationChannel, ActuationSpace
 from astra.contracts.governance import CalibrationProfile, ProfileFieldHistory
 from astra.kernel.constants import RCS_DIMENSION
 from astra.kernel.enums import ContextClass, LayerId
-from astra.kernel.errors import InvariantViolationError
+from astra.kernel.errors import ConfigurationError, InvariantViolationError
 from astra.kernel.identifiers import ComponentId, ProfileId
 from astra.kernel.matrix import SymmetricMatrix
 from astra.kernel.time import civil_plus_days
@@ -60,6 +61,9 @@ from astra.layers.l5_twin.twin import PhysicsInformedTwin
 from astra.layers.l6_statistical_gate.gate import IcpStatisticalGate
 from astra.layers.l6_statistical_gate.mmd import MmdShiftDetector
 from astra.layers.l7_shield.shield import HardSafetyShield
+from astra.layers.l7b_physical.checker import (
+    REASON_LATERAL_JERK as PHYSICAL_REASON_LATERAL_JERK,
+)
 from astra.layers.l7b_physical.checker import PhysicalAdmissibilityGate
 from astra.layers.l8_failsafe.machine import FailSafeStateMachine
 from astra.layers.l9_rcm.arbiter import RuntimeCalibrationManager
@@ -82,6 +86,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "AssembledPipeline",
+    "AutomotiveCommandProjector",
     "ColdPathContext",
     "assemble_pipeline",
     "automotive_actuation_space",
@@ -145,6 +150,64 @@ def automotive_actuation_space() -> ActuationSpace:
             ActuationChannel(name="steer", lower=-0.5, upper=0.5, unit="rad"),
         )
     )
+
+
+@dataclass(frozen=True, slots=True)
+class AutomotiveCommandProjector:
+    """Turns a target lateral acceleration into a steering command.
+
+    Satisfies :class:`~astra.ports.pipeline.CommandProjector` structurally. The
+    second place in this codebase that says anything about vehicles, after
+    :func:`automotive_actuation_space`, and it is here for the same reason: it
+    is platform knowledge, and NFR5 keeps platform knowledge out of the layers.
+
+    The model is the one the twin and L7b already share -- ``B . pi = a_lat``,
+    lateral acceleration linear in the steering command through the control
+    effectiveness. Inverting it is a division, and the only subtlety is that
+    every other channel is carried through untouched: rate limiting adjusts the
+    vehicle's path, never its speed.
+
+    Attributes:
+        steering_index: Which channel steers.
+        effectiveness: Lateral acceleration produced per unit of that channel.
+    """
+
+    steering_index: int
+    effectiveness: float
+
+    def __post_init__(self) -> None:
+        """Validate the effectiveness.
+
+        Raises:
+            ConfigurationError: If the effectiveness is zero or non-finite. A
+                zero would make every target unreachable and the division
+                undefined; silently returning the input instead would leave a
+                rate limiter that never limits anything.
+        """
+        if not math.isfinite(self.effectiveness) or self.effectiveness == 0.0:
+            message = (
+                f"steering effectiveness must be finite and non-zero, got "
+                f"{self.effectiveness}; a zero makes every lateral target unreachable"
+            )
+            raise ConfigurationError(message, layer=LayerId.L9_RCM)
+
+    def with_lateral_acceleration(
+        self, values: Sequence[float], target: float
+    ) -> tuple[float, ...]:
+        """Return the command that produces a target lateral acceleration.
+
+        Args:
+            values: The command vector to adjust, in actuation-space order.
+            target: The lateral acceleration the result should imply, in m/s^2.
+
+        Returns:
+            The vector with only the steering channel changed.
+        """
+        steer = target / self.effectiveness
+        return tuple(
+            steer if index == self.steering_index else float(value)
+            for index, value in enumerate(values)
+        )
 
 
 def _quantile_table(corpus: CalibrationCorpus | None, context: ContextClass) -> tuple[float, ...]:
@@ -467,6 +530,18 @@ def assemble_pipeline[PayloadT](
         profiles=profiles,
         weights=SearchWeights(similarity=0.4, validation=0.3, history=0.2, risk=0.1),
         active=profiles[0],
+        projector=AutomotiveCommandProjector(
+            steering_index=STEER_INDEX,
+            effectiveness=settings.twin.control_effectiveness[STEER_INDEX],
+        ),
+        # Which reason codes a bounded approach can answer is decided here, in
+        # the module that knows what every layer is, rather than by the
+        # arbitrator importing a gate's vocabulary. Exactly one qualifies: the
+        # jerk bound is a statement about *rate*, so approaching it slowly is a
+        # real answer to it. Divergence from the twin and every deterministic
+        # bound are statements about the destination, and arriving there in
+        # small steps would defeat them while looking like compliance.
+        rate_limited_reasons=frozenset({PHYSICAL_REASON_LATERAL_JERK}),
     )
 
     pipeline: GovernancePipeline[PayloadT] = GovernancePipeline(

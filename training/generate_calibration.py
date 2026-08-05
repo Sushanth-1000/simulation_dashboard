@@ -67,6 +67,7 @@ from astra.layers.l2_estimation.filter import DualRateUKF
 from astra.layers.l2_estimation.measurement import fast_measurement, slow_measurement
 from astra.layers.l3_trust.classifier import RuleBasedContextClassifier
 from astra.layers.l3_trust.corpus import CalibrationCorpus, coverage_report
+from astra.layers.l4_proposer.learned import LearnedPolicy
 from astra.layers.l4_proposer.policies import KinematicPlaceholderPolicy
 from astra.layers.l4_proposer.proposer import CmdpProposer
 from astra.layers.l5_twin.twin import PhysicsInformedTwin
@@ -77,6 +78,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from astra.layers.l2_estimation.measurement import Measurement
+    from astra.layers.l4_proposer.proposer import Policy
 
 DEFAULT_CHECKPOINT = Path("var/twin/synthetic.pt")
 DEFAULT_OUT = Path("var/calibration/synthetic.json")
@@ -188,6 +190,14 @@ class _Extractor:
         payload = sample.payload
         return fast_measurement(
             [
+                # Lateral position is observed here for the same reason it is in
+                # `training/closed_loop.py`: a corpus harvested under different
+                # observability from the run it calibrates describes a different
+                # filter. Without it `position_y` is dead-reckoned, the
+                # covariance the non-conformity score divides by is that of an
+                # unobserved state, and the quantile certifies a filter nobody
+                # runs.
+                ("position_y", float(payload["y"]), 0.1),
                 ("speed", float(payload["v"]), 0.01),
                 ("lateral_acceleration", float(payload["a"]), 0.04),
             ]
@@ -216,14 +226,32 @@ def generate(
     checkpoint: Path,
     per_class: int,
     seed: int,
+    policy_checkpoint: Path | None = None,
 ) -> CalibrationCorpus:
     """Harvest non-conformity scores until every reachable class has enough.
+
+    **The corpus must be harvested from the proposer that will be judged
+    against it.** A conformal quantile is a statement about one distribution of
+    non-conformity scores, and scoring a different proposer against it asks
+    whether policy B is typical of policy A -- a question with no bearing on
+    whether policy B is behaving.
+
+    That was not merely theoretical. The placeholder harvested here is built with
+    ``maximum_jerk=settings.physical.max_lateral_jerk``, so it respects L7b's
+    bound *by construction*; the trained PPO policy has no such term. A corpus
+    drawn from the first and used to judge the second had the statistical gate
+    vetoing 100% of ticks in a 100,000-tick soak while the Trust Index read
+    exactly 1.00 throughout.
 
     Args:
         environment: Which configuration to load.
         checkpoint: The trained twin's weights.
         per_class: How many scores each class needs.
         seed: Random seed for the sensor noise and fault injection.
+        policy_checkpoint: A trained policy to harvest from. ``None`` keeps the
+            deterministic placeholder, which is right when no policy has been
+            trained yet -- an uncalibrated gate refuses everything, so some
+            corpus is needed before anything can be observed at all.
 
     Returns:
         The corpus.
@@ -234,14 +262,18 @@ def generate(
     noise = random.Random(seed)
 
     classifier = RuleBasedContextClassifier(highway_speed=settings.trust.highway_speed_boundary)
-    policy = KinematicPlaceholderPolicy(
-        channel_count=space.dimension,
-        speed_index=THROTTLE_INDEX,
-        steer_index=STEER_INDEX,
-        target_speed=float(settings.shield.legal_speed_limit) * 0.8,
-        steer_effectiveness=float(settings.twin.control_effectiveness[STEER_INDEX]),
-        tick_period=1.0 / settings.estimation.fast_rate_hz,
-        maximum_jerk=float(settings.physical.max_lateral_jerk),
+    policy: Policy = (
+        LearnedPolicy.load(policy_checkpoint)
+        if policy_checkpoint is not None
+        else KinematicPlaceholderPolicy(
+            channel_count=space.dimension,
+            speed_index=THROTTLE_INDEX,
+            steer_index=STEER_INDEX,
+            target_speed=float(settings.shield.legal_speed_limit) * 0.8,
+            steer_effectiveness=float(settings.twin.control_effectiveness[STEER_INDEX]),
+            tick_period=1.0 / settings.estimation.fast_rate_hz,
+            maximum_jerk=float(settings.physical.max_lateral_jerk),
+        )
     )
     scores: dict[ContextClass, list[float]] = {}
     digest = ""
@@ -294,6 +326,7 @@ def generate(
                     payload={
                         "v": regime.speed + noise.gauss(0.0, 0.08) + spike,
                         "a": regime.lateral + noise.gauss(0.0, 0.12),
+                        "y": noise.gauss(0.0, 0.1),
                     },
                 )
             )
@@ -414,6 +447,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--environment", default="simulation")
     parser.add_argument("--per-class", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=20260731)
+    parser.add_argument(
+        "--policy",
+        type=Path,
+        default=None,
+        help=(
+            "harvest from a trained policy instead of the placeholder. The corpus "
+            "must describe the proposer it will judge; see generate()"
+        ),
+    )
     arguments = parser.parse_args(argv)
 
     if not arguments.checkpoint.exists():
@@ -435,6 +477,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         checkpoint=arguments.checkpoint,
         per_class=arguments.per_class,
         seed=arguments.seed,
+        policy_checkpoint=arguments.policy,
     )
     print(f"twin digest    {corpus.twin_weights_digest}")
     for context in corpus.calibrated_classes:

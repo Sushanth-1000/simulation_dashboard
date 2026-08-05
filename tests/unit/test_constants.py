@@ -171,11 +171,14 @@ def test_the_fast_state_supplies_the_lateral_acceleration_the_shield_bounds() ->
 @pytest.mark.parametrize(
     ("version", "expected"),
     [
-        (AUDIT_SCHEMA_VERSION, 1),
+        # Audit v2: ADR-0016 widened the gate-verdict vocabulary with ABSTAIN.
+        # Pinned rather than merely bounded, so that a schema change has to be a
+        # decision someone made here as well as there.
+        (AUDIT_SCHEMA_VERSION, 2),
         (CONFIG_SCHEMA_VERSION, 1),
     ],
 )
-def test_schema_versions_start_at_one(version: int, expected: int) -> None:
+def test_schema_versions_are_the_pinned_values(version: int, expected: int) -> None:
     assert version == expected
 
 

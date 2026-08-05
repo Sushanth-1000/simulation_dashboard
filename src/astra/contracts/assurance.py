@@ -251,7 +251,9 @@ class FailSafeSnapshot:
         ood_counter: The out-of-distribution counter that drives transitions.
             Increments on a VETO, decrements on a PASS; its value is what makes
             recovery from DEGRADED and LIMP automatic.
-        speed_cap: The hard speed limit this state imposes, or ``None``.
+        speed_cap: The speed limit this state calls for, or ``None``. **Reported,
+            not enforced** -- no issue path reads it; see
+            :class:`~astra.kernel.enums.FailSafeState`.
         lane_change_permitted: Whether lane changes are allowed in this state.
         human_intervention_requested: Whether the FSM has asked for a handover.
     """

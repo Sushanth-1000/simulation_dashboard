@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import threading
 from typing import TYPE_CHECKING, cast
 
@@ -34,6 +35,39 @@ ACQUIRES = 500
 # enough that it can only be reached by a genuine stall rather than by slowness.
 RENDEZVOUS_TIMEOUT = 30.0
 JOIN_TIMEOUT = 60.0
+
+ATOMICITY_STEPS = 4_000
+"""Publish/acquire rounds in the atomicity test.
+
+Chosen by measurement, not by feel. With the clock read hoisted out of
+`SharedSensorBus.acquire`'s critical section -- the exact defect this test
+exists to catch -- 400 rounds detected the mutant in 3 runs out of 5, and 4,000
+detected it in 6 out of 6. The race is a two-bytecode window, so a detector for
+it is probabilistic; the only question is whether the probability is close
+enough to one to be worth having, and at 4,000 it is. Costs about 0.3 s."""
+
+ATOMICITY_TICK = Seconds(1e-6)
+"""One microsecond per publish, so successive samples are strictly increasing.
+
+`publish` rejects a sample whose acquisition time is not strictly after the one
+it holds -- accepting an equal or earlier one would let measured staleness travel
+backwards -- so the interval has to be large enough to survive the conversion to
+integer nanoseconds. A microsecond is 1,000 ns and leaves no room for doubt."""
+
+ATOMICITY_SWITCH_INTERVAL = 1e-6
+"""GIL switch interval held during the atomicity test, in seconds.
+
+CPython hands the GIL between threads every ``sys.getswitchinterval()`` seconds,
+5 ms by default. Four hundred `acquire` calls finish well inside one such slice,
+so on an unloaded interpreter the consumer drains its entire loop before the
+publisher runs at all: every frame is empty and the test asserts nothing about a
+race it never provoked. That is not hypothetical -- it is why the previous
+version of this test appeared to pass, and why it failed only under `pytest
+--cov`, whose line tracing slowed both threads enough to interleave them.
+
+Shrinking the interval forces the hand-offs the test is about, so the result no
+longer depends on how fast the host is or on whether coverage is running.
+Restored in a ``finally``: it is interpreter-global state."""
 
 
 def _start_and_join(threads: list[threading.Thread]) -> None:
@@ -713,24 +747,48 @@ def test_is_stale_refuses_a_non_finite_budget() -> None:
 
 
 def test_no_frame_reports_negative_staleness_while_publishing_concurrently() -> None:
-    # If `acquire` read the clock outside the lock, a sample published in the
-    # intervening window would carry `observed_at` after `fused_at` and be
-    # reported with negative staleness -- manufacturing the future-timestamp
-    # fault signal out of ordinary scheduling jitter.
+    # The property: `acquire`'s clock read and its snapshot of the latest
+    # samples are atomic with respect to `publish`. Were they not, a sample
+    # published between the two -- carrying an `observed_at` from a clock that
+    # had since moved -- would land in a frame stamped earlier than itself and
+    # be reported with negative staleness. Negative staleness reads as
+    # "perfectly fresh", so this is a fail-open mode in the pipeline's first
+    # layer, and it is the one ADR-0010 exists to prevent.
+    #
+    # THE PUBLISHER OWNS THE CLOCK, and that is what makes the race reachable
+    # at all: the instant can move between `acquire`'s read and `acquire`'s
+    # snapshot only if some *other* thread moves it. An earlier version of this
+    # test advanced nothing and stamped samples at `Instant(step)` against a
+    # clock frozen at zero, which made every published sample retrospectively
+    # "in the future" -- so the assertion failed the moment any frame was
+    # non-empty, and passed only on the interleavings where the consumer drained
+    # its whole loop before the publisher published anything. It was green 94% of
+    # the time by scheduling accident and tested nothing.
+    #
+    # Verified by mutation, because a concurrency test nobody has seen fail for
+    # the right reason is not evidence. Hoisting `fused_at = self._clock.now()`
+    # above `with self._lock:` in `SharedSensorBus.acquire` makes this test fail
+    # 6 runs out of 6 -- and **the other 2,543 tests in the suite all pass**. It
+    # is the only thing standing between that defect and a green gate.
     clock = ManualClock(Instant(0, Timeline.MANUAL))
-    bus: SharedSensorBus[str] = SharedSensorBus(clock=clock, staleness_budget=Seconds(0.05))
-    negatives: list[float] = []
+    bus: SharedSensorBus[str] = SharedSensorBus(clock=clock, staleness_budget=STALENESS_BUDGET)
+    negatives: list[int] = []
+    populated: list[int] = []
+    instants: list[int] = []
     failures: list[BaseException] = []
     barrier = threading.Barrier(2)
 
     def publisher() -> None:
         try:
             barrier.wait(timeout=RENDEZVOUS_TIMEOUT)
-            for step in range(1, 400):
+            for _ in range(ATOMICITY_STEPS):
+                # Advance first, then stamp from the clock: the sample is always
+                # contemporaneous, never retrospectively in the future.
+                clock.advance(ATOMICITY_TICK)
                 bus.publish(
                     SensorSample(
                         SensorModality.CAMERA,
-                        Instant(step, Timeline.MANUAL),
+                        clock.now(),
                         Probability(1.0),
                         "payload",
                     )
@@ -741,8 +799,11 @@ def test_no_frame_reports_negative_staleness_while_publishing_concurrently() -> 
     def consumer() -> None:
         try:
             barrier.wait(timeout=RENDEZVOUS_TIMEOUT)
-            for step in range(400):
+            for step in range(ATOMICITY_STEPS):
                 frame = bus.acquire(TickId(step))
+                instants.append(frame.fused_at.nanoseconds)
+                if frame.samples:
+                    populated.append(step)
                 negatives.extend(
                     step
                     for sample in frame.samples
@@ -751,9 +812,21 @@ def test_no_frame_reports_negative_staleness_while_publishing_concurrently() -> 
         except BaseException as error:  # noqa: BLE001 - recorded, then re-asserted
             failures.append(error)
 
-    _start_and_join([threading.Thread(target=publisher), threading.Thread(target=consumer)])
+    previous_interval = sys.getswitchinterval()
+    sys.setswitchinterval(ATOMICITY_SWITCH_INTERVAL)
+    try:
+        _start_and_join([threading.Thread(target=publisher), threading.Thread(target=consumer)])
+    finally:
+        sys.setswitchinterval(previous_interval)
 
     assert failures == []
+    # Asserted before the property, and deliberately: a concurrency test that
+    # never reached the interleaving it names is indistinguishable from one that
+    # passed because the property holds, and those two were confused here once.
+    # These two lines are what stop this test going quiet instead of green.
+    assert populated, "no frame carried a sample; the interleaving was never reached"
+    assert instants[-1] > instants[0], "the clock never moved during acquisition"
+
     assert negatives == []
 
 

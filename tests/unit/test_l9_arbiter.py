@@ -148,11 +148,51 @@ def _proposal(values: tuple[float, ...] = (0.5, 0.2)) -> ProposedCommand:
     )
 
 
+JERK_REASON = "LATERAL_JERK_EXCEEDS_LIMIT"
+STEER_EFFECTIVENESS = 10.0
+JERK_LIMIT = 8.0
+TICK_PERIOD = 0.05
+# The step the bound permits per tick: 8.0 m/s^3 over 0.05 s.
+PERMITTED_STEP = JERK_LIMIT * TICK_PERIOD
+
+
+class _StubProjector:
+    """Puts the target on the steer channel, as the automotive adapter does."""
+
+    def with_lateral_acceleration(
+        self, values: Sequence[float], target: float
+    ) -> tuple[float, ...]:
+        return (float(values[0]), target / STEER_EFFECTIVENESS)
+
+
+def _jerk_verdict(*, current: float, proposed: float) -> SafetyVerdict:
+    """A physical-gate VETO carrying the evidence rate limiting reads."""
+    jerk = abs(proposed - current) / TICK_PERIOD
+    return SafetyVerdict(
+        tick=TickId(1),
+        gate_verdicts=(
+            GateVerdict(
+                tick=TickId(1),
+                gate=GateId.PHYSICAL,
+                verdict=Verdict.VETO,
+                reason_code=JERK_REASON,
+                evidence=(
+                    ("proposed_lateral_acceleration_mps2", proposed),
+                    ("current_lateral_acceleration_mps2", current),
+                    ("demanded_jerk_mps3", jerk),
+                    ("max_lateral_jerk_mps3", JERK_LIMIT),
+                ),
+            ),
+        ),
+    )
+
+
 def _arbiter(
     *,
     fallback: _StubFallback | None = None,
     profiles: list[CalibrationProfile] | None = None,
     active: CalibrationProfile | None = None,
+    rate_limiting: bool = False,
 ) -> RuntimeCalibrationManager:
     resolved_active = active or _profile()
     return RuntimeCalibrationManager(
@@ -163,6 +203,8 @@ def _arbiter(
         profiles=profiles if profiles is not None else [resolved_active],
         weights=WEIGHTS,
         active=resolved_active,
+        projector=_StubProjector() if rate_limiting else None,
+        rate_limited_reasons=frozenset({JERK_REASON}) if rate_limiting else frozenset(),
     )
 
 
@@ -335,9 +377,18 @@ def test_exploration_clamps_to_the_restricted_space() -> None:
     assert issued.command.values == (0.3, 0.26)
 
 
-def test_exploration_outranks_a_blocking_verdict() -> None:
-    # Under an uncertified profile the fallback's assumptions are no better
-    # supported than the policy's, so the envelope governs.
+def test_a_blocking_verdict_outranks_exploration() -> None:
+    # ADR-0016, and the reversal of the behaviour this test used to pin. The old
+    # ordering made a veto advisory whenever the envelope was engaged: measured
+    # over 100,000 ticks, 99,808 of them issued the proposal under a blocking
+    # verdict, because at the shipped operating point exploration is engaged
+    # almost always.
+    #
+    # Exploration no longer needs to out-rank anything. The verdicts it used to
+    # override were L6 objecting on a calibration it does not hold for the
+    # context; L6 abstains there now, so there is no veto left to work around --
+    # and any veto that *does* survive came from a gate whose bounds are
+    # configuration, and is as true inside the envelope as outside it.
     fallback = _StubFallback()
     arbiter = _arbiter(fallback=fallback)
     arbiter.engage_exploration(EXPLORATION_SPACE)
@@ -346,6 +397,184 @@ def test_exploration_outranks_a_blocking_verdict() -> None:
         tick=TickId(1),
         proposal=_proposal(),
         verdict=_verdict(Verdict.VETO),
+        failsafe=_failsafe(),
+        trust=_trust(),
+    )
+
+    assert issued.origin is CommandOrigin.FALLBACK_PID
+    assert fallback.calls == 1
+
+
+# --------------------------------------------------------------------------- #
+# Rate limiting -- ADR-0017, breaking the veto latch
+# --------------------------------------------------------------------------- #
+
+
+def test_a_jerk_veto_issues_the_largest_step_the_bound_permits() -> None:
+    # THE test. The fallback commands zero steering, so under a sustained veto
+    # the achieved lateral acceleration is pinned at zero and every correction
+    # is a step too large from there -- a deadlock no proposer can escape,
+    # because a proposal only moves the achieved value if it is executed.
+    fallback = _StubFallback()
+    arbiter = _arbiter(fallback=fallback, rate_limiting=True)
+
+    issued = arbiter.issue(
+        tick=TickId(1),
+        proposal=_proposal((0.5, 0.2)),
+        verdict=_jerk_verdict(current=0.0, proposed=2.0),
+        failsafe=_failsafe(),
+        trust=_trust(),
+    )
+
+    assert issued.origin is CommandOrigin.RATE_LIMITED
+    assert fallback.calls == 0
+    # 0.0 + 8.0 * 0.05 = 0.4 m/s^2, on the steer channel at effectiveness 10.
+    assert issued.command.values[1] == pytest.approx(PERMITTED_STEP / STEER_EFFECTIVENESS)
+
+
+def test_the_step_never_overshoots_the_proposal() -> None:
+    # A proposal already inside the bound is reached exactly, not passed. Without
+    # the min() the limiter would oscillate around its target for ever.
+    arbiter = _arbiter(rate_limiting=True)
+
+    issued = arbiter.issue(
+        tick=TickId(1),
+        proposal=_proposal((0.5, 0.2)),
+        verdict=_jerk_verdict(current=0.0, proposed=0.1),
+        failsafe=_failsafe(),
+        trust=_trust(),
+    )
+
+    assert issued.command.values[1] == pytest.approx(0.1 / STEER_EFFECTIVENESS)
+
+
+def test_the_step_follows_the_sign_of_the_correction() -> None:
+    arbiter = _arbiter(rate_limiting=True)
+
+    issued = arbiter.issue(
+        tick=TickId(1),
+        proposal=_proposal((0.5, -0.2)),
+        verdict=_jerk_verdict(current=0.0, proposed=-2.0),
+        failsafe=_failsafe(),
+        trust=_trust(),
+    )
+
+    assert issued.command.values[1] == pytest.approx(-PERMITTED_STEP / STEER_EFFECTIVENESS)
+
+
+def test_repeated_steps_converge_on_the_proposal() -> None:
+    # The property that actually breaks the latch: the achieved acceleration
+    # advances by the permitted step each tick, so a correction that is
+    # inadmissible now becomes admissible after a few of them, without any gate
+    # being overridden on any tick.
+    arbiter = _arbiter(rate_limiting=True)
+    current = 0.0
+    target = 2.0
+
+    for _ in range(10):
+        issued = arbiter.issue(
+            tick=TickId(1),
+            proposal=_proposal((0.5, 0.2)),
+            verdict=_jerk_verdict(current=current, proposed=target),
+            failsafe=_failsafe(),
+            trust=_trust(),
+        )
+        current = issued.command.values[1] * STEER_EFFECTIVENESS
+
+    assert current == pytest.approx(target)
+
+
+def test_a_veto_from_any_other_gate_falls_back_rather_than_ratcheting() -> None:
+    # Rate limiting answers a bound on *rate*. Approaching a command the
+    # deterministic shield refused would arrive at it a few ticks later, which
+    # is worse than refusing it outright because it looks like compliance.
+    fallback = _StubFallback()
+    arbiter = _arbiter(fallback=fallback, rate_limiting=True)
+    verdict = SafetyVerdict(
+        tick=TickId(1),
+        gate_verdicts=(
+            *_jerk_verdict(current=0.0, proposed=2.0).gate_verdicts,
+            GateVerdict(
+                tick=TickId(1),
+                gate=GateId.DETERMINISTIC,
+                verdict=Verdict.VETO,
+                reason_code="SPEED_EXCEEDS_LEGAL_LIMIT",
+            ),
+        ),
+    )
+
+    issued = arbiter.issue(
+        tick=TickId(1),
+        proposal=_proposal(),
+        verdict=verdict,
+        failsafe=_failsafe(),
+        trust=_trust(),
+    )
+
+    assert issued.origin is CommandOrigin.FALLBACK_PID
+    assert fallback.calls == 1
+
+
+def test_an_arbiter_without_a_projector_keeps_the_old_behaviour() -> None:
+    # Rate limiting needs platform knowledge the layer may not have. Absent it,
+    # the fallback governs -- which is what every run before ADR-0017 did.
+    fallback = _StubFallback()
+    arbiter = _arbiter(fallback=fallback, rate_limiting=False)
+
+    issued = arbiter.issue(
+        tick=TickId(1),
+        proposal=_proposal(),
+        verdict=_jerk_verdict(current=0.0, proposed=2.0),
+        failsafe=_failsafe(),
+        trust=_trust(),
+    )
+
+    assert issued.origin is CommandOrigin.FALLBACK_PID
+    assert fallback.calls == 1
+
+
+def test_evidence_missing_the_keys_rate_limiting_needs_falls_back() -> None:
+    # Fail to the answer that needs no argument. If the gate's evidence ever
+    # stops carrying these, rate limiting must go quiet rather than guess.
+    fallback = _StubFallback()
+    arbiter = _arbiter(fallback=fallback, rate_limiting=True)
+    verdict = SafetyVerdict(
+        tick=TickId(1),
+        gate_verdicts=(
+            GateVerdict(
+                tick=TickId(1),
+                gate=GateId.PHYSICAL,
+                verdict=Verdict.VETO,
+                reason_code=JERK_REASON,
+                evidence=(("something_else", 1.0),),
+            ),
+        ),
+    )
+
+    issued = arbiter.issue(
+        tick=TickId(1),
+        proposal=_proposal(),
+        verdict=verdict,
+        failsafe=_failsafe(),
+        trust=_trust(),
+    )
+
+    assert issued.origin is CommandOrigin.FALLBACK_PID
+    assert fallback.calls == 1
+
+
+def test_exploration_still_governs_a_tick_no_gate_blocked() -> None:
+    # The control for the test above. Without it, "a veto outranks exploration"
+    # would also be satisfied by an arbiter that had stopped exploring at all --
+    # which is exactly how bounded safe exploration would become dead code.
+    fallback = _StubFallback()
+    arbiter = _arbiter(fallback=fallback)
+    arbiter.engage_exploration(EXPLORATION_SPACE)
+
+    issued = arbiter.issue(
+        tick=TickId(1),
+        proposal=_proposal(),
+        verdict=_verdict(Verdict.PASS),
         failsafe=_failsafe(),
         trust=_trust(),
     )
