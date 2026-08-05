@@ -28,11 +28,14 @@ are 2–3× what the same change would cost in an ordinary codebase, deliberatel
 | **P5** | Hardware-gated. Highest single value in the project |
 
 **Current state, 2 August 2026 (evening):** ten layers built, 12 import contracts
-kept, **2,611 tests**, 97.89% coverage, gate green. One of four feedback loops
+kept, **2,618 tests**, 97.89% coverage, gate green. One of four feedback loops
 wired. **The closed loop is stable over 100,000 ticks on all ten soak criteria**,
 at a timestep that now matches the control period — lane deviation 0.0331 m, veto
-rate 0.00%, the proposer driving 99,997 of 100,000 ticks unmodified, the fail-safe
-machine never leaving NOMINAL. All of P0 and P1.1–P1.2 are closed.
+rate 3×10⁻⁵, the proposer driving 99,997 of 100,000 ticks unmodified, the
+fail-safe machine never leaving NOMINAL.
+
+**All of P0 is closed. All of P1 is closed except the deferred paper
+conversation.** What remains starts at P2.
 
 Roughly **85% built, 15% validated** — the second number moved because the loop
 demonstrably runs, not because anything non-self-referential was measured. The
@@ -402,6 +405,14 @@ the enforcement question.
 
 </details>
 
+## ~~P1.3 — Evidence pack~~ — DONE, 2 Aug 2026
+
+[`EVIDENCE.md`](EVIDENCE.md): 17 measured rows, 3 controlled comparisons, 12
+things explicitly not demonstrated. Every row carries the command that
+reproduces it. Building it found four stale claims, which is what it is for.
+
+<details><summary>Original entry</summary>
+
 ## P1.3 — Evidence pack (work plan §2.2)
 
 Now higher value than when the plan was written: there are four 100,000-tick
@@ -416,6 +427,18 @@ long and well-evidenced list.
 **Exit:** every number in `README.md` and both status documents traces to a row.
 **Estimate:** 1–2 days.
 
+</details>
+
+## ~~P1.4 — Documentation sync~~ — DONE, 2 Aug 2026
+
+README's test count, the "1.98 ms full ten-layer tick" figure and the 400-tick
+closed-loop numbers all corrected. `PROJECT_STATE_AND_ROADMAP.md` summary row
+updated with a banner saying to read the rest as history — its per-phase figures
+are correct for the phase they describe. `1144_..._Sushanth_status.md` marked
+SUPERSEDED, naming the four defects that invalidate its figures.
+
+<details><summary>Original entry</summary>
+
 ## P1.4 — Documentation sync (work plan §1.3)
 
 `docs/PROJECT_STATE_AND_ROADMAP.md` reports counts that have moved. Mark
@@ -424,6 +447,8 @@ long and well-evidenced list.
 **Exit:** contract count, certification-field count and layer statuses match
 reality.
 **Estimate:** 0.5–1 day.
+
+</details>
 
 ## ~~P1.5 — Close assumption A-8~~ — DONE, 2 Aug 2026
 
@@ -486,6 +511,25 @@ decision with a cost, and the cost accrues on a calendar rather than a backlog.
 
 # P2 — Required for the safety argument
 
+## P2.1 — The `CommandProjector` seam — HALF DONE, 2 Aug 2026
+
+**The L7a half is done.** The shield gained a fourth bound,
+`|position_y| <= corridor_half_width`, after six options were compared. It stays
+*reactive* — a predictive L7a would share `control_effectiveness` with L7b, so
+one wrong platform constant would fail both gates together, and its independence
+comes precisely from depending on nothing but measured state and configured
+bounds. A corridor rather than a lane, so NFR5 survives.
+
+Pinned limitation: the bound reads the *estimate*, so it refuses a departure the
+filter knows about and is blind to one it does not. Had it existed before
+lateral position was observable it would have passed every tick.
+
+**The speed-cap half is open** — see below. It amends the fallback controller's
+written design contract ("it does not take the FSM posture"), so it wants its own
+ADR.
+
+<details><summary>Original entry</summary>
+
 ## P2.1 — The `CommandProjector` seam: speed-cap enforcement and the L7a scope question
 
 Finding F2's implementation half and work plan §6.3, which need the same seam and
@@ -519,6 +563,8 @@ them:
 command issued in HALT decelerates the vehicle.
 **Estimate:** 3–5 days.
 
+</details>
+
 ## P2.2 — Test-quality gaps (work plan §2.3)
 
 - **The L1 concurrency flake.** It *hung* under 12-way load rather than failing;
@@ -542,6 +588,15 @@ excursions short enough that the counter can be walked back down.
 corrected to say recovery is bounded in duration.
 **Estimate:** 0.5 days.
 
+## ~~P2.4 — Decide what to do about the unobserved lateral position~~ — DONE, 2 Aug 2026
+
+Resolved by P0.0: lateral position is now measured at sigma = 0.1 m and the
+estimator error fell from 2.9e6 m to 0.0000. This entry originally offered
+"publish a measurement" or "mark it structurally unobservable and assert nothing
+reads it" as alternatives; the first was taken.
+
+<details><summary>Original entry</summary>
+
 ## P2.4 — Decide what to do about the unobserved lateral position
 
 **Finding F4.** `mean_estimator_error_m` — the gap between the UKF's `position_y`
@@ -559,6 +614,8 @@ indication in the record.
 as structurally unobservable in this configuration and assert that no consumer
 reads it.
 **Estimate:** 1–2 days.
+
+</details>
 
 ## P2.5 — Understand the saturated Trust Index before wiring FB3
 
