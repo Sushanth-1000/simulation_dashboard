@@ -86,6 +86,7 @@ friction_margin = 0.85
 minimum_stopping_distance_m = 2.0
 # d_avail: the clear distance ahead the ODD assures. PROVISIONAL.
 assured_clear_distance_m = 60.0
+lateral_corridor_half_width_m = 1.75
 
 [failsafe]
 # Deliberately small so that state transitions are reachable in short

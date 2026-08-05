@@ -103,6 +103,7 @@ environment = "certification"
 # d_avail: the clear distance ahead the ODD guarantees. A certified ODD
 # parameter, not a perception output -- see the schema docstring.
 # assured_clear_distance_m =
+# lateral_corridor_half_width_m =
 
 [failsafe]
 # θ1 < θ2 < θ3. Must be strictly increasing — the schema enforces the ordering,

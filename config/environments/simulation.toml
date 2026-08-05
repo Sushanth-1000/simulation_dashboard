@@ -61,6 +61,10 @@ friction_margin = 0.80
 minimum_stopping_distance_m = 5.0
 # d_avail: the clear distance ahead the ODD assures. PROVISIONAL.
 assured_clear_distance_m = 150.0
+# How far off the centreline the vehicle may be. Matches the training plant's
+# lane half-width. Not called a lane: NFR5 keeps road concepts out of the core,
+# and a warehouse AGV has a permitted corridor just as a car has a lane.
+lateral_corridor_half_width_m = 1.75
 
 [failsafe]
 # The out-of-distribution counter increments on a VETO and decrements on a PASS,

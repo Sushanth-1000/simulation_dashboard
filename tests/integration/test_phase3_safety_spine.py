@@ -61,6 +61,7 @@ def _shield_settings() -> ShieldSettings:
         friction_margin=0.8,
         minimum_stopping_distance_m=5.0,
         assured_clear_distance_m=150.0,
+        lateral_corridor_half_width_m=1000.0,
     )
 
 

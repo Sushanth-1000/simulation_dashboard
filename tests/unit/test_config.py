@@ -57,6 +57,7 @@ CERTIFICATION_MISSING_FIELDS = frozenset(
         "shield.friction_margin",
         "shield.minimum_stopping_distance_m",
         "shield.assured_clear_distance_m",
+        "shield.lateral_corridor_half_width_m",
         "failsafe.ood_threshold_degraded",
         "failsafe.ood_threshold_limp",
         "failsafe.ood_threshold_halt",
@@ -126,6 +127,7 @@ legal_speed_limit_kmh = 50.0
 friction_margin = 0.85
 minimum_stopping_distance_m = 2.0
 assured_clear_distance_m = 60.0
+lateral_corridor_half_width_m = 1.75
 
 [failsafe]
 ood_threshold_degraded = 3
@@ -245,6 +247,7 @@ def test_constructing_astra_settings_without_the_gate_section_fails() -> None:
                     "friction_margin": 0.85,
                     "minimum_stopping_distance_m": 2.0,
                     "assured_clear_distance_m": 60.0,
+                    "lateral_corridor_half_width_m": 1.75,
                 },
                 "failsafe": {
                     "ood_threshold_degraded": 3,

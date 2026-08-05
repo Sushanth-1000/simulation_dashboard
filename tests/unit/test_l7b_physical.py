@@ -226,6 +226,9 @@ def test_the_physical_gate_vetoes_a_command_the_shield_passes() -> None:
             friction_margin=0.85,
             minimum_stopping_distance_m=2.0,
             assured_clear_distance_m=500.0,
+            # Wide: this test is about L7b's jerk bound, and a corridor breach
+            # here would make L7a the gate under test instead.
+            lateral_corridor_half_width_m=1000.0,
         )
     )
     state = _state(lateral=0.0, speed=10.0)

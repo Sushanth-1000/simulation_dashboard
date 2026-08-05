@@ -409,12 +409,29 @@ class ShieldSettings(_Section):
             assures rather than against a measured one. Sourcing ``d_avail``
             from perception would require extending the state vector, which is
             a visible architectural change and is recorded as Phase 3 debt.
+        lateral_corridor_half_width_m: How far the vehicle may be from the
+            centreline of the path it is permitted to occupy.
+
+            Deliberately *not* called a lane. A lane is a road concept and NFR5
+            keeps road concepts out of the core; a warehouse AGV has a permitted
+            corridor just as a car has a lane, and the bound is the same
+            quantity in both. The adapter decides what the corridor is.
+
+            Added 2 August 2026, after a 100,000-tick run in which the vehicle
+            travelled 2.9 km outside a corridor 1.75 m wide with a **0.00% veto
+            rate and a Trust Index of exactly 1.00**. No gate in Core-B measured
+            where the vehicle was: this one bounded speed, lateral acceleration
+            and stopping distance; L7b bounds jerk and divergence from the twin;
+            L6 scores the proposal against the twin. A departure was invisible
+            to all three, which meant the three-gate argument did not cover the
+            hazard that actually occurred.
     """
 
     legal_speed_limit_kmh: PositiveFloat
     friction_margin: UnitInterval
     minimum_stopping_distance_m: NonNegativeFloat
     assured_clear_distance_m: PositiveFloat
+    lateral_corridor_half_width_m: PositiveFloat
 
     @property
     def legal_speed_limit(self) -> MetresPerSecond:
@@ -430,6 +447,11 @@ class ShieldSettings(_Section):
     def assured_clear_distance(self) -> Metres:
         """Return the ODD's assured clear distance ahead, in metres."""
         return Metres(self.assured_clear_distance_m)
+
+    @property
+    def lateral_corridor_half_width(self) -> Metres:
+        """Return the permitted lateral corridor half-width, in metres."""
+        return Metres(self.lateral_corridor_half_width_m)
 
 
 class FailSafeSettings(_Section):

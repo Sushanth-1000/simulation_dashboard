@@ -25,6 +25,7 @@ from astra.kernel.time import Instant, Timeline
 from astra.kernel.units import STANDARD_GRAVITY
 from astra.layers.l7_shield.shield import (
     REASON_CODES,
+    REASON_CORRIDOR_DEPARTURE,
     REASON_LATERAL_ACCELERATION,
     REASON_LEGAL_SPEED,
     REASON_NOMINAL,
@@ -42,6 +43,8 @@ FRICTION_MARGIN = 0.8
 MINIMUM_STOPPING_DISTANCE = 5.0
 ASSURED_CLEAR_DISTANCE = 150.0
 
+CORRIDOR_HALF_WIDTH = 1.75
+
 DRY = 0.85
 WET = 0.35
 ICE = 0.15
@@ -51,6 +54,7 @@ SETTINGS = ShieldSettings(
     friction_margin=FRICTION_MARGIN,
     minimum_stopping_distance_m=MINIMUM_STOPPING_DISTANCE,
     assured_clear_distance_m=ASSURED_CLEAR_DISTANCE,
+    lateral_corridor_half_width_m=CORRIDOR_HALF_WIDTH,
 )
 
 FAST_COVARIANCE = SymmetricMatrix.from_diagonal([1.0, 1.0, 0.25, 0.1, 0.5])
@@ -67,11 +71,13 @@ def _stopping_distance(speed: float, friction: float) -> float:
     )
 
 
-def _state(speed: float, lateral_acceleration: float) -> FastStateEstimate:
+def _state(
+    speed: float, lateral_acceleration: float, lateral_offset: float = 0.0
+) -> FastStateEstimate:
     return FastStateEstimate(
         tick=TickId(0),
         valid_at=Instant(0, Timeline.MANUAL),
-        mean=(0.0, 0.0, speed, 0.0, lateral_acceleration),
+        mean=(0.0, lateral_offset, speed, 0.0, lateral_acceleration),
         covariance=FAST_COVARIANCE,
     )
 
@@ -97,10 +103,18 @@ def _proposal() -> ProposedCommand:
 
 
 def _evaluate(speed: float, lateral_acceleration: float, friction: float) -> GateVerdict:
+    return _evaluate_state(_state(speed, lateral_acceleration), friction)
+
+
+def _evaluate_state(state: FastStateEstimate, friction: float) -> GateVerdict:
+    """Evaluate a fully-built state.
+
+    For bounds that read state fields the scalar helper does not expose.
+    """
     return HardSafetyShield(SETTINGS).evaluate(
         tick=TickId(0),
         proposal=_proposal(),
-        state=_state(speed, lateral_acceleration),
+        state=state,
         degradation=_degradation(friction),
     )
 
@@ -235,6 +249,8 @@ _EXPECTED_EVIDENCE_KEYS = frozenset(
         "stopping_distance_m",
         "assured_clear_distance_m",
         "legal_speed_mps",
+        "lateral_offset_m",
+        "lateral_corridor_half_width_m",
     }
 )
 
@@ -413,3 +429,86 @@ def test_the_aggregate_does_not_depend_on_verdict_order() -> None:
 
     assert forward.aggregate is backward.aggregate is Verdict.VETO
     assert forward.vetoing_gates == backward.vetoing_gates
+
+
+# --------------------------------------------------------------------------- #
+# The lateral corridor -- the hazard the other three bounds could not see
+# --------------------------------------------------------------------------- #
+
+
+def test_a_vehicle_outside_its_corridor_is_vetoed() -> None:
+    # THE test this gate existed without. On 2 August a 100,000-tick run put the
+    # vehicle 2.9 km outside a corridor 1.75 m wide with a 0.00% veto rate and a
+    # Trust Index of exactly 1.00. Nothing in Core-B measured where the vehicle
+    # was: this gate bounded speed, lateral acceleration and stopping distance;
+    # L7b bounds jerk and divergence from the twin; L6 scores the proposal
+    # against the twin. The hazard that actually occurred was outside the union
+    # of what all three checked.
+    verdict = _evaluate_state(
+        _state(speed=13.0, lateral_acceleration=0.0, lateral_offset=CORRIDOR_HALF_WIDTH + 0.5),
+        DRY,
+    )
+
+    assert verdict.verdict is Verdict.VETO
+    assert verdict.reason_code == REASON_CORRIDOR_DEPARTURE
+
+
+def test_the_corridor_bound_is_symmetric() -> None:
+    for offset in (CORRIDOR_HALF_WIDTH + 0.5, -CORRIDOR_HALF_WIDTH - 0.5):
+        verdict = _evaluate_state(
+            _state(speed=13.0, lateral_acceleration=0.0, lateral_offset=offset), DRY
+        )
+        assert verdict.reason_code == REASON_CORRIDOR_DEPARTURE
+
+
+def test_a_vehicle_inside_its_corridor_passes() -> None:
+    # The control. A bound that vetoed everywhere would also satisfy the test
+    # above, and would stop the vehicle for driving normally.
+    verdict = _evaluate_state(
+        _state(speed=13.0, lateral_acceleration=0.0, lateral_offset=CORRIDOR_HALF_WIDTH - 0.01),
+        DRY,
+    )
+
+    assert verdict.verdict is Verdict.PASS
+
+
+def test_the_corridor_edge_itself_is_admissible() -> None:
+    # `>` not `>=`: sitting exactly on the boundary is inside it. Stated because
+    # an off-by-one here is a gate that vetoes a vehicle doing nothing wrong.
+    verdict = _evaluate_state(
+        _state(speed=13.0, lateral_acceleration=0.0, lateral_offset=CORRIDOR_HALF_WIDTH), DRY
+    )
+
+    assert verdict.verdict is Verdict.PASS
+
+
+def test_a_non_finite_lateral_offset_fails_closed_like_every_other_state_field() -> None:
+    # NaN defeats `abs(offset) > corridor` rather than failing it, so an
+    # unchecked NaN position would silently satisfy the bound.
+    with pytest.raises(SafetyPathError):
+        _evaluate_state(_state(speed=13.0, lateral_acceleration=0.0, lateral_offset=math.nan), DRY)
+
+
+def test_the_corridor_breach_is_reported_in_the_evidence() -> None:
+    verdict = _evaluate_state(_state(speed=13.0, lateral_acceleration=0.0, lateral_offset=3.0), DRY)
+    evidence = dict(verdict.evidence)
+
+    assert evidence["lateral_offset_m"] == pytest.approx(3.0)
+    assert evidence["lateral_corridor_half_width_m"] == pytest.approx(CORRIDOR_HALF_WIDTH)
+
+
+def test_the_corridor_bound_reads_the_estimate_and_is_blind_to_a_wrong_one() -> None:
+    # An honest limitation, pinned so it cannot be forgotten in the safety case.
+    # The bound refuses a departure the *filter* knows about. On 2 August the
+    # filter did not: lateral position was measured by nothing, so the estimate
+    # sat at zero while the vehicle left the corridor entirely. Had this bound
+    # existed then it would have passed every tick.
+    #
+    # Making the quantity observable is what closed that hazard. This bound adds
+    # that a departure the filter can see is refused by a gate rather than
+    # noticed by nobody. Neither substitutes for the other.
+    believed_centred = _evaluate_state(
+        _state(speed=13.0, lateral_acceleration=0.0, lateral_offset=0.0), DRY
+    )
+
+    assert believed_centred.verdict is Verdict.PASS
