@@ -249,7 +249,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not arguments.corpus.exists():
         print(f"no calibration corpus at {arguments.corpus}")
         print("generate one first:")
-        print(f"    python training/generate_calibration.py --out {arguments.corpus}")
+        print(f"    python -m training.generate_calibration --out {arguments.corpus}")
         return 2
 
     resolved = load_settings(environment=arguments.environment, include_environment_variables=False)

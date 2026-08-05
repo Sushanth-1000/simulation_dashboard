@@ -52,7 +52,7 @@ pytestmark = pytest.mark.skipif(
     reason=(
         "needs a trained twin and a calibration corpus:\n"
         "  python training/train_twin.py --out var/twin/synthetic.pt\n"
-        "  python training/generate_calibration.py --out var/calibration/synthetic.json\n"
+        "  python -m training.generate_calibration --out var/calibration/synthetic.json\n"
         "Without the twin, two gates veto every tick on physically absurd predictions. "
         "Without the corpus, the conformal quantile is infinite and L6 vetoes everything "
         "as CONTEXT_NOT_CALIBRATED. Both are correct behaviour and neither is informative."

@@ -658,7 +658,49 @@ than a symptom.
 saturated at 1.0 for ~99.9% of nominal ticks** — for a new and defensible reason,
 which is the next item.
 
-## P2.6 — The closed loop runs with perfect sensors (NEW)
+## ~~P2.6 — The closed loop runs with perfect sensors~~ — DONE, 2 Aug 2026
+
+Two mismatches, both fixed:
+
+1. `training/closed_loop.py` published the plant's **exact state** as sensor
+   readings while declaring σ = 0.01 / 0.04 / 0.1 to the filter.
+2. The corpus generator injected `gauss(0, 0.08)` on speed and `0.12` on lateral
+   acceleration while declaring **those same** 0.01 / 0.04 — an eightfold and
+   threefold underestimate, which makes the UKF over-trust its measurements and
+   inflates every normalised innovation.
+
+The sigmas now live in one place, `training/closed_loop.py`, imported by the
+generator, because the number has to be true of two things at once — the noise
+injected and the sigma declared — and two literals drift. Noise is drawn from a
+source seeded off the run seed, so reproducibility holds.
+
+### Decisions taken
+
+| Option | Benefit | Drawback | Verdict |
+|---|---|---|---|
+| **Inject at the declared sigmas, one shared constant (chosen)** | Filter's `R` matches reality; innovations properly scaled; realistic sensor model; single source of truth | Corpus regenerated again; all baselines re-measured | **Taken** |
+| Inject at the corpus's 0.08 / 0.12, leave declared sigmas | Matches the corpus exactly, cheapest | Preserves the mis-tuning in both places — a filter told the wrong noise level is simply wrong | Rejected |
+| Standardise on 0.08 / 0.12 as declared *and* injected | Also self-consistent | Pessimistic for wheel-encoder speed and IMU lateral acceleration; 0.01 / 0.04 are the physically realistic figures | Rejected |
+| Leave it noiseless | No churn | A UKF exists to reject measurement noise and L1's staleness machinery exists for imperfect streams; neither had ever been exercised by a closed-loop run | Rejected |
+
+### Results
+
+**The Trust Index became an index.** Distinct values across 8,001 ticks:
+**2 → 5 → 90**. Mean 0.960, p05 0.902, p50 0.964, p95 1.000 — graded resolution
+in nominal driving, where before it was pinned at 1.0.
+
+**The loop is still stable, and now that means something.** All ten criteria
+pass over 100,000 ticks *with noisy sensors*: `PROPOSED` on 99,911 ticks,
+`RATE_LIMITED` on 89, lane deviation 0.0290 → 0.0298 m, fail-safe machine never
+leaving NOMINAL, resident set +0.1 MiB, p99 ×0.81.
+
+N-4a is retired from the evidence pack's *not demonstrated* list.
+
+<details><summary>Original entry</summary>
+
+## P2.6 — The closed loop runs with perfect sensors
+
+
 
 Found while closing P2.5. `training/closed_loop.py` publishes the plant's **exact
 state** as sensor readings while declaring σ = 0.01 / 0.04 / 0.1 to the filter.
@@ -683,6 +725,8 @@ is the finding.
 **Note:** this invalidates no *conclusion* reached today — the defects found were
 all structural — but it does put an asterisk on every stability figure until it
 is done.
+
+</details>
 
 <details><summary>Original P2.5 entry</summary>
 

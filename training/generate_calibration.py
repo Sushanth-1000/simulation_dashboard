@@ -1,6 +1,6 @@
 """Harvest non-conformity scores from the trained twin, and measure the coverage they buy.
 
-    python training/generate_calibration.py --out var/calibration/synthetic.json
+    python -m training.generate_calibration --out var/calibration/synthetic.json
 
 What a calibration corpus is for
 ---------------------------------
@@ -73,6 +73,7 @@ from astra.layers.l4_proposer.proposer import CmdpProposer
 from astra.layers.l5_twin.twin import PhysicsInformedTwin
 from astra.layers.l6_statistical_gate.gate import CONTROL_DIMENSION
 from astra.runtime.assembly import STEER_INDEX, THROTTLE_INDEX, automotive_actuation_space
+from training.closed_loop import LATERAL_SIGMA, POSITION_SIGMA, SPEED_SIGMA
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -197,9 +198,9 @@ class _Extractor:
                 # covariance the non-conformity score divides by is that of an
                 # unobserved state, and the quantile certifies a filter nobody
                 # runs.
-                ("position_y", float(payload["y"]), 0.1),
-                ("speed", float(payload["v"]), 0.01),
-                ("lateral_acceleration", float(payload["a"]), 0.04),
+                ("position_y", float(payload["y"]), POSITION_SIGMA),
+                ("speed", float(payload["v"]), SPEED_SIGMA),
+                ("lateral_acceleration", float(payload["a"]), LATERAL_SIGMA),
             ]
         )
 
@@ -325,9 +326,15 @@ def generate(
                     observed_at=clock.now(),
                     quality=Probability(1.0),
                     payload={
-                        "v": regime.speed + noise.gauss(0.0, 0.08) + spike,
-                        "a": regime.lateral + noise.gauss(0.0, 0.12),
-                        "y": noise.gauss(0.0, 0.1),
+                        # Injected at exactly the sigma declared to the filter.
+                        # These were 0.08 and 0.12 against declared 0.01 and
+                        # 0.04 until 2 August 2026 -- an eightfold and threefold
+                        # underestimate, which makes the UKF over-trust its
+                        # measurements and inflates every normalised innovation
+                        # the Trust Index then reads.
+                        "v": regime.speed + noise.gauss(0.0, SPEED_SIGMA) + spike,
+                        "a": regime.lateral + noise.gauss(0.0, LATERAL_SIGMA),
+                        "y": noise.gauss(0.0, POSITION_SIGMA),
                     },
                 )
             )

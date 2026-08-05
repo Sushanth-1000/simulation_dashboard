@@ -55,7 +55,7 @@ pytestmark = pytest.mark.skipif(
     reason=(
         "needs a trained twin, a calibration corpus and a trained policy:\n"
         "  python training/train_twin.py --out var/twin/synthetic.pt\n"
-        "  python training/generate_calibration.py --out var/calibration/synthetic.json\n"
+        "  python -m training.generate_calibration --out var/calibration/synthetic.json\n"
         "  python -m training.train_policy --out var/policy/synthetic.pt"
     ),
 )

@@ -31,6 +31,7 @@ generates the data and another fitted to the same equations judges it.
 
 from __future__ import annotations
 
+import random
 import tempfile
 import time
 from collections import Counter
@@ -75,9 +76,24 @@ TWIN = Path("var/twin/synthetic.pt")
 CORPUS = Path("var/calibration/synthetic.json")
 
 _SENSOR_QUALITY = Probability(0.95)
-_SPEED_SIGMA = 0.01
-_LATERAL_SIGMA = 0.04
-_POSITION_SIGMA = 0.1
+
+# The sensor model, in one place because it has to be true of two things at
+# once: the noise actually injected into a published reading, and the sigma
+# declared to the filter alongside it. They were different numbers until 2
+# August 2026 -- the corpus generator injected gauss(0, 0.08) on speed while
+# telling the filter 0.01, an eightfold underestimate -- which makes the UKF
+# over-trust its measurements and inflates every normalised innovation. The
+# Trust Index reads those innovations, so the mis-tuning arrived there as
+# saturation.
+#
+# Values are per-quantity realistic: wheel-encoder speed, IMU lateral
+# acceleration, lane position from a forward camera.
+SPEED_SIGMA = 0.01
+LATERAL_SIGMA = 0.04
+_SPEED_SIGMA = SPEED_SIGMA
+_LATERAL_SIGMA = LATERAL_SIGMA
+POSITION_SIGMA = 0.1
+_POSITION_SIGMA = POSITION_SIGMA
 """Lateral-position measurement noise, in metres.
 
 Representative of lane detection from a forward camera, which is where a real
@@ -144,23 +160,42 @@ class _Extractor:
         return slow_measurement([("road_friction_coefficient", _FRICTION, _FRICTION_SIGMA)])
 
 
-def _publish_state(bus: SharedSensorBus[Any], *, plant: SyntheticDrivingEnv, at: Instant) -> None:
+def _publish_state(
+    bus: SharedSensorBus[Any],
+    *,
+    plant: SyntheticDrivingEnv,
+    at: Instant,
+    noise: random.Random,
+) -> None:
     """Publish the plant's observable state to every sensor modality.
 
     Every modality carries the same payload because the synthetic plant has one
     ground truth and no per-sensor models; what differs between modalities in a
-    real adapter is noise and latency, and neither is simulated here.
+    real adapter is latency as well as noise, and latency is not simulated.
+
+    **Readings are noisy, and were not until 2 August 2026.** Before that this
+    published the plant's exact state while declaring non-zero sigmas to the
+    filter, so the UKF was told its measurements were uncertain and handed
+    perfect ones. Its innovations sat near zero -- a filter with nothing to do.
+    Rejecting measurement noise is what a UKF is *for*, and L1's staleness and
+    health machinery exists for imperfect streams; no closed-loop run had
+    exercised either, including the ones reported as stable over 100,000 ticks.
+
+    The noise source is passed in rather than drawn globally, so a run stays
+    reproducible from its seed -- which ``test_a_closed_loop_run_is_reproducible``
+    pins.
 
     Args:
         bus: The shared sensor bus.
         plant: The synthetic plant, read directly as the test fixture it is.
         at: The observation instant, from the injected clock.
+        noise: The seeded source for measurement noise.
     """
     state = plant._state  # noqa: SLF001 - the plant is the test fixture
     payload = {
-        "y": float(state[1]),
-        "v": float(state[2]),
-        "a": float(state[4]),
+        "y": float(state[1]) + noise.gauss(0.0, POSITION_SIGMA),
+        "v": float(state[2]) + noise.gauss(0.0, SPEED_SIGMA),
+        "a": float(state[4]) + noise.gauss(0.0, LATERAL_SIGMA),
     }
     for modality in SensorModality:
         bus.publish(
@@ -301,6 +336,8 @@ def drive_closed_loop(
     settings = resolved.settings
     plant = SyntheticDrivingEnv(spec or EnvironmentSpec())
     plant.reset(seed=seed)
+    # Sensor noise is seeded from the run seed, so a rerun reproduces it.
+    noise = random.Random(seed)
 
     clock = ManualClock(Instant(0, Timeline.MANUAL))
     run = RunId("run-closedloop0001")
@@ -331,7 +368,7 @@ def drive_closed_loop(
     deviation_total = 0.0
 
     for index in range(ticks):
-        _publish_state(built.sensor_bus, plant=plant, at=clock.now())
+        _publish_state(built.sensor_bus, plant=plant, at=clock.now(), noise=noise)
 
         started_at = time.perf_counter_ns()
         outcome = built.pipeline.tick(TickId(index))
