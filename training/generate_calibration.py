@@ -276,6 +276,7 @@ def generate(
         )
     )
     scores: dict[ContextClass, list[float]] = {}
+    innovations: dict[ContextClass, list[float]] = {}
     digest = ""
     tick = 0
 
@@ -370,11 +371,23 @@ def generate(
             if held >= DISCARD_TICKS and len(bucket) < per_class:
                 bucket.append(departure / sigma)
 
+            # The Trust Index's calibration, harvested alongside and kept apart.
+            # It scores the filter's innovation, not the proposal: L3 runs
+            # before L4 in the tick, so no proposal exists for it to score. One
+            # distribution served both until 2 August 2026, and the Trust Index
+            # -- querying a CDF of proposal-vs-twin scores with an innovation
+            # magnitude -- returned two distinct values across 4,001 ticks.
+            if innovation is not None:
+                innovation_bucket = innovations.setdefault(context, [])
+                if held >= DISCARD_TICKS and len(innovation_bucket) < per_class:
+                    innovation_bucket.append(float(innovation.mahalanobis_distance))
+
             tick += 1
             clock.advance(period)
 
     return CalibrationCorpus(
         scores={context: tuple(values) for context, values in scores.items()},
+        innovations={context: tuple(values) for context, values in innovations.items()},
         twin_weights_digest=digest,
         config_hash=resolved.hash,
         seed=seed,

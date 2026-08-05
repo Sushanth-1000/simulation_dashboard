@@ -617,6 +617,75 @@ reads it.
 
 </details>
 
+## ~~P2.5 — Understand the saturated Trust Index~~ — DONE, 2 Aug 2026
+
+**Root cause: the Trust Index measured one statistic and was calibrated against
+another.** L3 scores the filter's innovation magnitude — it must, because it runs
+at tick line 334, before L4 proposes at 422, so no proposal exists for it to
+score. L6 scores `dist(proposal, twin) / sigma`. Both queried **one**
+`MondrianCalibration`.
+
+The scales were never comparable. Measured in the regenerated corpus:
+
+| | gate scores | innovations |
+|---|---|---|
+| HIGHWAY_CLEAR | 1.158 – 1.189 | 0.518 – 7.497 |
+| DEGRADED_SENSOR | 1.155 – 1.191 | 7.549 – **154.8** |
+
+So `1 - cdf(innovation)` against a CDF of gate scores pinned to one end. The
+Trust Index took **exactly two distinct values across 4,001 consecutive ticks**.
+
+### Decisions taken
+
+**Decision: give L3 its own calibration over the statistic it measures.** Corpus
+schema 1 → 2, adding an `innovations` score set harvested alongside; assembly
+builds two `MondrianCalibration` instances.
+
+| Option | Benefit | Drawback | Verdict |
+|---|---|---|---|
+| **Separate calibration (chosen)** | CDF is over the quantity being measured; TI becomes a real index; tick ordering and the proposer's TI input untouched; SI-4 unaffected | Corpus schema change; generator harvests twice; two distributions where a comment argued for one | **Taken** |
+| Make L3 use L6's score | Perfect agreement between TI and gate | **Impossible** — no proposal exists at L3's point in the tick | Rejected |
+| Move the TI after L6 | Would let both use one score | Breaks `propose(trust=trust)` — the proposer consumes the TI. Large architectural change for a calibration bug | Rejected |
+| Report it honestly as a binary flag | Zero machinery; immediately honest | Deletes a graded signal L9 routing and the paper both rely on | Rejected |
+| Do nothing | — | A "Trust Index" with 2 values in 4,001 ticks, feeding L4 monitoring and L9 routing, about to have FB3 wired into it | Rejected |
+
+The old sharing comment reasoned that "two independently-maintained copies would
+drift apart". Sound, and the premise was false: these are two *distributions*,
+not two copies, and a TI that disagrees with the gate is now informative rather
+than a symptom.
+
+**Result:** 2 distinct values → 5, range 0.358–1.000. Better, and **still
+saturated at 1.0 for ~99.9% of nominal ticks** — for a new and defensible reason,
+which is the next item.
+
+## P2.6 — The closed loop runs with perfect sensors (NEW)
+
+Found while closing P2.5. `training/closed_loop.py` publishes the plant's **exact
+state** as sensor readings while declaring σ = 0.01 / 0.04 / 0.1 to the filter.
+The corpus is harvested with `gauss(0, 0.08)` on speed, `0.12` on lateral
+acceleration and `0.1` on position.
+
+So the filter is told its measurements are noisy and receives perfect ones. Its
+innovations sit near zero, which is why the Trust Index still reads 1.0 in
+nominal driving even against a matched distribution.
+
+**This is larger than the Trust Index.** Every soak measurement on record ran
+with perfect sensors — including "stable over 100,000 ticks". A UKF exists to
+reject measurement noise, L1's staleness and health machinery exists to handle
+imperfect streams, and neither has been exercised by the closed loop.
+
+**Recommended:** publish measurements at the same noise the corpus is harvested
+with, then re-run the matrix. Expect it to be harder; if the loop is still stable
+that result means considerably more than the current one, and if it is not, that
+is the finding.
+
+**Estimate:** 1 day including re-running the baselines.
+**Note:** this invalidates no *conclusion* reached today — the defects found were
+all structural — but it does put an asterisk on every stability figure until it
+is done.
+
+<details><summary>Original P2.5 entry</summary>
+
 ## P2.5 — Understand the saturated Trust Index before wiring FB3
 
 The Trust Index read **exactly 1.00 in every window after the first**, in all
@@ -629,6 +698,8 @@ before FB3 wires online requantilisation into it.
 **Estimate:** 1–2 days.
 
 ---
+
+</details>
 
 # P3 — Unblocked only after P0
 

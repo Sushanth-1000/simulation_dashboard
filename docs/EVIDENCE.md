@@ -5,7 +5,7 @@ it, the command that reproduces it, and the date. A number that is not in this
 table has not been measured, and a number here that cannot be reproduced by its
 command is a defect in this table.
 
-**Last verified** 2 August 2026, commit `16f6767`, on WSL2 Ubuntu / CPython
+**Last verified** 2 August 2026, commit `a5a707d`+, on WSL2 Ubuntu / CPython
 3.12.13 / CPU only.
 
 > **The caveat that governs every row in the first table.** The plant, the digital
@@ -37,7 +37,7 @@ Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 tick
 
 | # | Claim | Value | Produced by | Date |
 |:--:|---|---|---|:--:|
-| E-1 | Quality gate is green | **2,611 tests, 97.89% coverage**, `ruff` + `mypy --strict` over 140 files + **12** import contracts, 0 broken | `make check` | 2 Aug |
+| E-1 | Quality gate is green | **2,618 tests, 97.88% coverage**, `ruff` + `mypy --strict` over 140 files + **12** import contracts, 0 broken | `make check` | 2 Aug |
 | E-2 | The closed loop is stable over a long run | **All ten soak criteria pass over 100,000 ticks** | `python -m benchmarks.soak --ticks 100000 --window 1000` | 2 Aug |
 | E-3 | A command is issued on every tick | **100,000 of 100,000**, and 400,000 of 400,000 across the four runs of the day | as E-2 | 2 Aug |
 | E-4 | The proposer's commands are accepted | `PROPOSED` on **99,997** ticks; **3** vetoed, all answered by the rate limiter. Veto rate 3×10⁻⁵, which the console rounds to 0.0% — the JSON is authoritative | as E-2, `summary.json` | 2 Aug |
@@ -54,14 +54,15 @@ Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 tick
 | E-15 | The proposer respects the jerk bound far better after rescaling | Peak lateral jerk **150 → 60 → 16.7 m/s³** across three retrains | as E-14 | 2 Aug |
 | E-16 | The L1 atomicity test detects the defect it names | Hoisting the clock read out of the lock fails it **6 runs of 6**; the other **2,543** tests all pass | mutation, recorded in `tests/unit/test_l1_sensor_bus.py` | 2 Aug |
 | E-17 | CARLA installs and imports on the project's interpreter (assumption A-8) | `carla==0.9.16` installs on **CPython 3.12.13**/Linux with no dependency tree; `Client`, `World`, `Vehicle`, `Sensor`, `Transform`, `Location`, `Rotation`, `VehicleControl`, `WorldSettings` all present; a `Client` constructs and fails to connect with `RuntimeError`, correctly, with no server running | `uv venv --python 3.12 ~/carlacheck && uv pip install --python ~/carlacheck/bin/python carla==0.9.16` | 2 Aug |
+| E-18 | The Trust Index and the gate were calibrated against incompatible statistics | Gate scores span **1.155–1.191**; innovations span **0.518–7.497** (clear) and **7.549–154.8** (degraded). Sharing one distribution pinned the Trust Index to **2 distinct values across 4,001 ticks**; separating them gives 5 and a 0.358–1.000 range | `python training/generate_calibration.py --policy var/policy/synthetic.pt`, then read `innovations` in the corpus | 2 Aug |
 
 ### Controlled comparisons
 
 | # | Question | Result | Date |
 |:--:|---|---|:--:|
-| E-18 | Does the action-rate penalty need restricting to steering, or just more training? | **Both.** 2×2 at fixed seed: 98k/all-channels stops (return 549); 786k/all-channels stops (671); 98k/steer-only stops; 786k/steer-only holds 13.0 m/s (986) | 2 Aug |
-| E-19 | Does regenerating the corpus from the deployed policy matter? | **Yes.** HIGHWAY_CLEAR quantile **1.18 → 2.43**; the threshold in production was less than half what the deployed proposer routinely produces | 2 Aug |
-| E-20 | Is the veto latch a property of the policy? | **No.** Three policies — one that stopped the car, one holding 13 m/s at 0.03 m, one with an explicit jerk penalty — all reached the identical terminal state | 2 Aug |
+| E-19 | Does the action-rate penalty need restricting to steering, or just more training? | **Both.** 2×2 at fixed seed: 98k/all-channels stops (return 549); 786k/all-channels stops (671); 98k/steer-only stops; 786k/steer-only holds 13.0 m/s (986) | 2 Aug |
+| E-20 | Does regenerating the corpus from the deployed policy matter? | **Yes.** HIGHWAY_CLEAR quantile **1.18 → 2.43**; the threshold in production was less than half what the deployed proposer routinely produces | 2 Aug |
+| E-21 | Is the veto latch a property of the policy? | **No.** Three policies — one that stopped the car, one holding 13 m/s at 0.03 m, one with an explicit jerk penalty — all reached the identical terminal state | 2 Aug |
 
 ---
 
@@ -77,6 +78,7 @@ claim it, that is a defect and is named.
 | N-2 | **Gate independence** — that three structurally different failure modes exist | Requires the validation drive where FGSM fires exactly one gate and IMU corruption fires two for different reasons. Worse: L6 and L7b both score proposal-against-twin, so a common cause is already visible in measurement |
 | N-3 | **The 1.25 µs Core-B intercept** | An analytical AbsInt aiT bound for RTL that does not exist. Not measurable by a Python prototype and must never be quoted as measured |
 | N-4 | **ASIL-D(D)** | A design target. An ASIL is the outcome of an assessed safety case |
+| N-4a | **That any soak figure holds under sensor noise** | The closed-loop harness publishes the plant's exact state as measurements while declaring non-zero sigmas to the filter. Every stability figure on record was measured with perfect sensors. Open as P2.6 |
 | N-5 | **Coverage on real driving** | E-12 shows the quantile arithmetic is right, against a corpus drawn from a world the twin already models |
 | N-6 | **Domain independence (NFR5, assumption A-1)** | Asserted and structurally defended, never tested. Needs a non-automotive profile through the pipeline without touching `src/astra/` outside adapters |
 | N-7 | **Three of four feedback loops** | FB1 is wired. FB2 (`adapt`), FB3 (`recalibrate`) and FB4 exist and are never called from the tick loop; the twin digest was constant across all 400,000 ticks measured |

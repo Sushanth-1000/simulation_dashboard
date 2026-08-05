@@ -47,7 +47,7 @@ from __future__ import annotations
 import json
 import random
 import statistics
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from astra.kernel.enums import ContextClass, LayerId
@@ -67,8 +67,22 @@ __all__ = [
     "coverage_report",
 ]
 
-CORPUS_SCHEMA_VERSION = 1
-"""Schema version of the persisted corpus. A corpus from another version is refused."""
+CORPUS_SCHEMA_VERSION = 2
+"""Schema version of the persisted corpus. A corpus from another version is refused.
+
+Version 2 (2 August 2026) adds ``innovations``: a second score set, over the
+filter's innovation magnitude, for the Trust Index. Version 1 carried only the
+gate's non-conformity scores, and the Trust Index was being scored against
+*those* -- a CDF of one statistic queried with another. It read exactly two
+distinct values across 4,001 consecutive ticks. See :data:`INNOVATION_DEFINITION`.
+"""
+
+INNOVATION_DEFINITION = "mahalanobis_innovation_magnitude"
+"""How the Trust Index's calibration scores were computed.
+
+Recorded separately from :data:`SCORE_DEFINITION` because the two are different
+quantities and the whole point of version 2 is that they stopped sharing a
+distribution."""
 
 SCORE_DEFINITION = "euclidean_departure_over_sqrt_fast_covariance_lateral_acceleration"
 """How the scores were computed, recorded so a corpus cannot be silently reused
@@ -81,7 +95,17 @@ class CalibrationCorpus:
     """Non-conformity scores per context class, with the provenance to defend them.
 
     Attributes:
-        scores: The scores, keyed by context class.
+        scores: The gate's non-conformity scores, keyed by context class.
+            ``dist(proposal, twin_prediction) / sigma`` -- what L6 thresholds
+            against.
+        innovations: The filter's innovation magnitudes, keyed by context class.
+            A **different statistic**, calibrated separately because it is what
+            the Trust Index measures: at L3's point in the tick the proposal
+            does not exist yet, so the Trust Index cannot be computed from the
+            gate's score however much the two names suggest otherwise.
+
+            Empty for a version-1 corpus, which is why loading one leaves the
+            Trust Index uncalibrated rather than silently wrong.
         twin_weights_digest: Which twin produced the predictions the scores were
             measured against.
         config_hash: The operating point the generating run used.
@@ -94,7 +118,9 @@ class CalibrationCorpus:
     twin_weights_digest: str
     config_hash: str
     seed: int
+    innovations: Mapping[ContextClass, tuple[float, ...]] = field(default_factory=dict)
     score_definition: str = SCORE_DEFINITION
+    innovation_definition: str = INNOVATION_DEFINITION
     schema_version: int = CORPUS_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -109,18 +135,19 @@ class CalibrationCorpus:
         if not self.twin_weights_digest or not self.config_hash:
             message = "a calibration corpus must record the twin digest and configuration hash"
             raise ContractViolationError(message, layer=LayerId.L3_CONFORMAL_TRUST)
-        for context, values in self.scores.items():
-            for index, score in enumerate(values):
-                if not (score >= 0.0) or score == float("inf"):
-                    message = (
-                        f"{context.value} score at index {index} is {score!r}; scores are "
-                        f"normalised distances and must be finite and non-negative"
-                    )
-                    raise ContractViolationError(
-                        message,
-                        layer=LayerId.L3_CONFORMAL_TRUST,
-                        context={"context_class": context.value, "index": index},
-                    )
+        for label, bucket in (("score", self.scores), ("innovation", self.innovations)):
+            for context, values in bucket.items():
+                for index, score in enumerate(values):
+                    if not (score >= 0.0) or score == float("inf"):
+                        message = (
+                            f"{context.value} {label} at index {index} is {score!r}; both "
+                            f"score sets are distances and must be finite and non-negative"
+                        )
+                        raise ContractViolationError(
+                            message,
+                            layer=LayerId.L3_CONFORMAL_TRUST,
+                            context={"context_class": context.value, "index": index},
+                        )
 
     @property
     def calibrated_classes(self) -> tuple[ContextClass, ...]:
@@ -139,12 +166,34 @@ class CalibrationCorpus:
         return len(self.scores.get(context, ()))
 
     def seed_into(self, calibration: MondrianCalibration) -> None:
-        """Load this corpus into a Mondrian calibration.
+        """Load the **gate's** scores into a Mondrian calibration.
 
         Args:
-            calibration: The calibration to seed.
+            calibration: The calibration L6 thresholds against.
         """
         for context, values in self.scores.items():
+            if values:
+                calibration.seed(context, values)
+
+    def seed_innovations_into(self, calibration: MondrianCalibration) -> None:
+        """Load the **Trust Index's** scores into a Mondrian calibration.
+
+        A separate calibration from :meth:`seed_into`, because it holds a
+        different statistic. Sharing one was the defect version 2 exists to fix:
+        the Trust Index measures the filter's innovation and was querying a CDF
+        built from the gate's proposal-against-twin scores, which are on an
+        unrelated scale. It returned exactly two distinct values -- 0.0 and 1.0
+        -- across 4,001 consecutive ticks, because the innovation sat below
+        every calibration sample and the CDF therefore read 0 every time.
+
+        A version-1 corpus carries no innovations, so this seeds nothing and the
+        Trust Index reports itself uncalibrated -- which is the honest outcome
+        and visible in ``TrustAssessment.is_calibrated``.
+
+        Args:
+            calibration: The calibration the Trust Index reads.
+        """
+        for context, values in self.innovations.items():
             if values:
                 calibration.seed(context, values)
 
@@ -165,6 +214,12 @@ class CalibrationCorpus:
                 context.value: list(self.scores[context])
                 for context in ContextClass
                 if context in self.scores
+            },
+            "innovation_definition": self.innovation_definition,
+            "innovations": {
+                context.value: list(self.innovations[context])
+                for context in ContextClass
+                if context in self.innovations
             },
         }
 
@@ -215,6 +270,10 @@ class CalibrationCorpus:
             scores={
                 ContextClass(name): tuple(float(value) for value in values)
                 for name, values in payload["scores"].items()
+            },
+            innovations={
+                ContextClass(name): tuple(float(value) for value in values)
+                for name, values in payload.get("innovations", {}).items()
             },
             twin_weights_digest=str(payload["twin_weights_digest"]),
             config_hash=str(payload["config_hash"]),

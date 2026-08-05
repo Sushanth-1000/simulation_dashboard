@@ -361,8 +361,12 @@ class AssembledPipeline[PayloadT]:
     Attributes:
         pipeline: The tick loop.
         sensor_bus: L1, so a driver can publish readings into it.
-        calibration: The shared Mondrian calibration, so a caller can seed or
-            inspect it.
+        calibration: The **gate's** Mondrian calibration, over
+            ``dist(proposal, twin) / sigma``, so a caller can seed or inspect it.
+        trust_calibration: The **Trust Index's** calibration, over the filter's
+            innovation magnitude. A second distribution rather than a second
+            copy: L3 and L6 measure different quantities, and sharing one made
+            the Trust Index return two distinct values in 4,001 ticks.
         fallback: The deterministic controller, so the driver can keep its error
             term current on every tick.
         space: The actuation space every command is a vector over.
@@ -371,6 +375,7 @@ class AssembledPipeline[PayloadT]:
     pipeline: GovernancePipeline[PayloadT]
     sensor_bus: SharedSensorBus[PayloadT]
     calibration: MondrianCalibration
+    trust_calibration: MondrianCalibration
     fallback: ProportionalFallbackController
     space: ActuationSpace
 
@@ -446,15 +451,29 @@ def assemble_pipeline[PayloadT](
         initial_slow_covariance=SymmetricMatrix.from_diagonal([0.01, 0.01, 0.01]),
     )
 
-    # L3 and L6 share one calibration deliberately. The Trust Index and the ICP
-    # gate are two readings of the same non-conformity distribution, and two
-    # independently-maintained copies would drift apart -- so the audit log
-    # would show a Trust Index that disagreed with the gate that produced it.
+    # L3 and L6 held ONE calibration until 2 August 2026, on the reasoning that
+    # "the Trust Index and the ICP gate are two readings of the same
+    # non-conformity distribution, and two independently-maintained copies would
+    # drift apart". The reasoning is sound and the premise was false: they read
+    # *different statistics*.
+    #
+    # L6 scores `dist(proposal, twin_prediction) / sigma`. L3 scores the filter's
+    # innovation magnitude, because at its point in the tick -- before L4 has
+    # proposed anything -- no proposal exists to score. So the Trust Index was
+    # querying a CDF built from the gate's scores using a quantity on an
+    # unrelated scale, and the answer was always the same one: it took exactly
+    # two distinct values, 0.0 and 1.0, across 4,001 consecutive ticks.
+    #
+    # Two calibrations, then, because there are two distributions. The drift the
+    # old comment feared cannot arise between distributions that were never
+    # meant to agree, and a Trust Index that disagrees with the gate is now
+    # informative rather than a symptom.
     calibration = MondrianCalibration(window=settings.trust.calibration_window)
+    trust_calibration = MondrianCalibration(window=settings.trust.calibration_window)
     classifier = RuleBasedContextClassifier(highway_speed=settings.trust.highway_speed_boundary)
     trust_module = ConformalTrustModule(
         classifier=classifier,
-        calibration=calibration,
+        calibration=trust_calibration,
         coverage_level=settings.trust.coverage_level,
     )
 
@@ -510,6 +529,7 @@ def assemble_pipeline[PayloadT](
     )
     if corpus is not None:
         corpus.seed_into(calibration)
+        corpus.seed_innovations_into(trust_calibration)
     profiles = seed_profiles(
         now=clock.wall_clock(),
         max_speed=settings.shield.legal_speed_limit,
@@ -570,6 +590,7 @@ def assemble_pipeline[PayloadT](
         pipeline=pipeline,
         sensor_bus=sensor_bus,
         calibration=calibration,
+        trust_calibration=trust_calibration,
         fallback=fallback,
         space=space,
     )
