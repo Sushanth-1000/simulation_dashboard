@@ -923,29 +923,75 @@ before FB3 wires online requantilisation into it.
 
 # P3 — Unblocked only after P0
 
-## P3.1 — FB2, PINN online adaptation (work plan §3.1)
+## P3.1 — FB2, PINN online adaptation (work plan §3.1) — PART DONE, 2 Aug 2026
 
-The mechanism exists in `src/astra/layers/l5_twin/twin.py` — `adapt()`,
-`_consolidate()`, Fisher estimation, gradient clipping, divergence rollback — and
-**is not connected to the tick loop**. The twin weights digest was constant
-across all 400,000 ticks measured, confirming it never executes.
+**Done:** the catastrophic-forgetting test, and the anchoring defect it found.
+**Still open:** wiring FB2 into the tick loop, and P3.1a below.
 
-**Write the catastrophic-forgetting test first.** Highway accuracy must not
-degrade after adapting to rain. Without it you cannot tell adaptation from
-destruction, and a confidently wrong twin produces confidently wrong scores
-rather than errors.
+### What the forgetting test found
 
-**Known issue to resolve as part of it:** *EWC is inert at the configured λ.*
-`development.toml` sets 100 and `simulation.toml` sets 150; the penalty only
-measurably resists movement around λ≈10¹². Gradients are norm-clipped and
-`(θ − θ_anchor)` is near zero right after re-anchoring, so the term is swamped.
-Either tune λ empirically until the forgetting test passes, or rescale the
-penalty. **Do not ship a value that does nothing while the configuration implies
-it does something** — the same defect class as P0.2's action-rate proxy.
+The entry said to write it first. That was right, and it overturned the entry's
+own diagnosis. Three findings, in increasing order of importance.
 
-**Exit:** forgetting test passes; corpus regenerated; per-class coverage back in
-the 94.9–95.1% band; soak repeated with FB2 on.
-**Estimate:** 4–6 days.
+**1. λ=150 was not weak, it was bit-for-bit inert.** At λ=0 and λ=150, forgetting
+after 4,000 samples of a second context was 0.038972 and 0.038951 — identical to
+four decimals. The entry guessed the penalty started to bite around λ≈10¹²; a
+sweep over ten orders of magnitude found one useful *decade*, at 10⁶, with a
+cliff at 3×10⁶ where the penalty makes the twin worse at **both** contexts.
+
+**2. The cause was the anchor, not the number.** `_consolidate` re-anchored after
+every buffer flush, so the penalty resisted the last fifty samples' movement and
+permitted unlimited total drift. A step-size limiter wearing EWC's name. Fixed by
+ADR-0018: the anchor now moves on a `ContextClass` change and is held within one,
+which makes EWC's task boundary the same partition L3 and L9 already use. The
+response is then monotone from 10² to 10⁸ with no cliff, and λ is set to **10⁴**
+— chosen mid-range for robustness, so being wrong by an order of magnitude either
+way still leaves a working penalty.
+
+Rescaling the penalty, the other option the entry offered, was **measured and
+rejected**: normalising the Fisher by its mean shifts the window without widening
+it and cuts the best available protection from 0.084 to 0.309 of unregularised.
+
+**3. P3.1a — the penalty is a brake, not a consolidator. OPEN.** Across λ from 0
+to 10⁵ the ratio of forgetting to adaptation is constant to three significant
+figures: 0.00184, 0.00184, 0.00186, 0.00186, 0.00194. EWC buys nothing here that
+a smaller learning rate would not buy equally. Structural, not a tuning miss —
+FB2 adapts a 16→2 linear readout and both contexts use all of it, so there is no
+disjoint parameter subspace for a Fisher-weighted penalty to exploit. RK-5
+anticipated this in as many words.
+
+Recorded as a **strict xfail**, not a comment: the test fails the suite the day
+it starts passing. The candidate answer is a per-`ContextClass` output head,
+which makes forgetting structurally impossible rather than expensive, and which
+fits the Mondrian design the rest of the system already has.
+
+**4. FB2 is slow.** Unregularised, 4,000 samples — 200 s at 20 Hz — closed 21% of
+a large context change; at λ=10⁴, 1.7%. SGD at 10⁻³ with gradients clipped to
+norm 1 moves parameters by at most 10⁻³ per step, ten steps per fifty samples.
+Whether that is too slow is a question about what FB2 is *for*, and it wants
+answering before the loop is wired rather than after.
+
+### Decisions taken
+
+| Decision | Options | Chosen, and why |
+|---|---|---|
+| Test design | absolute error bound / **controlled comparison at λ vs λ=0** | The comparison. A bound gets chosen until it passes and then measures the choice; RK-5 already says EWC *may* fail, so the question is whether the penalty does anything, not whether the error is small |
+| Where the experiment starts | random init / **offline-trained twin** | FB2 trains only the output layer on a frozen hidden layer. From random weights, 2,400 samples moved the parameters 0.14 and converged at 0.094 error — measuring something the mechanism was never for. Each trial now pre-trains with Adam over both layers, as `train_twin.py` does |
+| Anchoring | see ADR-0018 | Context change, not buffer flush |
+| λ | least-forgetting (10⁸) / **mid-range (10⁴)** | With the anchor fixed, more λ is monotonically more retention, so there is no optimum to find. 10⁴ is picked for robustness — the property the old value most conspicuously lacked |
+| The unfixed part | quietly document / **strict xfail** | A defect recorded in prose gets read once. One recorded as a failing-when-fixed test gets read by CI forever |
+
+### Still to do
+
+- Wire `adapt()` into the tick loop. It currently has **no callers anywhere** —
+  `TrustAssessment.context_class` already reaches L9, so the context the new
+  anchoring needs is available where the call would go.
+- Decide P3.1a (per-context output head) — its own ADR.
+- Decide whether FB2's step size is fit for purpose (finding 4).
+- Then: corpus regenerated; per-class coverage back in the 94.9–95.1% band; soak
+  repeated with FB2 on.
+
+**Estimate remaining:** 3–4 days.
 
 ## P3.2 — FB3, online Mondrian requantilisation (work plan §3.2)
 

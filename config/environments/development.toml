@@ -46,9 +46,19 @@ highway_speed_boundary_kmh = 50.0
 # is an ordinary regressor, which would forfeit the property that makes it worth
 # calling physics-informed.
 physics_weight = 1.0
-# Fisher-anchored EWC penalty. Too small and adapting to rain forgets the
-# highway; too large and FB2 cannot adapt at all. Balance is empirical (RK-5).
-ewc_lambda = 100.0
+# Measured 2 August 2026, not guessed. At the value this file used to carry --
+# 150 -- the penalty was bit-for-bit inert: 4,000 samples of a second context
+# gave forgetting 0.038951 against 0.038972 unregularised, identical to four
+# decimals. The cause was not the number but the anchor, which `_consolidate`
+# re-took after every buffer flush; with it held across a context (ADR-0018) the
+# response is monotone from 1e2 to 1e8. 1e4 sits in the middle of that range, so
+# being wrong by an order of magnitude either way still leaves a working penalty
+# -- which is the property the old value most conspicuously lacked.
+#
+# Known and tracked as P3.1a: at every lambda the ratio of forgetting to
+# adaptation is constant, so this is a brake rather than a consolidator. See
+# tests/unit/test_l5_forgetting.py.
+ewc_lambda = 10000.0
 # Row mapping a command vector to the lateral acceleration it produces, in the
 # actuation space's channel order. A platform fact, configured rather than coded
 # so the core stays domain-independent (NFR5). This development space is

@@ -67,7 +67,7 @@ import torch
 
 from astra.contracts.actuation import ControlCommand, PredictedCommand
 from astra.kernel.constants import FAST_STATE_FIELDS
-from astra.kernel.enums import LayerId
+from astra.kernel.enums import ContextClass, LayerId
 from astra.kernel.errors import ConfigurationError, SafetyPathError
 from astra.layers.l5_twin.network import TwinNetwork, physics_residual, state_features
 
@@ -121,9 +121,11 @@ class PhysicsInformedTwin:
 
     __slots__ = (
         "_anchor",
+        "_anchored_context",
         "_buffer",
         "_clock",
         "_component",
+        "_context",
         "_effectiveness",
         "_fisher",
         "_history",
@@ -195,6 +197,8 @@ class PhysicsInformedTwin:
         self._history: list[tuple[tuple[float, ...], tuple[float, ...]]] = []
         self._fisher: dict[str, torch.Tensor] = {}
         self._anchor: dict[str, torch.Tensor] = {}
+        self._anchored_context: ContextClass | None = None
+        self._context: ContextClass | None = None
 
     def predict(self, *, tick: TickId, state: FastStateEstimate) -> PredictedCommand:
         """Predict the command the modelled physics expects next.
@@ -286,7 +290,13 @@ class PhysicsInformedTwin:
             ) from error
         self._network.eval()
 
-    def adapt(self, *, applied: ControlCommand, measured: FastStateEstimate) -> None:
+    def adapt(
+        self,
+        *,
+        applied: ControlCommand,
+        measured: FastStateEstimate,
+        context: ContextClass | None = None,
+    ) -> None:
         """Record an executed outcome and update the twin when enough have arrived.
 
         Feedback loop FB2. Buffers the sample; once
@@ -304,6 +314,14 @@ class PhysicsInformedTwin:
                 policy's intent rather than the vehicle's response, which is
                 exactly the coupling FB1 exists to remove from L2.
             measured: The state measured after applying it.
+            context: The operational context this outcome was observed in, from
+                L3's Mondrian classifier. Supplied, it becomes EWC's task
+                boundary: the anchor is re-taken when the context changes and
+                held constant within one, which is what makes the penalty
+                consolidation rather than a step-size limit. Omitted, the anchor
+                is taken once and never moved, which protects the offline-trained
+                twin -- the conservative reading, and the right default for a
+                caller that does not know what it is driving through.
         """
         # Checked before the features are built, not after: `state_features`
         # takes the sine and cosine of the heading, and `math.sin(inf)` raises
@@ -317,6 +335,17 @@ class PhysicsInformedTwin:
             heading_index=_HEADING_INDEX,
             lateral_index=_LATERAL_INDEX,
         )
+        if self._anchor and context is not self._anchored_context:
+            # The context changed. Re-anchor *now*, on weights that still
+            # describe the outgoing context, before a single sample of the new
+            # one has moved them -- so the label recorded is `self._context`, the
+            # context being left, not the one being entered. The partial buffer
+            # is dropped rather than consolidated, because an update mixing two
+            # contexts teaches the twin the average of a highway and a rainstorm.
+            self._reanchor(self._context)
+            self._buffer.clear()
+        self._context = context
+
         sample = (features, applied.values)
         self._buffer.append(sample)
         self._history.append(sample)
@@ -390,14 +419,36 @@ class PhysicsInformedTwin:
                     parameter.copy_(restore[name])
             return
 
-        # Re-anchor for the next context: both the Fisher information and the
-        # point it was measured at have to move together, or the penalty would
-        # weight the new optimum by the old task's importances.
+        # Anchor once, on the first consolidation, and then leave it alone until
+        # the context changes. Re-anchoring after *every* consolidation is what
+        # this used to do, and it is why the penalty did nothing: with the anchor
+        # following the parameters every twenty samples, the term resisted the
+        # last step and permitted unlimited total drift. Measured on 2 August
+        # 2026 -- 4,000 samples of a second context, ewc_lambda 0 against 150,
+        # forgetting 0.038972 against 0.038951. Identical to four decimals.
+        #
+        # With the anchor held, the same experiment is monotone across six orders
+        # of magnitude, from 0.86x the unregularised forgetting at 1e2 to 0.018x
+        # at 1e8, with no cliff anywhere. See ADR-0018.
+        if not self._anchor:
+            self._reanchor(self._context)
+
+    def _reanchor(self, context: ContextClass | None) -> None:
+        """Capture the current parameters and their Fisher information.
+
+        Both move together or neither does: an anchor from one point weighted by
+        importances measured at another would penalise drift from a place the
+        twin was never at.
+
+        Args:
+            context: The context these parameters describe.
+        """
         self._fisher = self._estimate_fisher()
         self._anchor = {
             name: parameter.detach().clone()
             for name, parameter in self._network.output.named_parameters()
         }
+        self._anchored_context = context
 
     def _output_is_finite(self) -> bool:
         """Return whether every output-layer parameter is finite.

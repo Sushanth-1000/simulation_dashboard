@@ -39,7 +39,7 @@ Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 tick
 
 | # | Claim | Value | Produced by | Date |
 |:--:|---|---|---|:--:|
-| E-1 | Quality gate is green | **2,653 tests, 97.95% coverage**, `ruff` + `mypy --strict` over 140 files + **12** import contracts, 0 broken | `make check` | 2 Aug |
+| E-1 | Quality gate is green | **2,660 tests + 1 tracked xfail, 97.90% coverage**, `ruff` + `mypy --strict` over 140 files + **12** import contracts, 0 broken | `make check` | 2 Aug |
 | E-2 | The closed loop is stable over a long run | **All ten soak criteria pass over 100,000 ticks** | `python -m benchmarks.soak --ticks 100000 --window 1000` | 2 Aug |
 | E-3 | A command is issued on every tick | **100,000 of 100,000**, and 400,000 of 400,000 across the four runs of the day | as E-2 | 2 Aug |
 | E-4 | The proposer's commands are accepted | `PROPOSED` on **99,997** ticks; **3** vetoed, all answered by the rate limiter. Veto rate 3×10⁻⁵, which the console rounds to 0.0% — the JSON is authoritative | as E-2, `summary.json` | 2 Aug |
@@ -61,6 +61,9 @@ Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 tick
 | E-18 | The Trust Index and the gate were calibrated against incompatible statistics | Gate scores span **1.155–1.191**; innovations span **0.518–7.497** (clear) and **7.549–154.8** (degraded). Sharing one distribution pinned the Trust Index to **2 distinct values across 4,001 ticks**. Separating them gave 5; matching the filter's `R` to the injected noise on top gave 90 — see E-23 | `python -m training.generate_calibration --policy var/policy/synthetic.pt`, then read `innovations` in the corpus | 2 Aug |
 | E-26 | The L1 concurrency flake does not reproduce under heavier load than the one that found it | **220 runs, 220 passes, no hangs**: 20 full-suite runs (76.8-100.2 s each) and 200 runs of the threaded tests alone (2.0-4.8 s each), under `stress-ng --cpu 32` on 16 cores. Absence of evidence, not evidence of absence -- a 1%-per-run race survives 220 runs about one time in nine | `python -m benchmarks.flake_hunt --repeats 20 --focus-repeats 200`, `var/flake/p22-campaign/summary.json` | 2 Aug |
 | E-27 | The frozen-install check detects the defect it names | Adding `import numpy` to `src/astra/kernel/units.py` makes `make verify-install` fail with `ModuleNotFoundError` and exit 1. Without it, a bare venv holding only pydantic imports the kernel and contracts cleanly | `make verify-install` | 2 Aug |
+| E-28 | The configured EWC penalty did nothing at all | At `ewc_lambda` 0 and 150, forgetting after 4,000 samples of a second context was **0.038972** and **0.038951** -- identical to four decimals. Cause was the anchor, re-taken every buffer flush, not the value; see ADR-0018 | `pytest tests/unit/test_l5_forgetting.py` | 2 Aug |
+| E-29 | With the anchor held across a context, EWC responds monotonically | Forgetting relative to unregularised: **0.86** at 1e2, **0.30** at 1e3, **0.081** at 1e4, **0.026** at 1e6, **0.018** at 1e8 -- no cliff over six orders of magnitude. Before the fix the only useful value was 1e6 and 3e6 was *worse than zero* (2.33x) | as E-28 | 2 Aug |
+| E-30 | Catastrophic forgetting is real in this twin | An offline-trained twin knows the highway to **0.000247** mean absolute command error; 4,000 unregularised samples of a second context take it to **0.039219**, a **159x** degradation | as E-28 | 2 Aug |
 | E-24 | The fail-safe speed cap constrains an actuator | Driving the **assembled** pipeline into HALT (whose cap is 0.0 m/s) at 45 m/s: every tick in HALT issues throttle **0.0**, brake **1.0**, origin `SPEED_CAPPED`. A nominal drive issues nothing so labelled. Before P2.1 the identical situation issued a bit-identical command to the uncapped path — see finding F2 | `pytest tests/integration/test_full_pipeline.py -k halt_actually_brakes` | 2 Aug |
 
 ### Controlled comparisons
@@ -68,6 +71,8 @@ Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 tick
 | # | Question | Result | Date |
 |:--:|---|---|:--:|
 | E-25 | Does removing the OOD counter's ceiling get caught? | **Yes.** Deleting the `min` fails exactly the two tests that name it — `test_the_counter_never_climbs_past_the_halt_threshold` and `test_the_ceiling_is_the_halt_threshold_and_not_some_multiple_of_it` — and the other 2,641 pass | 2 Aug |
+| E-31 | Would rescaling the EWC penalty work instead of re-anchoring it? | **No, measured.** Normalising the Fisher by its mean shifts the useful window from 1e6 to 1e4 without widening it -- still one decade, still a cliff at 10x -- and the best protection available drops from **0.084** to **0.309** of unregularised. Strictly worse than tuning alone | 2 Aug |
+| E-32 | Does EWC protect the old context selectively, or just slow all learning? | **Just slows everything.** Forgetting divided by fraction-of-gap-closed, across lambda 0 to 1e5: **0.00184, 0.00184, 0.00186, 0.00186, 0.00194** -- constant. Structural: a 16->2 linear readout gives a Fisher-weighted penalty no disjoint subspace to exploit. Open as P3.1a, held as a strict xfail | 2 Aug |
 | E-19 | Does the action-rate penalty need restricting to steering, or just more training? | **Both.** 2×2 at fixed seed: 98k/all-channels stops (return 549); 786k/all-channels stops (671); 98k/steer-only stops; 786k/steer-only holds 13.0 m/s (986) | 2 Aug |
 | E-20 | Does regenerating the corpus from the deployed policy matter? | **Yes.** HIGHWAY_CLEAR quantile **1.18 → 2.43**; the threshold in production was less than half what the deployed proposer routinely produces | 2 Aug |
 | E-21 | Is the veto latch a property of the policy? | **No.** Three policies — one that stopped the car, one holding 13 m/s at 0.03 m, one with an explicit jerk penalty — all reached the identical terminal state | 2 Aug |
@@ -88,7 +93,7 @@ claim it, that is a defect and is named.
 | N-4 | **ASIL-D(D)** | A design target. An ASIL is the outcome of an assessed safety case |
 | N-5 | **Coverage on real driving** | E-12 shows the quantile arithmetic is right, against a corpus drawn from a world the twin already models |
 | N-6 | **Domain independence (NFR5, assumption A-1)** | Asserted and structurally defended, never tested. Needs a non-automotive profile through the pipeline without touching `src/astra/` outside adapters |
-| N-7 | **Three of four feedback loops** | FB1 is wired. FB2 (`adapt`), FB3 (`recalibrate`) and FB4 exist and are never called from the tick loop; the twin digest was constant across all 400,000 ticks measured |
+| N-7 | **Three of four feedback loops** | FB1 is wired. FB2 (`adapt`), FB3 (`recalibrate`) and FB4 exist and are never called from the tick loop -- `adapt` has no callers anywhere in `src/`; the twin digest was constant across all 400,000 ticks measured. FB2's *mechanism* is now tested and repaired (E-28..E-30), which is not the same as being on |
 | ~~N-8~~ | ~~**The fail-safe speed cap constrains anything**~~ | Closed by P2.1 — now E-24. What remains undemonstrated is enforcement under an *injected fault* rather than a deliberately provoked one: open as P4.2 |
 | N-9 | **The deterministic shield's contribution** | L7a vetoed **once** in ~500,000 ticks. It is a state monitor and cannot see a lane departure. The corridor bound added by P2.1 gives it one that it can, but no run has yet fired it |
 | N-10 | **Tamper-evidence of the evidence log** | Integrity-checked, not tamper-evident. No threat model, no signed artefacts, no key management |
@@ -103,7 +108,7 @@ Feeding [`PENDING.md`](PENDING.md) P1.4, documentation sync.
 
 | Where | Claim | Status |
 |---|---|---|
-| `README.md` | "2 513 tests, 97.97% coverage" | **Corrected 2 Aug** to 2,653 / 97.95% (E-1) |
+| `README.md` | "2 513 tests, 97.97% coverage" | **Corrected 2 Aug** to 2,660 / 97.90% (E-1) |
 | `README.md` | "Full ten-layer tick p99 **1.98 ms**" | **Corrected 2 Aug.** The soak measures **9.3 ms** p99 for the full tick; `benchmarks/latency.py` measures a *subset* (L1+L2+L7a+L8) at 0.811 ms (E-10). Neither was "the full ten-layer tick" at 1.98 ms, and the two must not be compared |
 | `README.md` | "Closed-loop over 400 ticks: trained policy 41.0% veto rate and 0.383 m mean lane deviation vs 59.8% / 0.836 m" | **Corrected 2 Aug.** Measured with a policy that stopped the vehicle, an unobservable lateral position, a corpus harvested from a different proposer, and a plant integrating 2.5× fast. Superseded by E-4, E-5, E-13 |
 | `docs/PROJECT_STATE_AND_ROADMAP.md` | Contract, certification-field and layer-status counts | **Open.** Not re-verified since 31 July |
