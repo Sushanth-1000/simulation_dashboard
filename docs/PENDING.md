@@ -973,8 +973,70 @@ refusing to agree that the offline twin knew the highway.
 **4. FB2 is slow.** Unregularised, 4,000 samples — 200 s at 20 Hz — closed 21% of
 a large context change; at λ=10⁴, 1.7%. SGD at 10⁻³ with gradients clipped to
 norm 1 moves parameters by at most 10⁻³ per step, ten steps per fifty samples.
-Whether that is too slow is a question about what FB2 is *for*, and it wants
-answering before the loop is wired rather than after.
+
+**5. P3.1b — FB2 would disarm the statistical gate. MEASURED, and it is why FB2
+must not be wired in its current form.**
+
+`twin.py`'s module docstring states the property:
+
+> *If the twin were trained until it predicted Core-A's policy accurately, every
+> non-conformity score would be small, the statistical gate would stop firing,
+> and the system would look healthy while having disarmed one of its three
+> gates. The twin is trained against physics, not against the proposer.*
+
+Offline training honours that — `train_twin.py` labels each state with
+`steer = lateral / gain`, the inverse of `B·π = a_lat`, with the proposer playing
+no part. **`_consolidate` does not.** Its data term is `MSE(predicted, applied)`,
+and `applied` is the issued command — the proposal on 99.9% of ticks. FB2's only
+source of labels is the component the twin exists to be independent of.
+
+Run in shadow over 100,000 ticks in one unchanging context
+(`var/soak/p31b-scores`), with both scores computed by `non_conformity_score`
+extracted from the gate rather than reimplemented beside it:
+
+| window | 0 | 20 | 50 | 80 | 99 |
+|---|---|---|---|---|---|
+| twin divergence | 0.0094 | 0.0607 | 0.1367 | 0.2006 | 0.2360 |
+| score, live twin | 1.1564 | 1.1560 | 1.1559 | 1.1559 | 1.1560 |
+| score, shadow twin | 1.1534 | 1.0376 | 0.8896 | 0.7652 | 0.6962 |
+| ratio | 0.997 | 0.898 | 0.770 | 0.662 | **0.602** |
+
+**The live score is flat to four decimal places. The shadow's falls 40%,
+monotonically, and is still falling at the end.** Same run, same ticks, same
+state estimates — the only difference is which twin the score is computed
+against, so the collapse is FB2's doing and nothing else's.
+
+The acceptance region is a quantile calibrated offline (2.43 for HIGHWAY_CLEAR).
+The scores slide down beneath it, so an anomaly must be correspondingly larger to
+cross: headroom to a veto goes from ×2.1 to ×3.5. **Conclusion: do not wire FB2
+as it stands.** That needs no action to implement — it is the status quo — and it
+now rests on measurement rather than on reading the code.
+
+**6. P3.1c — what FB2 should do instead. OPEN, wants an ADR.**
+
+Working the candidates through turned up a better answer than any of them.
+
+1. *Label FB2 from physics rather than from the command.* Does not work as
+   stated: the physically-consistent command satisfies `B·π = a_lat`, and `B` is
+   **configured**, so labelling from a fixed `B` reproduces `train_twin.py`'s
+   corpus exactly and FB2 learns nothing.
+2. *Raise `physics_weight` on the online path.* A tuning answer to a structural
+   problem. This phase has shown twice where those end up.
+3. *Do not wire FB2 at all.* Correct today; gives up a quarter of the design
+   permanently.
+
+**Where the first option points: FB2 should estimate the control effectiveness,
+not regress a network onto commands.** What "the vehicle's response changed"
+*means* — tyre wear, load shift, a wet road — is that the true `B` has moved, and
+that is observable from exactly the pairs FB2 already receives: command a
+steering value, observe the lateral acceleration it produced, and the ratio is
+the effective `B`. A few-parameter estimate rather than a retraining; it cannot
+drift toward the proposer because the proposer's output is not its target; and it
+feeds the physics residual the whole twin is anchored on.
+
+Cost: a different mechanism from the roadmap's, and `B` is platform configuration
+(NFR5), so where the estimate lives needs care — plausibly the adapter, not the
+layer.
 
 ### Decisions taken
 
@@ -988,13 +1050,11 @@ answering before the loop is wired rather than after.
 
 ### Still to do
 
-- Wire `adapt()` into the tick loop. It currently has **no callers anywhere** —
-  `TrustAssessment.context_class` already reaches L9, so the context the new
-  anchoring needs is available where the call would go.
-- Decide P3.1a (per-context output head) — its own ADR.
-- Decide whether FB2's step size is fit for purpose (finding 4).
-- Then: corpus regenerated; per-class coverage back in the 94.9–95.1% band; soak
-  repeated with FB2 on.
+- **P3.1c**: decide what FB2 becomes. Its own ADR.
+- `adapt()` still has **no callers** in `src/` outside the shadow, and should not
+  gain one until P3.1c lands.
+- Then: corpus regenerated; per-class coverage back in the 94.9–95.1% band; a
+  soak with whatever FB2 turns into.
 
 **Estimate remaining:** 3–4 days.
 
