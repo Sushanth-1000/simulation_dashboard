@@ -233,9 +233,6 @@ class ConformalTrustModule:
         detector consumes, and it is genuinely a measure of how unusual the
         present situation is.
 
-        Args:
-            innovation: The latest innovation record, if the filter has run.
-
         No finiteness guard here, deliberately.
         :class:`~astra.contracts.estimation.InnovationRecord` validates the
         distance at construction, so a non-finite one is unrepresentable rather

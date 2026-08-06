@@ -1058,20 +1058,73 @@ layer.
 
 **Estimate remaining:** 3–4 days.
 
-## P3.2 — FB3, online Mondrian requantilisation (work plan §3.2)
+## P3.2 — FB3, online Mondrian requantilisation (work plan §3.2) — BLOCKED by a defect
 
-`ConformalTrustModule.recalibrate()` exists and is tested. Wire executed outcomes
-into it from the tick loop.
+`ConformalTrustModule.recalibrate()` exists and is tested. It must not be wired
+as it stands, and the reason is the same shape as P3.1b's, which is what makes it
+worth stating carefully.
 
-**Design point already settled — do not "fix" it.** `recalibrate()` deliberately
-ignores `was_correct` when deciding whether to record a score. Filtering the
-calibration set to outcomes that went well biases the quantile downward and
-produces a guarantee about a distribution the vehicle does not drive in.
+### The defect
 
-**Exit:** quantiles track a deliberately shifted synthetic distribution; coverage
-holds per class through the shift; corpus regenerated; soak repeated.
+Since P2.5, L3 and L6 hold **two different distributions**, because sharing one
+pinned the Trust Index to 2 distinct values across 4,001 ticks (E-18):
+
+| | distribution | typical range |
+|---|---|---|
+| L3 Trust Index | filter innovation, `mahalanobis_innovation_magnitude` | 0.518–7.497 clear, 7.549–154.8 degraded |
+| L6 gate | non-conformity score, `\|π_prop − π̂\| / σ` | 1.155–1.191 |
+
+`assess()` honours that split — `trust = 1 − cdf(innovation_dist, innovation)`.
+
+**`recalibrate()` does not.** It observes its argument into that same innovation
+distribution, and both the port and the implementation document that argument as
+*"the realised score for the executed command"* — L6's score. Wiring FB3 as
+specified would therefore pour gate-scale values into the innovation
+distribution, **re-merging exactly the two statistics P2.5 separated**, through a
+different door. The Trust Index would stop meaning "how unusual is this
+innovation" and become a mixture statistic, silently.
+
+Dormant today: `recalibrate` has no callers. That is the only reason it is not a
+P0.
+
+### What to decide, and it is a real fork
+
+1. **FB3 feeds L6's score into L6's calibration** — a *third* wiring, since the
+   gate's `MondrianCalibration` is a separate object from L3's. This is what
+   "online Mondrian requantilisation" most naturally means: the gate's own
+   quantile tracks the scores the deployed proposer actually produces. E-20 says
+   that matters — regenerating the corpus from the deployed policy moved the
+   HIGHWAY_CLEAR quantile 1.18 → 2.43.
+2. **FB3 feeds innovations into L3's calibration** — keeps the current object
+   graph and makes the parameter name the defect. Smaller change, and arguably
+   what the code already is.
+3. **Both, as two separate loops**, since they are two distributions and there is
+   no reason one call should serve both.
+
+I would take **1**, and rename `recalibrate`'s parameter to say which statistic
+it takes. But it changes which object L3 hands the update to, so it wants the
+decision written down rather than inferred from a parameter name — which is how
+this got here.
+
+### The pattern, which is now worth naming
+
+Three feedback loops, three outcomes:
+
+- **FB1** — wired, works.
+- **FB2** — dormant, and would have disarmed the statistical gate (D-6/OD-7).
+- **FB3** — dormant, and would have corrupted the Trust Index.
+
+Every unwired loop in this repository has carried a latent defect that appears
+only at the moment it is wired. **FB4 has not been examined and should be assumed
+to carry one too.** Nothing about a loop being tested in isolation says anything
+about what it does to the system it is connected to; that is what the shadow
+harness is for, and it should be the default for FB3 and FB4 exactly as it was
+for FB2.
+
+**Exit:** the decision above, taken and recorded; then FB3 in shadow over a 100k
+soak, watching the quantile move and the veto rate it *would* have produced;
+then, if it holds, wired.
 **Estimate:** 2–3 days.
-**Blocked by:** P2.5.
 
 ## P3.3 — FB4, plant synchronisation (work plan §3.3)
 
