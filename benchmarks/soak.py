@@ -362,6 +362,9 @@ class WindowSummary:
             "origins": dict(self.origins),
             "arbitrations": dict(self.arbitrations),
             "proposals_issued_under_veto": self.proposals_issued_under_veto,
+            "mean_shadow_divergence": self.mean_shadow_divergence,
+            "max_shadow_divergence": self.max_shadow_divergence,
+            "shadow_digest": self.shadow_digest,
         }
 
 

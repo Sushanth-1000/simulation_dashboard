@@ -39,7 +39,7 @@ Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 tick
 
 | # | Claim | Value | Produced by | Date |
 |:--:|---|---|---|:--:|
-| E-1 | Quality gate is green | **2,662 tests, 98.13% coverage**, `ruff` + `mypy --strict` over 140 files + **12** import contracts, 0 broken | `make check` | 2 Aug |
+| E-1 | Quality gate is green | **2,670 tests, 98.10% coverage**, `ruff` + `mypy --strict` over 140 files + **12** import contracts, 0 broken | `make check` | 2 Aug |
 | E-2 | The closed loop is stable over a long run | **All ten soak criteria pass over 100,000 ticks** | `python -m benchmarks.soak --ticks 100000 --window 1000` | 2 Aug |
 | E-3 | A command is issued on every tick | **100,000 of 100,000**, and 400,000 of 400,000 across the four runs of the day | as E-2 | 2 Aug |
 | E-4 | The proposer's commands are accepted | `PROPOSED` on **99,997** ticks; **3** vetoed, all answered by the rate limiter. Veto rate 3×10⁻⁵, which the console rounds to 0.0% — the JSON is authoritative | as E-2, `summary.json` | 2 Aug |
@@ -66,6 +66,9 @@ Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 tick
 | E-30† | Catastrophic forgetting is real in this twin | An offline-trained twin knows the highway to **0.000247** mean absolute command error; 4,000 unregularised samples of a second context take it to **0.039219**, a **159x** degradation | superseded -- see † | 2 Aug |
 | E-33 | Per-context heads make forgetting exactly zero | Adapting 4,000 rain samples into the rain head leaves the highway prediction **bit-for-bit unchanged** -- the assertion is `==`, not a tolerance. The same rain driven through the *highway* head still destroys it | `pytest tests/unit/test_l5_forgetting.py` | 2 Aug |
 | E-34 | Separating the heads costs nothing in adaptation | The rain head closes at least as much of the context gap as a shared head does, because it sees the same gradients. The elastic penalty it replaced gave up a proportional unit of plasticity for every unit of retention (E-32) | as E-33 | 2 Aug |
+| E-36 | Running FB2 in shadow changes nothing about the run | 100,000 ticks with `--shadow-fb2` are numerically identical to the run without it: same lane-deviation trace **0.0290 -> 0.0298 m**, same origin split **99,911 PROPOSED / 89 RATE_LIMITED**, all ten criteria pass, live twin digest constant | `python -m benchmarks.soak --ticks 100000 --window 1000 --shadow-fb2` | 2 Aug |
+| E-37 | FB2 drifts the twin substantially even with nothing to adapt to | In a **single unchanging context**, twin divergence **0.0094 -> 0.2360** over 100,000 ticks, peak 0.2387, 100 distinct shadow digests. Growth per quarter +0.0622, +0.0627, +0.0542, +0.0474 -- decelerating ~0.87x/quarter, extrapolating to ~0.5, comparable to the whole steering range. Not converged after 83 minutes of simulated driving | as E-36, `mean_shadow_divergence` in `windows.jsonl` | 2 Aug |
+| E-38 | FB2's only training labels are the proposer's commands | `_consolidate`'s data term is `MSE(predicted, applied)` where `applied` is the issued command. `train_twin.py` by contrast labels from physics, `steer = lateral / gain`. `twin.py`'s module docstring names training the twin on the proposer as the way to disarm the statistical gate | source, `src/astra/layers/l5_twin/twin.py` and `training/train_twin.py` | 2 Aug |
 | E-24 | The fail-safe speed cap constrains an actuator | Driving the **assembled** pipeline into HALT (whose cap is 0.0 m/s) at 45 m/s: every tick in HALT issues throttle **0.0**, brake **1.0**, origin `SPEED_CAPPED`. A nominal drive issues nothing so labelled. Before P2.1 the identical situation issued a bit-identical command to the uncapped path — see finding F2 | `pytest tests/integration/test_full_pipeline.py -k halt_actually_brakes` | 2 Aug |
 
 † **Historical, not reproducible from the current tree.** These three measured the
@@ -103,6 +106,7 @@ claim it, that is a defect and is named.
 | N-4 | **ASIL-D(D)** | A design target. An ASIL is the outcome of an assessed safety case |
 | N-5 | **Coverage on real driving** | E-12 shows the quantile arithmetic is right, against a corpus drawn from a world the twin already models |
 | N-6 | **Domain independence (NFR5, assumption A-1)** | Asserted and structurally defended, never tested. Needs a non-automotive profile through the pipeline without touching `src/astra/` outside adapters |
+| N-13 | **That FB2 would not disarm the statistical gate** | E-38 shows its labels come from the proposer and E-37 measures the drift, but the collapse of the non-conformity scores themselves is *inferred, not measured*. The deciding experiment is to have the shadow compute the score L6 would have produced against it. Open as P3.1b |
 | N-7 | **Three of four feedback loops** | FB1 is wired. FB2 (`adapt`), FB3 (`recalibrate`) and FB4 exist and are never called from the tick loop -- `adapt` has no callers anywhere in `src/`; the twin digest was constant across all 400,000 ticks measured. FB2's *mechanism* is now tested and repaired (E-28..E-30), which is not the same as being on |
 | ~~N-8~~ | ~~**The fail-safe speed cap constrains anything**~~ | Closed by P2.1 — now E-24. What remains undemonstrated is enforcement under an *injected fault* rather than a deliberately provoked one: open as P4.2 |
 | N-9 | **The deterministic shield's contribution** | L7a vetoed **once** in ~500,000 ticks. It is a state monitor and cannot see a lane departure. The corridor bound added by P2.1 gives it one that it can, but no run has yet fired it |
@@ -118,7 +122,7 @@ Feeding [`PENDING.md`](PENDING.md) P1.4, documentation sync.
 
 | Where | Claim | Status |
 |---|---|---|
-| `README.md` | "2 513 tests, 97.97% coverage" | **Corrected 2 Aug** to 2,662 / 98.13% (E-1) |
+| `README.md` | "2 513 tests, 97.97% coverage" | **Corrected 2 Aug** to 2,670 / 98.10% (E-1) |
 | `README.md` | "Full ten-layer tick p99 **1.98 ms**" | **Corrected 2 Aug.** The soak measures **9.3 ms** p99 for the full tick; `benchmarks/latency.py` measures a *subset* (L1+L2+L7a+L8) at 0.811 ms (E-10). Neither was "the full ten-layer tick" at 1.98 ms, and the two must not be compared |
 | `README.md` | "Closed-loop over 400 ticks: trained policy 41.0% veto rate and 0.383 m mean lane deviation vs 59.8% / 0.836 m" | **Corrected 2 Aug.** Measured with a policy that stopped the vehicle, an unobservable lateral position, a corpus harvested from a different proposer, and a plant integrating 2.5× fast. Superseded by E-4, E-5, E-13 |
 | `docs/PROJECT_STATE_AND_ROADMAP.md` | Contract, certification-field and layer-status counts | **Open.** Not re-verified since 31 July |

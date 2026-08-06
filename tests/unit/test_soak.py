@@ -324,6 +324,49 @@ def test_a_window_renders_the_same_keys_whatever_it_saw() -> None:
     assert full.keys() == sparse.keys()
 
 
+def test_the_shadow_reading_reaches_the_series_file_and_not_only_the_console() -> None:
+    # The console printed FB2's shadow divergence for a whole 100,000-tick run
+    # while `windows.jsonl` carried none of it, so the artefact could not
+    # reproduce the report built from it -- which is the one property this
+    # document's own rules require. Caught by trying to plot the trajectory and
+    # finding the key absent.
+    payload = WindowSummary(
+        index=0,
+        first_tick=0,
+        ticks=1000,
+        issued=1000,
+        vetoed=0,
+        mean_absolute_deviation_m=0.02,
+        max_absolute_deviation_m=0.04,
+        mean_speed_mps=22.0,
+        mean_estimator_error_m=0.01,
+        mean_trust_index=0.9,
+        p50_tick_ms=2.0,
+        p99_tick_ms=4.0,
+        max_tick_ms=8.0,
+        resident_bytes=None,
+        twin_digest="twin-abc",
+        failsafe_states=("NOMINAL",),
+        reasons=(),
+        mean_shadow_divergence=0.236,
+        max_shadow_divergence=0.239,
+        shadow_digest="shadow-xyz",
+    ).to_payload()
+
+    assert payload["mean_shadow_divergence"] == pytest.approx(0.236)
+    assert payload["max_shadow_divergence"] == pytest.approx(0.239)
+    assert payload["shadow_digest"] == "shadow-xyz"
+
+
+def test_a_window_without_a_shadow_still_renders_the_shadow_keys() -> None:
+    # The series is read back as a table, so the columns cannot appear only on
+    # runs that used the flag.
+    payload = window(0).to_payload()
+
+    assert payload["mean_shadow_divergence"] is None
+    assert "shadow_digest" in payload
+
+
 def test_a_proposal_issued_under_a_veto_is_counted_and_not_gated() -> None:
     # Whether bounded safe exploration should out-rank a VETO is a design
     # question. Counting it is this instrument's job; deciding it is not.
