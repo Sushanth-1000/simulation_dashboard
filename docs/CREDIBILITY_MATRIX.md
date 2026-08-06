@@ -146,7 +146,7 @@ what the vehicle was doing.
 
 | # | Claim | Marker | What would establish it |
 |:--:|---|:--:|---|
-| D-1 | **False-positive rate < 1%** | **[NOT DONE]** | Veto rate over real nominal driving that completed safely — comma2k19 |
+| D-1 | **False-positive rate < 1%** | **[NOT DONE]**, and **internally inconsistent** | `significance_epsilon` is 0.05, and a correctly functioning conformal gate vetoes ε of exchangeable nominal traffic *by construction* — measured at **5.02%** when FB3 was run in shadow (E-40). This target and that ε cannot both hold. Establishing it needs comma2k19 **and** a decision about which of the two moves |
 | D-2 | **False-negative rate < 1%** | **[NOT DONE]** | Miss rate against ground-truth labelled faults — ALFA; or injected faults with known ground truth |
 | D-3 | The three gates fail for structurally unrelated reasons | **[NOT DONE]** | Correlation of gate firings across a real corpus. Currently an argument from construction, not a measurement |
 | D-4 | The statistical gate detects covariate shift | **[NOT DONE]** | MMD detector response across genuinely distinct real operating contexts |
@@ -163,7 +163,7 @@ what the vehicle was doing.
 
 | # | Claim | Marker | Evidence | Does **not** license |
 |:--:|---|:--:|---|---|
-| CV-1 | Per-class conformal coverage matches target | **[M-syn]** | **94.9%–95.1%** against a 95% target, averaged over 200 random splits — E-12 | Coverage on real data. Exchangeability is assumed and adversarial perturbation violates it by construction |
+| CV-1 | Per-class conformal coverage matches target | **[M-syn]** | **94.9%–95.1%** against a 95% target, averaged over 200 random splits — E-12 | Coverage **on the live loop**, let alone on real data. E-41: the running system's scores sit *below the corpus minimum*, so it is not exchangeable with its own calibration set. E-12's splits were exchangeable by construction; the vehicle is not |
 | CV-2 | The conformal quantile is correctly implemented | **[M-code]** | Monte-Carlo verified correct to **0.15 pp**; uses ⌈(n+1)(1−ε)⌉ and returns `math.inf` rather than clamping | That the *scores* it thresholds are meaningful |
 | CV-3 | Corpus provenance is verified, not merely stored | **[M-code]** | SHA-256 checksum verified at load (SI-9) | Tamper-evidence against an attacker with write access |
 

@@ -1134,10 +1134,57 @@ about what it does to the system it is connected to; that is what the shadow
 harness is for, and it should be the default for FB3 and FB4 exactly as it was
 for FB2.
 
-**Exit:** the decision above, taken and recorded; then FB3 in shadow over a 100k
-soak, watching the quantile move and the veto rate it *would* have produced;
-then, if it holds, wired.
-**Estimate:** 2–3 days.
+### Measured, 2 August 2026 (`var/soak/p32-fb3`)
+
+Fixed as above — each layer requantilises its own statistic — then run in shadow
+over 100,000 ticks, thresholded against by nothing.
+
+| | value |
+|---|---|
+| live quantile | **1.1720**, flat |
+| FB3's quantile | **1.1575**, reached within 2 windows, min/max 1.1573/1.1626 |
+| veto rate today | **0.089%** |
+| veto rate FB3 would give | **5.02%**, steady |
+
+**FB3 is dynamically well behaved.** Unlike FB2 it converges almost immediately
+and does not drift for the remaining 98,000 ticks. Whatever is wrong with it is
+not instability.
+
+**What is wrong with it is that 5.02% is ε.** `significance_epsilon = 0.05`, and
+conformal prediction's guarantee is that ε of *exchangeable* samples exceed the
+1−ε quantile. Calibrate on the distribution you are then tested against and the
+veto rate goes to ε **by construction, whether or not anything is wrong**. The
+gate stops being a detector and becomes a fixed-rate sampler firing once a second
+at 20 Hz.
+
+That is the same class of defect as FB2's and the mirror image of it: FB2 made
+the gate insensitive by moving the reference toward the proposal; FB3 makes it
+fire at a constant rate independent of the evidence. Both destroy the gate's
+meaning without breaking anything that would show up as an error.
+
+### Two findings that are not about FB3 at all
+
+**1. Today's 0.089% veto rate is an artefact of non-exchangeability.** The live
+scores sit at **1.156**, *below* the corpus minimum of **1.158**; the whole
+calibration distribution spans 0.03. The gate is quiet because the calibration
+set does not match what the vehicle produces — which is exactly the exchangeability
+assumption conformal prediction rests on, already violated. E-12's 94.9–95.1%
+coverage is real but was measured on shuffled splits *of the corpus*, which are
+exchangeable by construction; it does not transfer to the live loop.
+
+**2. `significance_epsilon = 0.05` contradicts D-1's "false-positive rate < 1%".**
+A correctly functioning conformal gate at ε = 0.05 vetoes 5% of nominal
+exchangeable traffic. The two cannot both be true, and FB3's shadow is what made
+it unavoidable: it is the first time the gate has been asked to run at its own
+design point. Either ε drops to ≤ 0.01, or D-1 is restated, or D-1 is a claim
+about something other than the conformal rate. **This is a decision for the
+safety argument, not a tuning change**, and it belongs with the credibility
+matrix.
+
+**Exit:** FB3's mechanism is fixed and measured; it is *not* wired, and should not
+be until finding 2 is settled — the veto rate it produces is a direct consequence
+of ε, so choosing ε is choosing FB3's behaviour.
+**Estimate:** the ε decision, then 1 day to wire and re-soak.
 
 ## P3.3 — FB4, plant synchronisation (work plan §3.3)
 

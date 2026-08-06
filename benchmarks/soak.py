@@ -1163,7 +1163,6 @@ def _render_shadow(report: SoakReport) -> Iterable[str]:
             )
 
 
-
 def render(report: SoakReport) -> Iterable[str]:
     """Yield the report as lines for a terminal.
 
