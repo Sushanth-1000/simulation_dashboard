@@ -201,15 +201,21 @@ class TrustEstimator(Protocol):
         """
         ...
 
-    def recalibrate(self, *, non_conformity_score: float, was_correct: bool) -> None:
-        """Update the class-conditional quantiles from an executed outcome.
+    def recalibrate(self, *, innovation_magnitude: float, was_correct: bool) -> None:
+        """Update L3's class-conditional quantiles from an observed innovation.
 
-        This is feedback loop FB3. Kept on the protocol rather than hidden inside
-        the implementation because the roadmap requires each loop to be brought
-        up, measured and removable one at a time.
+        Feedback loop FB3, L3's half. Kept on the protocol rather than hidden
+        inside the implementation because the roadmap requires each loop to be
+        brought up, measured and removable one at a time.
+
+        **The statistic is named explicitly and must stay that way.** L3 and L6
+        hold different distributions and this method writes to L3's; a parameter
+        that named L6's statistic is how the two came to be confused once
+        already.
 
         Args:
-            non_conformity_score: The realised score for the executed command.
+            innovation_magnitude: The Mahalanobis innovation magnitude observed
+                this tick.
             was_correct: Whether the executed outcome matched the prediction
                 within the certified tolerance.
         """

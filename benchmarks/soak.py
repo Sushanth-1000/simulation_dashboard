@@ -304,6 +304,12 @@ class WindowSummary:
             be told apart from a shadow that never moved.
         mean_live_score: Mean non-conformity score against the twin the gates
             read, or ``None``.
+        mean_quantile: Mean static conformal quantile, or ``None``.
+        mean_shadow_quantile: Mean quantile FB3 would have moved it to. The pair
+            is FB3's counterfactual, as `mean_live_score`/`mean_shadow_score` is
+            FB2's.
+        shadow_veto_rate: The veto rate FB3's quantile would have produced.
+            Never gated -- it describes a loop that is switched off.
         mean_shadow_score: Mean score against the shadow twin, or ``None``. The
             twin's own docstring says training it on the proposer's output would
             "make every score small and quietly disarm the statistical gate";
@@ -336,6 +342,9 @@ class WindowSummary:
     shadow_digest: str | None = None
     mean_live_score: float | None = None
     mean_shadow_score: float | None = None
+    mean_quantile: float | None = None
+    mean_shadow_quantile: float | None = None
+    shadow_veto_rate: float | None = None
 
     @property
     def veto_rate(self) -> float:
@@ -376,6 +385,9 @@ class WindowSummary:
             "shadow_digest": self.shadow_digest,
             "mean_live_score": self.mean_live_score,
             "mean_shadow_score": self.mean_shadow_score,
+            "mean_quantile": self.mean_quantile,
+            "mean_shadow_quantile": self.mean_shadow_quantile,
+            "shadow_veto_rate": self.shadow_veto_rate,
         }
 
 
@@ -414,6 +426,9 @@ class _WindowAccumulator:
     shadow_digest: str | None = None
     live_score_total: float = 0.0
     shadow_score_total: float = 0.0
+    quantile_total: float = 0.0
+    shadow_quantile_total: float = 0.0
+    shadow_vetoes: int = 0
 
     def observe(self, sample: TickSample) -> None:
         """Fold one tick into the window.
@@ -467,6 +482,9 @@ class _WindowAccumulator:
             self.shadow_digest = sample.shadow_digest
             self.live_score_total += sample.live_score or 0.0
             self.shadow_score_total += sample.shadow_score or 0.0
+            self.quantile_total += sample.quantile or 0.0
+            self.shadow_quantile_total += sample.shadow_quantile or 0.0
+            self.shadow_vetoes += int(bool(sample.shadow_would_veto))
 
     def close(self) -> WindowSummary:
         """Summarise the window and reset for the next one.
@@ -511,6 +529,15 @@ class _WindowAccumulator:
             mean_shadow_score=(
                 self.shadow_score_total / self.shadow_samples if self.shadow_samples else None
             ),
+            mean_quantile=(
+                self.quantile_total / self.shadow_samples if self.shadow_samples else None
+            ),
+            mean_shadow_quantile=(
+                self.shadow_quantile_total / self.shadow_samples if self.shadow_samples else None
+            ),
+            shadow_veto_rate=(
+                self.shadow_vetoes / self.shadow_samples if self.shadow_samples else None
+            ),
         )
         self.index += 1
         self.first_tick += self.ticks
@@ -535,6 +562,9 @@ class _WindowAccumulator:
         self.shadow_samples = 0
         self.live_score_total = 0.0
         self.shadow_score_total = 0.0
+        self.quantile_total = 0.0
+        self.shadow_quantile_total = 0.0
+        self.shadow_vetoes = 0
         return summary
 
 
@@ -1073,6 +1103,67 @@ def plot(windows: Sequence[WindowSummary], path: Path) -> bool:
     return True
 
 
+def _render_shadow(report: SoakReport) -> Iterable[str]:
+    """Yield the dormant-loop section, or nothing when no shadow ran.
+
+    Split out of :func:`render` when that function outgrew its statement budget.
+    It is also the section most likely to keep growing -- there are two loops
+    here and FB4 is unexamined -- so it is better off with its own scope.
+
+    Args:
+        report: The completed soak.
+
+    Yields:
+        Report lines. Nothing at all when the run had no shadow, which keeps an
+        ordinary soak's output unchanged.
+    """
+    shadowed = [w for w in report.windows if w.mean_shadow_divergence is not None]
+    if shadowed:
+        first, last = shadowed[0], shadowed[-1]
+        peak = max(w.max_shadow_divergence or 0.0 for w in shadowed)
+        digests = {w.shadow_digest for w in shadowed if w.shadow_digest}
+        yield ""
+        yield "  FB2 in shadow -- adapted, read by nothing, gating nothing"
+        yield (
+            f"  {'twin divergence':<34}"
+            f"{first.mean_shadow_divergence:>12.5f} -> {last.mean_shadow_divergence:.5f}"
+            f"  peak {peak:.5f}"
+        )
+        yield (
+            f"  {'distinct shadow digests':<34}{len(digests):>12}"
+            f"{'  -- the shadow never moved' if len(digests) <= 1 else ''}"
+        )
+        if first.mean_live_score is not None and last.mean_shadow_score is not None:
+            yield (
+                f"  {'non-conformity, live twin':<34}"
+                f"{first.mean_live_score:>12.4f} -> {last.mean_live_score:.4f}"
+            )
+            yield (
+                f"  {'non-conformity, shadow twin':<34}"
+                f"{first.mean_shadow_score:>12.4f} -> {last.mean_shadow_score:.4f}"
+            )
+            yield (
+                "  a shadow score falling away from the live one is the "
+                "statistical gate disarming itself"
+            )
+        if first.mean_shadow_quantile is not None:
+            yield ""
+            yield "  FB3 in shadow -- requantilised, thresholded against by nothing"
+            yield (
+                f"  {'conformal quantile, live':<34}"
+                f"{first.mean_quantile or 0.0:>12.4f} -> {last.mean_quantile or 0.0:.4f}"
+            )
+            yield (
+                f"  {'conformal quantile, shadow':<34}"
+                f"{first.mean_shadow_quantile:>12.4f} -> {last.mean_shadow_quantile or 0.0:.4f}"
+            )
+            yield (
+                f"  {'veto rate FB3 would have given':<34}"
+                f"{first.shadow_veto_rate or 0.0:>12.1%} -> {last.shadow_veto_rate or 0.0:.1%}"
+            )
+
+
+
 def render(report: SoakReport) -> Iterable[str]:
     """Yield the report as lines for a terminal.
 
@@ -1127,35 +1218,7 @@ def render(report: SoakReport) -> Iterable[str]:
             yield f"  {name:<34}{count:>12}"
     else:
         yield "  none ran -- the knowledge base was dormant"
-    shadowed = [w for w in report.windows if w.mean_shadow_divergence is not None]
-    if shadowed:
-        first, last = shadowed[0], shadowed[-1]
-        peak = max(w.max_shadow_divergence or 0.0 for w in shadowed)
-        digests = {w.shadow_digest for w in shadowed if w.shadow_digest}
-        yield ""
-        yield "  FB2 in shadow -- adapted, read by nothing, gating nothing"
-        yield (
-            f"  {'twin divergence':<34}"
-            f"{first.mean_shadow_divergence:>12.5f} -> {last.mean_shadow_divergence:.5f}"
-            f"  peak {peak:.5f}"
-        )
-        yield (
-            f"  {'distinct shadow digests':<34}{len(digests):>12}"
-            f"{'  -- the shadow never moved' if len(digests) <= 1 else ''}"
-        )
-        if first.mean_live_score is not None and last.mean_shadow_score is not None:
-            yield (
-                f"  {'non-conformity, live twin':<34}"
-                f"{first.mean_live_score:>12.4f} -> {last.mean_live_score:.4f}"
-            )
-            yield (
-                f"  {'non-conformity, shadow twin':<34}"
-                f"{first.mean_shadow_score:>12.4f} -> {last.mean_shadow_score:.4f}"
-            )
-            yield (
-                "  a shadow score falling away from the live one is the "
-                "statistical gate disarming itself"
-            )
+    yield from _render_shadow(report)
 
     yield ""
     yield "  criteria"

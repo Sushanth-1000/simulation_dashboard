@@ -65,6 +65,7 @@ if TYPE_CHECKING:
 
     from astra.contracts.actuation import PredictedCommand, ProposedCommand
     from astra.contracts.estimation import FastStateEstimate
+    from astra.kernel.enums import ContextClass
     from astra.kernel.identifiers import TickId
     from astra.layers.l3_trust.mondrian import MondrianCalibration
     from astra.layers.l3_trust.trust import ContextClassifier
@@ -220,6 +221,51 @@ class IcpStatisticalGate:
             magnitude: The Mahalanobis distance for this tick.
         """
         self._detector.observe(magnitude)
+
+    def quantile_for(self, context: ContextClass) -> float:
+        """Return the conformal quantile this gate would threshold against.
+
+        Exposed so that anything measuring what the gate *would* do reads the
+        gate's own number instead of recomputing it from the calibration and the
+        epsilon -- the same reasoning as
+        :func:`non_conformity_score`. ``math.inf`` for a class with too few
+        samples to certify, which is a VETO rather than an error.
+
+        Args:
+            context: The Mondrian class.
+
+        Returns:
+            The quantile, possibly infinite.
+        """
+        return self._calibration.quantile(context, self.effective_epsilon())
+
+    def recalibrate(self, *, score: float, context: ContextClass) -> None:
+        """Fold a realised non-conformity score into this gate's own window.
+
+        Feedback loop FB3, L6's half, and the one the roadmap's phrase "online
+        Mondrian requantilisation" most naturally describes: the acceptance
+        threshold tracks the scores the *deployed* proposer actually produces
+        rather than the ones whatever proposer generated the corpus produced.
+        E-20 measured that gap at 1.18 against 2.43 for HIGHWAY_CLEAR, so it is
+        not a small correction.
+
+        **Unwired, deliberately.** Requantilising on a self-generated
+        distribution is self-referential by construction: the threshold follows
+        the proposer, so a proposer that degrades slowly takes the threshold with
+        it and is never anomalous relative to itself. Whether that matters at
+        this operating point is measured in shadow before this is given
+        authority, exactly as FB2 was -- and FB2 is why that is now the rule.
+
+        Args:
+            score: The realised non-conformity score for the executed tick.
+            context: The Mondrian class it was observed in.
+        """
+        if not math.isfinite(score) or score < 0.0:
+            # The cold path must not take down a tick already decided, and a
+            # corrupt value admitted here would silently move every future
+            # threshold.
+            return
+        self._calibration.observe(context, score)
 
     def evaluate(
         self,

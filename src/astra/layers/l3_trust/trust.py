@@ -202,26 +202,42 @@ class ConformalTrustModule:
             is_calibrated=not math.isinf(quantile),
         )
 
-    def recalibrate(self, *, non_conformity_score: float, was_correct: bool) -> None:
-        """Fold an executed outcome back into the calibration windows (FB3).
+    def recalibrate(self, *, innovation_magnitude: float, was_correct: bool) -> None:
+        """Fold an observed innovation back into L3's calibration windows (FB3).
+
+        **The parameter used to be called ``non_conformity_score``, and that was
+        a defect rather than a naming quibble.** Until P2.5 one
+        :class:`~astra.layers.l3_trust.mondrian.MondrianCalibration` served both
+        L3 and L6, so writing "the realised score for the executed command" into
+        it was consistent. P2.5 split them -- because sharing one pinned the
+        Trust Index to 2 distinct values across 4,001 ticks -- and left this
+        method pointed at L3's distribution while still documenting L6's
+        statistic. Wiring it would have poured gate-scale values (1.155-1.191)
+        into a distribution of innovation magnitudes (0.518-7.497 clear,
+        7.549-154.8 degraded), silently re-merging what P2.5 separated.
+
+        It caused no harm because FB3 has never been wired. It would have caused
+        a great deal on the day it was.
 
         Args:
-            non_conformity_score: The realised score for the executed command.
+            innovation_magnitude: The Mahalanobis innovation magnitude observed
+                this tick -- the same statistic :meth:`assess` scores against,
+                which is the whole point.
             was_correct: Whether the outcome matched the prediction within the
                 certified tolerance. Recorded by the caller in the evidence log;
                 it does not gate the update, because a conformal calibration set
-                must contain the scores that actually occurred. Filtering it to
+                must contain the values that actually occurred. Filtering it to
                 the outcomes that went well would bias the quantile downward and
                 produce a guarantee about a distribution the vehicle does not
                 drive in.
         """
         del was_correct  # see the docstring: filtering would bias the quantile
-        if not math.isfinite(non_conformity_score) or non_conformity_score < 0.0:
+        if not math.isfinite(innovation_magnitude) or innovation_magnitude < 0.0:
             # The cold path must not take down a tick that has already been
             # decided. A corrupt score is dropped rather than admitted, because
             # admitting it would silently move every future threshold.
             return
-        self._calibration.observe(self._last_context, non_conformity_score)
+        self._calibration.observe(self._last_context, innovation_magnitude)
 
     @staticmethod
     def _current_score(innovation: InnovationRecord | None) -> float:

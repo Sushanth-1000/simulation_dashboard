@@ -206,7 +206,7 @@ def test_recalibration_lands_in_the_class_that_was_last_assessed() -> None:
     module = _module(_FixedClassifier(ContextClass.URBAN_CLEAR))
     module.assess(tick=TickId(1), state=_state(), innovation=None)
 
-    module.recalibrate(non_conformity_score=1.5, was_correct=True)
+    module.recalibrate(innovation_magnitude=1.5, was_correct=True)
 
     assert module._calibration.sample_count(ContextClass.URBAN_CLEAR) == 1
     assert module._calibration.sample_count(ContextClass.HIGHWAY_CLEAR) == 0
@@ -219,7 +219,7 @@ def test_an_incorrect_outcome_is_still_calibrated_on() -> None:
     module = _module()
     module.assess(tick=TickId(1), state=_state(), innovation=None)
 
-    module.recalibrate(non_conformity_score=9.0, was_correct=False)
+    module.recalibrate(innovation_magnitude=9.0, was_correct=False)
 
     assert module._calibration.sample_count(ContextClass.HIGHWAY_CLEAR) == 1
 
@@ -231,7 +231,7 @@ def test_a_corrupt_score_is_dropped_rather_than_admitted(bad: float) -> None:
     module = _module()
     module.assess(tick=TickId(1), state=_state(), innovation=None)
 
-    module.recalibrate(non_conformity_score=bad, was_correct=True)
+    module.recalibrate(innovation_magnitude=bad, was_correct=True)
 
     assert module._calibration.sample_count(ContextClass.HIGHWAY_CLEAR) == 0
 
@@ -244,7 +244,7 @@ def test_recalibration_moves_the_quantile_it_will_report() -> None:
 
     for _ in range(100):
         module.assess(tick=TickId(2), state=_state(), innovation=None)
-        module.recalibrate(non_conformity_score=50.0, was_correct=True)
+        module.recalibrate(innovation_magnitude=50.0, was_correct=True)
 
     after = module.assess(
         tick=TickId(3), state=_state(), innovation=None

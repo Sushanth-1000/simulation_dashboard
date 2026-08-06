@@ -482,6 +482,43 @@ def test_the_shadow_and_live_scores_agree_before_the_first_adaptation(tmp_path: 
     )
 
 
+def test_fb3s_shadow_quantile_starts_equal_to_the_live_one(tmp_path: Path) -> None:
+    # Both calibrations are seeded from the same corpus, so before FB3 has
+    # observed anything they must agree exactly. A gap on the first tick would
+    # mean the two started from different distributions, and every later
+    # difference would be measuring the seeding rather than the loop.
+    built, sink, clock, period = _build(tmp_path, shadow_fb2=True)
+
+    first = next(iter(_drive(built, clock, period, _nominal, ticks=1)))
+    sink.flush()
+
+    assert first.shadow is not None  # type: ignore[attr-defined]
+    assert first.shadow.shadow_quantile == pytest.approx(  # type: ignore[attr-defined]
+        first.shadow.quantile  # type: ignore[attr-defined]
+    )
+
+
+def test_fb3s_shadow_quantile_diverges_from_the_live_one(tmp_path: Path) -> None:
+    # The control. Every claim about FB3 rests on the shadow calibration
+    # actually requantilising and on the two coming apart.
+    #
+    # Not "the live quantile is static": it is not, and that is correct. It is
+    # `quantile(context, effective_epsilon())`, and the epsilon tightens when the
+    # covariate-shift detector fires, so the live threshold moves even though the
+    # *distribution* under it never does. Asserting staticness here would have
+    # been asserting a bug.
+    built, sink, clock, period = _build(tmp_path, shadow_fb2=True)
+
+    outcomes = list(_drive(built, clock, period, _nominal, ticks=40))
+    sink.flush()
+    shadows = [o.shadow for o in outcomes]  # type: ignore[attr-defined]
+
+    assert any(s.shadow_quantile != s.quantile for s in shadows), (
+        "FB3's quantile never came apart from the live one; either the shadow "
+        "calibration is not observing, or it is not being read"
+    )
+
+
 def test_the_shadow_is_not_written_into_the_evidence_log(tmp_path: Path) -> None:
     # The audit log is a certification artefact and says what the system did. A
     # counterfactual from a loop that is switched off is a different kind of

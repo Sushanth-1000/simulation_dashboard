@@ -441,9 +441,10 @@ def assemble_pipeline[PayloadT](
         extractor: Turns fused frames into measurements. Adapter-supplied.
         audit_sink: Where decision records are written.
         initial_speed: The speed the filter starts from.
-        shadow_fb2: Run a second twin that FB2 adapts and nothing reads, so a
-            long run can measure what online adaptation would do before it is
-            given authority over anything. Off by default; see
+        shadow_fb2: Run the dormant feedback loops against state nothing reads,
+            so a long run can measure what they would do before either is given
+            authority. Builds a second twin for FB2 and a second Mondrian
+            calibration for FB3. Off by default; see
             :meth:`~astra.runtime.pipeline.ControlPipeline._shadow`.
         twin_checkpoint: Trained twin weights. **Strongly recommended.** An
             untrained twin has random weights and predicts commands that are not
@@ -548,6 +549,7 @@ def assemble_pipeline[PayloadT](
     # is allowed to move. Built here rather than deep-copied so it goes through
     # exactly the construction the real one did -- a shadow assembled by a
     # different route would be measuring the route as much as the loop.
+    shadow_calibration: MondrianCalibration | None = None
     shadow_twin: PhysicsInformedTwin | None = None
     if shadow_fb2:
         shadow_twin = PhysicsInformedTwin(
@@ -558,6 +560,9 @@ def assemble_pipeline[PayloadT](
         )
         if twin_checkpoint is not None:
             shadow_twin.load_checkpoint(twin_checkpoint)
+        # Seeded from the same corpus as L6's, below, so the two start identical
+        # and every later difference is FB3's doing.
+        shadow_calibration = MondrianCalibration(window=settings.trust.calibration_window)
 
     statistical_gate = IcpStatisticalGate(
         calibration=calibration,
@@ -586,6 +591,8 @@ def assemble_pipeline[PayloadT](
     if corpus is not None:
         corpus.seed_into(calibration)
         corpus.seed_innovations_into(trust_calibration)
+        if shadow_calibration is not None:
+            corpus.seed_into(shadow_calibration)
     profiles = seed_profiles(
         now=clock.wall_clock(),
         max_speed=settings.shield.legal_speed_limit,
@@ -642,6 +649,7 @@ def assemble_pipeline[PayloadT](
         control_effectiveness=settings.twin.control_effectiveness,
         context=cold_path,
         shadow_twin=shadow_twin,
+        shadow_calibration=shadow_calibration,
     )
     return AssembledPipeline(
         pipeline=pipeline,

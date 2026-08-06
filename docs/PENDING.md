@@ -1006,10 +1006,23 @@ monotonically, and is still falling at the end.** Same run, same ticks, same
 state estimates — the only difference is which twin the score is computed
 against, so the collapse is FB2's doing and nothing else's.
 
-The acceptance region is a quantile calibrated offline (2.43 for HIGHWAY_CLEAR).
-The scores slide down beneath it, so an anomaly must be correspondingly larger to
-cross: headroom to a veto goes from ×2.1 to ×3.5. **Conclusion: do not wire FB2
-as it stands.** That needs no action to implement — it is the status quo — and it
+The acceptance region is a quantile calibrated offline, and the scores slide down
+beneath it, so an anomaly must be correspondingly larger to cross.
+
+**Corrected on re-measurement, 2 Aug.** This entry first cited a quantile of
+**2.43**, taken from E-20. That is not what the shipped corpus holds: reading
+`var/calibration/synthetic.json` directly gives HIGHWAY_CLEAR p95 = **1.179**
+over 1,000 samples, spanning only 1.158–1.189. So the true figures are headroom
+**×1.02 today against ×1.69 under FB2** — an anomaly would need to sit 69% above
+the twin's prediction to trip the gate, against 2% now.
+
+The direction is unchanged and the conclusion is unchanged. What changed is that
+**the margin today is far thinner than the original framing implied**, not wider:
+the live score 1.156 sits *below* the corpus minimum of 1.158, and the whole
+calibration distribution spans 0.03. That is its own finding and it is not FB2's
+doing — see P3.2.
+
+**Conclusion: do not wire FB2 as it stands.** That needs no action to implement — it is the status quo — and it
 now rests on measurement rather than on reading the code.
 
 **6. P3.1c — what FB2 should do instead. OPEN, wants an ADR.**

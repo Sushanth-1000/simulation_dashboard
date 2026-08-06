@@ -65,6 +65,7 @@ loop that owned its own timing would be unable to serve all three.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -72,6 +73,7 @@ from astra.contracts.assurance import GateVerdict, SafetyVerdict
 from astra.contracts.audit import DecisionRecord
 from astra.kernel.enums import (
     ArbitrationOutcome,
+    ContextClass,
     GateId,
     LayerId,
     SensorModality,
@@ -96,6 +98,7 @@ if TYPE_CHECKING:
     from astra.kernel.units import MetresPerSecond, Probability, Seconds
     from astra.layers.l1_sensing.bus import SharedSensorBus
     from astra.layers.l2_estimation.filter import DualRateUKF
+    from astra.layers.l3_trust.mondrian import MondrianCalibration
     from astra.layers.l3_trust.trust import ConformalTrustModule
     from astra.layers.l4_proposer.proposer import CmdpProposer
     from astra.layers.l5_twin.twin import PhysicsInformedTwin
@@ -153,8 +156,8 @@ class ColdPathContext:
 
 
 @dataclass(frozen=True, slots=True)
-class ShadowAdaptation:
-    """What FB2 *would* have done this tick, had it been switched on.
+class ShadowLoops:
+    """What the dormant feedback loops *would* have done this tick.
 
     Deliberately not part of :class:`~astra.contracts.audit.DecisionRecord`. The
     audit log is a certification artefact and describes what the system did; a
@@ -171,6 +174,13 @@ class ShadowAdaptation:
         adapted: Whether this tick's outcome was handed to the shadow at all.
             False on a tick that issued nothing, or one with no context to adapt
             in -- both are cases FB2 would also have skipped.
+        quantile: The conformal quantile L6 actually used this tick -- static,
+            because the corpus is seeded once and never updated.
+        shadow_quantile: The quantile L6 *would* have used had FB3 been
+            requantilising online on realised scores. **The FB3 counterfactual.**
+        shadow_would_veto: Whether this tick's score exceeds that shadow
+            quantile. Summed over a run it gives the veto rate FB3 would have
+            produced, which is the number that decides whether it is safe.
         live_score: The non-conformity score L6 computed this tick, against the
             twin the gates actually read.
         shadow_score: The score L6 *would* have computed had it read the shadow
@@ -192,6 +202,9 @@ class ShadowAdaptation:
     adapted: bool
     live_score: float
     shadow_score: float
+    quantile: float
+    shadow_quantile: float
+    shadow_would_veto: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,7 +227,7 @@ class TickOutcome:
     record: DecisionRecord
     issued: IssuedCommand | None = None
     failed_stage: str | None = None
-    shadow: ShadowAdaptation | None = None
+    shadow: ShadowLoops | None = None
 
     @property
     def was_issued(self) -> bool:
@@ -261,6 +274,7 @@ class GovernancePipeline[PayloadT]:
         "_proposer",
         "_run",
         "_sensor_bus",
+        "_shadow_calibration",
         "_shadow_twin",
         "_shield",
         "_slow_period_ticks",
@@ -294,6 +308,7 @@ class GovernancePipeline[PayloadT]:
         context: ColdPathContext | None = None,
         control_effectiveness: Sequence[float] | None = None,
         shadow_twin: PhysicsInformedTwin | None = None,
+        shadow_calibration: MondrianCalibration | None = None,
     ) -> None:
         """Assemble the pipeline from already-constructed layers.
 
@@ -342,6 +357,11 @@ class GovernancePipeline[PayloadT]:
                 The idiom is L9's, not a new one -- :class:`ShadowExecution`
                 stages a candidate calibration profile and measures its
                 divergence before committing to it, for the same reason.
+            shadow_calibration: A second Mondrian calibration, seeded from the
+                same corpus as L6's, which **is** fed realised scores. Nothing
+                thresholds against it. It answers FB3's question -- what would
+                the acceptance quantile become, and what veto rate would that
+                have produced -- without FB3 having any say in a verdict.
         """
         self._run = run
         self._config_hash = config_hash
@@ -353,6 +373,7 @@ class GovernancePipeline[PayloadT]:
         self._proposal_reader = proposal_reader
         self._twin = twin
         self._shadow_twin = shadow_twin
+        self._shadow_calibration = shadow_calibration
         self._statistical_gate = statistical_gate
         self._physical_gate = physical_gate
         self._shield = shield
@@ -644,7 +665,7 @@ class GovernancePipeline[PayloadT]:
         proposal: ProposedCommand,
         prediction: PredictedCommand,
         trust: TrustAssessment,
-    ) -> ShadowAdaptation | None:
+    ) -> ShadowLoops | None:
         """Run FB2 against a twin nothing reads, and report what it would do.
 
         Placed after the command has been issued, on the cold path, so the extra
@@ -674,7 +695,7 @@ class GovernancePipeline[PayloadT]:
         if self._shadow_twin is None:
             return None
 
-        context = trust.context_class
+        context = trust.context_class or ContextClass.UNCLASSIFIED
         shadow = self._shadow_twin.predict(tick=tick, state=state, context=context)
         divergence = max(
             (
@@ -698,6 +719,18 @@ class GovernancePipeline[PayloadT]:
             variance=variance,
         )
 
+        # FB3's counterfactual. The live quantile is static -- the corpus is
+        # seeded once -- so the pair says how far online requantilisation would
+        # have moved the acceptance threshold, and whether this tick would have
+        # been vetoed under the moved one.
+        quantile = self._statistical_gate.quantile_for(context)
+        shadow_quantile = quantile
+        if self._shadow_calibration is not None:
+            shadow_quantile = self._shadow_calibration.quantile(
+                context, self._statistical_gate.effective_epsilon()
+            )
+            self._shadow_calibration.observe(context, live_score)
+
         # Adapt on the *issued* command, not the proposal: FB2's contract is that
         # the twin learns the vehicle's response, and the vehicle responds to
         # what it was told, which on a blocked tick is the fallback's command
@@ -705,12 +738,15 @@ class GovernancePipeline[PayloadT]:
         adapted = issued is not None
         if issued is not None:
             self._shadow_twin.adapt(applied=issued.command, measured=state, context=context)
-        return ShadowAdaptation(
+        return ShadowLoops(
             divergence=divergence,
             digest=self._shadow_twin.weights_digest,
             adapted=adapted,
             live_score=live_score,
             shadow_score=shadow_score,
+            quantile=quantile,
+            shadow_quantile=shadow_quantile,
+            shadow_would_veto=math.isfinite(shadow_quantile) and live_score > shadow_quantile,
         )
 
     def _reanchor(self, issued: IssuedCommand | None) -> None:

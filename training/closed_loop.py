@@ -243,6 +243,9 @@ class TickSample:
         shadow_digest: The shadow twin's weights digest, or ``None``. A run that
             reports a divergence of zero throughout should be checkable against
             whether the shadow moved at all.
+        quantile: The static conformal quantile L6 used, or ``None``.
+        shadow_quantile: The quantile FB3 would have moved it to, or ``None``.
+        shadow_would_veto: Whether FB3's quantile would have vetoed this tick.
         live_score: The non-conformity score L6 computed, or ``None``.
         shadow_score: The score L6 would have computed against the shadow twin,
             or ``None``. The pair is what says whether FB2 would disarm the gate.
@@ -259,6 +262,9 @@ class TickSample:
     shadow_digest: str | None = None
     live_score: float | None = None
     shadow_score: float | None = None
+    quantile: float | None = None
+    shadow_quantile: float | None = None
+    shadow_would_veto: bool | None = None
 
 
 @dataclass(slots=True)
@@ -437,6 +443,13 @@ def drive_closed_loop(
                     shadow_digest=None if outcome.shadow is None else outcome.shadow.digest,
                     live_score=None if outcome.shadow is None else outcome.shadow.live_score,
                     shadow_score=(None if outcome.shadow is None else outcome.shadow.shadow_score),
+                    quantile=None if outcome.shadow is None else outcome.shadow.quantile,
+                    shadow_quantile=(
+                        None if outcome.shadow is None else outcome.shadow.shadow_quantile
+                    ),
+                    shadow_would_veto=(
+                        None if outcome.shadow is None else outcome.shadow.shadow_would_veto
+                    ),
                 )
             )
         clock.advance(period)
