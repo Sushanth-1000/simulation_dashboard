@@ -630,13 +630,92 @@ command issued in HALT decelerates the vehicle.
 
 </details>
 
-## P2.2 — Test-quality gaps (work plan §2.3)
+## ~~P2.2 — Test-quality gaps~~ (work plan §2.3) — DONE, 2 Aug 2026
 
-- **The L1 concurrency flake.** It *hung* under 12-way load rather than failing;
-  `RENDEZVOUS_TIMEOUT`/`JOIN_TIMEOUT` were added. Run the full suite 20× under
-  `stress-ng` load to confirm it is genuinely fixed.
-- **A from-scratch frozen-install smoke test** in the local workflow, not only
-  CI. Two lockfile defects reached commits because nothing exercised it.
+### The frozen-install half — done
+
+Both checks already existed **in CI**, which is another way of saying they ran
+*after* the commit that broke them. That is the whole defect: the lockfile went
+stale twice and a training run found it both times. So the work was not writing
+checks, it was moving them to where the mistake is made.
+
+**Decision 1 — what goes in `make check`.**
+
+| Option | Benefit | Drawback | |
+|---|---|---|---|
+| **A. `uv lock --check` in `check`; the venv build as a separate `verify-install`** | The lockfile check costs under a second and is the one that caught the historical defects, so it belongs in the gate. The venv build is tens of seconds and belongs where a developer can choose to pay for it | The Makefile's stated principle — *"exactly what CI runs, in the same order"* — is now not quite true | **chosen** |
+| B. Both in `check` | Keeps the equivalence claim honest | Roughly doubles gate time for a check that only changes when dependencies do. A gate that slow is a gate people stop running, and then neither check runs | rejected |
+| C. Neither in `check`; document them | No cost | Exactly the status quo that let two defects through | rejected |
+| D. A pre-commit hook | Runs whether or not anyone remembers | New tooling the repo does not have, for one check that fits in the gate it already has | rejected |
+
+Option A's drawback is real and was not left implicit — the Makefile header now
+names `verify-install` as the one CI step `check` deliberately skips, and says
+when to run it. A divergence that is written down is a decision; one that is not
+is a trap.
+
+**Decision 2 — what `make lockfile` does where `uv` is absent.** Prints
+`uv.lock NOT VERIFIED` and continues, rather than failing. `make check RUN=` is a
+documented path for environments without `uv` — it is how the gate runs on this
+project's WSL2 box — and breaking it to add a check would trade a real capability
+for a nominal one. Saying so out loud is the part that matters: a check that can
+quietly not run is worse than no check.
+
+**Verified, not assumed.** `make lockfile` resolves 83 packages and passes.
+`make verify-install` builds a bare venv with pydantic and nothing else and
+imports the kernel and contracts. Adding `import numpy` to
+`src/astra/kernel/units.py` makes it fail with `ModuleNotFoundError` and
+`make: *** Error 1` — so the target detects the defect it claims to, which is
+the only thing that distinguishes a check from a decoration.
+
+### The `stress-ng` half — done
+
+**Result: 220 runs, 220 passes, no hangs.** Twenty full-suite runs (28.9 min of
+CPU, 76.8–100.2 s each) and two hundred runs of the threaded tests alone
+(10.1 min, 2.0–4.8 s each), under `stress-ng --cpu 32` on a 16-core box.
+Artefact: `var/flake/p22-campaign/summary.json`.
+
+**Decision 1 — a shell loop, or a committed harness.** A harness,
+`benchmarks/flake_hunt.py`. EVIDENCE.md's own rule is that a row needs a command
+that reproduces it on a clean checkout, and *"I ran a for-loop once"* does not
+survive contact with the next person who asks.
+
+**Decision 2 — two outcomes or three.** Three: pass, fail, and **hang**. This is
+the design point and not a detail. The defect the campaign is about *hung* rather
+than failed, so a harness with only pass/fail would either block forever on the
+very outcome it was built to detect, or report it as a failure and send the next
+reader hunting for an assertion that does not exist. Each run gets a wall-clock
+timeout; a kill is recorded as its own outcome with the partial output kept.
+
+**Decision 3 — how many runs, and of what.**
+
+| Option | Benefit | Drawback | |
+|---|---|---|---|
+| **A. 20 full-suite runs *and* 200 of the threaded tests alone** | The broad pass catches a flake anywhere, which nothing had ever looked for; the focused pass buys ten times the statistical power on the actual risk, for a third of the time. 39 min total | Two numbers to report instead of one | **chosen** |
+| B. 20 full-suite runs only, as the original entry asked | Simplest | Twenty samples of a race that fires rarely is weak evidence, and 90 % of each run is spent on tests with no threads in them | rejected |
+| C. 200 full-suite runs | Uniformly strong | ~5 hours, for coverage that options A already concentrates where it matters | rejected |
+
+**Decision 4 — what happens when `stress-ng` is missing.** Falls back to a
+Python spinner and *says so* in the output and the summary JSON. The spinner is
+genuinely weaker — one interpreter per worker, and the GIL makes it less hostile
+than a native busy-loop. But *"stress-ng is not installed"* must never silently
+become *"the campaign ran unloaded and everything passed"*, which is the shape of
+every green result that means nothing.
+
+**The harness has its own tests.** `tests/unit/test_flake_hunt.py`, ten of them,
+including one that hands the harness a test which really does sleep for ten
+minutes and asserts it comes back `hang` — not `fail` — with the child dead and a
+log written. A campaign that reports "no hangs" is worth precisely as much as its
+ability to see one.
+
+### Honest reading of the result
+
+Two hundred and twenty clean runs is **absence of evidence, not evidence of
+absence** — the harness prints that line itself rather than leaving it to the
+reader. The original hang was observed at 12-way load; this ran at 32-way on 16
+cores, so the contention was harder, and the suite ran 1.5–2× slower than
+unloaded, which confirms the load was real rather than nominal. What it does not
+establish is a rate: a race with a per-run probability of 1 % would survive 220
+runs about one time in nine.
 
 **Estimate:** 1.5–2 days.
 

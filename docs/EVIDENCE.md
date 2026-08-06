@@ -26,6 +26,8 @@ uv run python -m compileall -q .venv/lib/python3.12/site-packages
 make check
 uv run python benchmarks/latency.py
 uv run python -m benchmarks.soak --ticks 100000 --window 1000
+uv run python -m benchmarks.flake_hunt   # ~40 min under load
+make verify-install
 ```
 
 Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 ticks),
@@ -37,7 +39,7 @@ Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 tick
 
 | # | Claim | Value | Produced by | Date |
 |:--:|---|---|---|:--:|
-| E-1 | Quality gate is green | **2,643 tests, 97.95% coverage**, `ruff` + `mypy --strict` over 140 files + **12** import contracts, 0 broken | `make check` | 2 Aug |
+| E-1 | Quality gate is green | **2,653 tests, 97.95% coverage**, `ruff` + `mypy --strict` over 140 files + **12** import contracts, 0 broken | `make check` | 2 Aug |
 | E-2 | The closed loop is stable over a long run | **All ten soak criteria pass over 100,000 ticks** | `python -m benchmarks.soak --ticks 100000 --window 1000` | 2 Aug |
 | E-3 | A command is issued on every tick | **100,000 of 100,000**, and 400,000 of 400,000 across the four runs of the day | as E-2 | 2 Aug |
 | E-4 | The proposer's commands are accepted | `PROPOSED` on **99,997** ticks; **3** vetoed, all answered by the rate limiter. Veto rate 3×10⁻⁵, which the console rounds to 0.0% — the JSON is authoritative | as E-2, `summary.json` | 2 Aug |
@@ -57,6 +59,8 @@ Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 tick
 | E-22 | The closed loop is stable **under sensor noise** | All ten criteria over 100,000 ticks with readings drawn at the declared sigmas: `PROPOSED` on **99,911** ticks, `RATE_LIMITED` on 89, lane deviation **0.0290 → 0.0298 m**, fail-safe never leaving NOMINAL, resident +0.1 MiB, p99 ×0.81 | `python -m benchmarks.soak --ticks 100000 --window 1000` | 2 Aug |
 | E-23 | The Trust Index is a graded index, not a flag | Distinct values across 8,001 ticks: **2 → 5 → 90**. Mean 0.960, p05 0.902, p50 0.964, p95 1.000 | as E-22, `trust.trust_index` in the audit log | 2 Aug |
 | E-18 | The Trust Index and the gate were calibrated against incompatible statistics | Gate scores span **1.155–1.191**; innovations span **0.518–7.497** (clear) and **7.549–154.8** (degraded). Sharing one distribution pinned the Trust Index to **2 distinct values across 4,001 ticks**. Separating them gave 5; matching the filter's `R` to the injected noise on top gave 90 — see E-23 | `python -m training.generate_calibration --policy var/policy/synthetic.pt`, then read `innovations` in the corpus | 2 Aug |
+| E-26 | The L1 concurrency flake does not reproduce under heavier load than the one that found it | **220 runs, 220 passes, no hangs**: 20 full-suite runs (76.8-100.2 s each) and 200 runs of the threaded tests alone (2.0-4.8 s each), under `stress-ng --cpu 32` on 16 cores. Absence of evidence, not evidence of absence -- a 1%-per-run race survives 220 runs about one time in nine | `python -m benchmarks.flake_hunt --repeats 20 --focus-repeats 200`, `var/flake/p22-campaign/summary.json` | 2 Aug |
+| E-27 | The frozen-install check detects the defect it names | Adding `import numpy` to `src/astra/kernel/units.py` makes `make verify-install` fail with `ModuleNotFoundError` and exit 1. Without it, a bare venv holding only pydantic imports the kernel and contracts cleanly | `make verify-install` | 2 Aug |
 | E-24 | The fail-safe speed cap constrains an actuator | Driving the **assembled** pipeline into HALT (whose cap is 0.0 m/s) at 45 m/s: every tick in HALT issues throttle **0.0**, brake **1.0**, origin `SPEED_CAPPED`. A nominal drive issues nothing so labelled. Before P2.1 the identical situation issued a bit-identical command to the uncapped path — see finding F2 | `pytest tests/integration/test_full_pipeline.py -k halt_actually_brakes` | 2 Aug |
 
 ### Controlled comparisons
@@ -99,7 +103,7 @@ Feeding [`PENDING.md`](PENDING.md) P1.4, documentation sync.
 
 | Where | Claim | Status |
 |---|---|---|
-| `README.md` | "2 513 tests, 97.97% coverage" | **Corrected 2 Aug** to 2,643 / 97.95% (E-1) |
+| `README.md` | "2 513 tests, 97.97% coverage" | **Corrected 2 Aug** to 2,653 / 97.95% (E-1) |
 | `README.md` | "Full ten-layer tick p99 **1.98 ms**" | **Corrected 2 Aug.** The soak measures **9.3 ms** p99 for the full tick; `benchmarks/latency.py` measures a *subset* (L1+L2+L7a+L8) at 0.811 ms (E-10). Neither was "the full ten-layer tick" at 1.98 ms, and the two must not be compared |
 | `README.md` | "Closed-loop over 400 ticks: trained policy 41.0% veto rate and 0.383 m mean lane deviation vs 59.8% / 0.836 m" | **Corrected 2 Aug.** Measured with a policy that stopped the vehicle, an unobservable lateral position, a corpus harvested from a different proposer, and a plant integrating 2.5× fast. Superseded by E-4, E-5, E-13 |
 | `docs/PROJECT_STATE_AND_ROADMAP.md` | Contract, certification-field and layer-status counts | **Open.** Not re-verified since 31 July |
