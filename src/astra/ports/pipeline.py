@@ -76,6 +76,7 @@ if TYPE_CHECKING:
         RuntimeContextSignature,
     )
     from astra.contracts.sensing import FusedSensorFrame
+    from astra.kernel.enums import ContextClass
     from astra.kernel.identifiers import TickId
 
 __all__ = [
@@ -252,14 +253,32 @@ class DynamicsPredictor(Protocol):
     Predicts the command the modelled physics expects next. The departure of the
     untrusted proposal from this prediction, normalised by state uncertainty, is
     the statistical gate's non-conformity score.
+
+    Both methods take the operational context, and for the same reason in each
+    case. The score above is compared against a **per-context** conformal
+    quantile, so a context-blind prediction would leave its two operands
+    conditioned on different partitions; and adaptation that could not tell one
+    context from another would have to protect an old one with a penalty rather
+    than with structure, which was measured on 2 August 2026 and does not work
+    (ADR-0019).
     """
 
-    def predict(self, *, tick: TickId, state: FastStateEstimate) -> PredictedCommand:
+    def predict(
+        self,
+        *,
+        tick: TickId,
+        state: FastStateEstimate,
+        context: ContextClass | None = None,
+    ) -> PredictedCommand:
         """Predict the next command from the current state.
 
         Args:
             tick: The control tick.
             state: The current fast state estimate.
+            context: The operational context L3 classified this tick into.
+                ``None`` means no classification was produced and the
+                implementation should answer from an unadapted reference rather
+                than from a stale context's.
 
         Returns:
             The predicted command ``pi_hat_{t+1}``.
@@ -269,16 +288,24 @@ class DynamicsPredictor(Protocol):
         """
         ...
 
-    def adapt(self, *, applied: ControlCommand, measured: FastStateEstimate) -> None:
-        """Adapt the twin from a measured outcome under elastic weight consolidation.
+    def adapt(
+        self,
+        *,
+        applied: ControlCommand,
+        measured: FastStateEstimate,
+        context: ContextClass | None = None,
+    ) -> None:
+        """Adapt the twin from a measured outcome.
 
-        Feedback loop FB2. The implementation updates the output layer only,
-        Fisher-anchored on historical samples, so that adapting to a new context
-        does not catastrophically forget an old one.
+        Feedback loop FB2.
 
         Args:
             applied: The command that was actually applied.
             measured: The state measured after applying it.
+            context: The operational context the outcome was observed in.
+                ``None`` or ``UNCLASSIFIED`` must not adapt anything: a twin that
+                rewrote itself while it could not tell where it was would be the
+                failure mode the architecture exists to prevent.
         """
         ...
 

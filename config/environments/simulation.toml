@@ -36,19 +36,6 @@ highway_speed_boundary_kmh = 70.0
 # PROVISIONAL, as in development.toml. Highway motion is smoother, so the
 # physics residual can be weighted a little harder without fighting the data.
 physics_weight = 1.5
-# Measured 2 August 2026, not guessed. At the value this file used to carry --
-# 150 -- the penalty was bit-for-bit inert: 4,000 samples of a second context
-# gave forgetting 0.038951 against 0.038972 unregularised, identical to four
-# decimals. The cause was not the number but the anchor, which `_consolidate`
-# re-took after every buffer flush; with it held across a context (ADR-0018) the
-# response is monotone from 1e2 to 1e8. 1e4 sits in the middle of that range, so
-# being wrong by an order of magnitude either way still leaves a working penalty
-# -- which is the property the old value most conspicuously lacked.
-#
-# Known and tracked as P3.1a: at every lambda the ratio of forgetting to
-# adaptation is constant, so this is a brake rather than a consolidator. See
-# tests/unit/test_l5_forgetting.py.
-ewc_lambda = 10000.0
 # (throttle, brake, steer) for the simulated platform. Placeholder pending a
 # trained twin and a measured steering-to-lateral-acceleration response.
 control_effectiveness = [0.0, 0.0, 140.0]

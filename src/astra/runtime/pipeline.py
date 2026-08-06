@@ -335,7 +335,10 @@ class GovernancePipeline[PayloadT]:
                 tick=tick, state=state, innovation=self._estimator.latest_innovation()
             )
             proposal = self._deliver(tick=tick, state=state, trust=trust)
-            prediction = self._twin.predict(tick=tick, state=state)
+            # The context L3 just classified selects the twin's output head, so
+            # the non-conformity score's reference and the quantile it is
+            # compared against are conditioned on the same partition (ADR-0019).
+            prediction = self._twin.predict(tick=tick, state=state, context=trust.context_class)
         except AstraError as error:
             return self._abort(
                 tick=tick,

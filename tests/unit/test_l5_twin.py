@@ -10,7 +10,7 @@ import torch
 from astra.config.schema import TwinSettings
 from astra.contracts.actuation import ActuationSpace, ControlCommand
 from astra.contracts.estimation import FastStateEstimate
-from astra.kernel.enums import LayerId
+from astra.kernel.enums import ContextClass, LayerId
 from astra.kernel.errors import ConfigurationError, SafetyPathError
 from astra.kernel.identifiers import ComponentId, TickId
 from astra.kernel.matrix import SymmetricMatrix
@@ -28,17 +28,20 @@ from astra.ports.pipeline import DynamicsPredictor
 # A nominal fast state: [px, py, v, psi, a_lat].
 NOMINAL: tuple[float, ...] = (10.0, 20.0, 15.0, 0.3, 1.2)
 
+# Adaptation writes to the head for the context it is told it is in. Every
+# adaptation test therefore has to name one -- an unnamed context is UNCLASSIFIED,
+# which by ADR-0019 does not adapt at all.
+CONTEXT = ContextClass.HIGHWAY_CLEAR
+
 
 def _settings(**overrides: object) -> TwinSettings:
     base: dict[str, object] = {
         "physics_weight": 1.0,
-        "ewc_lambda": 10.0,
         # Two entries, to match the two-channel `actuation_space` fixture.
         "control_effectiveness": [0.0, 120.0],
         "hidden_width": 8,
         "adaptation_buffer": 4,
         "adaptation_steps": 10,
-        "fisher_sample_count": 6,
         "seed": 7,
     }
     base.update(overrides)
@@ -191,7 +194,7 @@ def test_a_non_finite_network_output_fails_closed(
 ) -> None:
     twin = _twin(actuation_space, twin_component)
     with torch.no_grad():
-        twin._network.output.bias.fill_(math.nan)
+        twin._network.head(None).bias.fill_(math.nan)
 
     with pytest.raises(SafetyPathError) as raised:
         twin.predict(tick=TickId(42), state=_state(NOMINAL))
@@ -212,7 +215,7 @@ def test_adapt_does_not_update_before_the_buffer_fills(
     command = ControlCommand(space=actuation_space, values=(0.4, 0.1))
 
     for _ in range(3):
-        twin.adapt(applied=command, measured=_state(NOMINAL))
+        twin.adapt(applied=command, measured=_state(NOMINAL), context=CONTEXT)
 
     after = twin.predict(tick=TickId(2), state=_state(NOMINAL)).command.values
     assert after == before
@@ -221,14 +224,18 @@ def test_adapt_does_not_update_before_the_buffer_fills(
 def test_adapt_updates_once_the_buffer_fills(
     actuation_space: ActuationSpace, twin_component: ComponentId
 ) -> None:
-    twin = _twin(actuation_space, twin_component, adaptation_buffer=4, ewc_lambda=0.0)
-    before = twin.predict(tick=TickId(1), state=_state(NOMINAL)).command.values
+    # Read through the head that was adapted. Predicting without a context reads
+    # UNCLASSIFIED's, which adapting in HIGHWAY_CLEAR is supposed to leave
+    # untouched -- that is the subject of its own test below, not a way to
+    # observe this one.
+    twin = _twin(actuation_space, twin_component, adaptation_buffer=4)
+    before = twin.predict(tick=TickId(1), state=_state(NOMINAL), context=CONTEXT).command.values
     command = ControlCommand(space=actuation_space, values=(0.9, -0.4))
 
     for _ in range(4):
-        twin.adapt(applied=command, measured=_state(NOMINAL))
+        twin.adapt(applied=command, measured=_state(NOMINAL), context=CONTEXT)
 
-    after = twin.predict(tick=TickId(2), state=_state(NOMINAL)).command.values
+    after = twin.predict(tick=TickId(2), state=_state(NOMINAL), context=CONTEXT).command.values
     assert after != pytest.approx(before)
 
 
@@ -237,12 +244,12 @@ def test_adaptation_leaves_the_hidden_layer_untouched(
 ) -> None:
     # Only the output layer may move. The hidden layer carries the physics
     # representation and is what EWC exists to protect.
-    twin = _twin(actuation_space, twin_component, adaptation_buffer=2, ewc_lambda=0.0)
+    twin = _twin(actuation_space, twin_component, adaptation_buffer=2)
     hidden_before = twin._network.hidden.weight.detach().clone()
     command = ControlCommand(space=actuation_space, values=(0.9, -0.4))
 
     for _ in range(2):
-        twin.adapt(applied=command, measured=_state(NOMINAL))
+        twin.adapt(applied=command, measured=_state(NOMINAL), context=CONTEXT)
 
     assert torch.equal(twin._network.hidden.weight, hidden_before)
 
@@ -250,11 +257,11 @@ def test_adaptation_leaves_the_hidden_layer_untouched(
 def test_hidden_layer_is_trainable_again_after_adaptation(
     actuation_space: ActuationSpace, twin_component: ComponentId
 ) -> None:
-    twin = _twin(actuation_space, twin_component, adaptation_buffer=2, ewc_lambda=0.0)
+    twin = _twin(actuation_space, twin_component, adaptation_buffer=2)
     command = ControlCommand(space=actuation_space, values=(0.9, -0.4))
 
     for _ in range(2):
-        twin.adapt(applied=command, measured=_state(NOMINAL))
+        twin.adapt(applied=command, measured=_state(NOMINAL), context=CONTEXT)
 
     assert all(p.requires_grad for p in twin._network.hidden.parameters())
 
@@ -266,7 +273,7 @@ def test_a_non_finite_sample_is_discarded_rather_than_raising(
     twin = _twin(actuation_space, twin_component, adaptation_buffer=2)
     command = ControlCommand(space=actuation_space, values=(0.4, 0.1))
 
-    twin.adapt(applied=command, measured=_state((10.0, 20.0, math.nan, 0.3, 1.2)))
+    twin.adapt(applied=command, measured=_state((10.0, 20.0, math.nan, 0.3, 1.2)), context=CONTEXT)
 
     assert twin._buffer == []
 
@@ -285,74 +292,142 @@ def test_a_non_finite_command_is_also_discarded(
     assert twin._buffer == []
 
 
-def test_history_is_bounded_by_the_fisher_sample_count(
+def test_adaptation_writes_only_to_its_own_context_head(
     actuation_space: ActuationSpace, twin_component: ComponentId
 ) -> None:
-    twin = _twin(actuation_space, twin_component, adaptation_buffer=100, fisher_sample_count=3)
-    command = ControlCommand(space=actuation_space, values=(0.4, 0.1))
+    # ADR-0019, stated as directly as it can be. This replaced an elastic-weight
+    # penalty that was measured on 2 August 2026 and found to slow all learning
+    # equally rather than protect anything: forgetting divided by learning was
+    # constant across every lambda from 0 to 1e5. Structure does what the loss
+    # term could not.
+    twin = _twin(actuation_space, twin_component, adaptation_buffer=4)
+    command = ControlCommand(space=actuation_space, values=(0.9, -0.4))
+    others = [c for c in ContextClass if c is not CONTEXT]
+    before = {
+        c: torch.cat([p.detach().flatten().clone() for p in twin._network.head(c).parameters()])
+        for c in others
+    }
 
-    for _ in range(10):
+    for _ in range(12):
+        twin.adapt(applied=command, measured=_state(NOMINAL), context=CONTEXT)
+
+    for context in others:
+        after = torch.cat([p.detach().flatten() for p in twin._network.head(context).parameters()])
+        assert torch.equal(after, before[context]), (
+            f"adapting in {CONTEXT.value} moved {context.value}'s head; forgetting is "
+            "supposed to be impossible here, not merely discouraged"
+        )
+
+
+def test_adaptation_does_move_the_head_it_is_aimed_at(
+    actuation_space: ActuationSpace, twin_component: ComponentId
+) -> None:
+    # The control for the test above, which would otherwise pass on a twin that
+    # adapted nothing at all.
+    twin = _twin(actuation_space, twin_component, adaptation_buffer=4)
+    command = ControlCommand(space=actuation_space, values=(0.9, -0.4))
+    before = torch.cat(
+        [p.detach().flatten().clone() for p in twin._network.head(CONTEXT).parameters()]
+    )
+
+    for _ in range(12):
+        twin.adapt(applied=command, measured=_state(NOMINAL), context=CONTEXT)
+
+    after = torch.cat([p.detach().flatten() for p in twin._network.head(CONTEXT).parameters()])
+
+    assert not torch.equal(after, before)
+
+
+def test_an_unclassified_context_does_not_adapt_at_all(
+    actuation_space: ActuationSpace, twin_component: ComponentId
+) -> None:
+    # A twin that rewrote itself while it could not tell where it was would be
+    # the failure mode the architecture exists to prevent. UNCLASSIFIED's head
+    # has a second job as the pristine offline reference, which only holds if
+    # nothing ever writes to it.
+    twin = _twin(actuation_space, twin_component, adaptation_buffer=4)
+    command = ControlCommand(space=actuation_space, values=(0.9, -0.4))
+    before = twin.weights_digest
+
+    for _ in range(12):
+        twin.adapt(applied=command, measured=_state(NOMINAL), context=ContextClass.UNCLASSIFIED)
+
+    assert twin.weights_digest == before
+    assert twin._buffer == []
+
+
+def test_an_absent_context_does_not_adapt_either(
+    actuation_space: ActuationSpace, twin_component: ComponentId
+) -> None:
+    # No classification was produced this tick. That is not a licence to write
+    # to some default head.
+    twin = _twin(actuation_space, twin_component, adaptation_buffer=4)
+    command = ControlCommand(space=actuation_space, values=(0.9, -0.4))
+    before = twin.weights_digest
+
+    for _ in range(12):
         twin.adapt(applied=command, measured=_state(NOMINAL))
 
-    assert len(twin._history) == 3
+    assert twin.weights_digest == before
 
 
-def test_the_first_consolidation_has_no_anchor_to_hold_it(
+def test_a_context_change_discards_the_partial_buffer(
     actuation_space: ActuationSpace, twin_component: ComponentId
 ) -> None:
-    # Nothing has been learned yet, so there is nothing to forget: the penalty
-    # must be inert on the first update regardless of how large lambda is.
-    twin = _twin(actuation_space, twin_component, adaptation_buffer=4, ewc_lambda=1e9)
+    # An update spanning a boundary teaches one head the average of a highway
+    # and a rainstorm, which is a worse answer than either and belongs to
+    # neither.
+    twin = _twin(actuation_space, twin_component, adaptation_buffer=4)
     command = ControlCommand(space=actuation_space, values=(0.9, -0.4))
 
-    assert twin._anchor == {}
-    for _ in range(4):
-        twin.adapt(applied=command, measured=_state(NOMINAL))
+    for _ in range(3):
+        twin.adapt(applied=command, measured=_state(NOMINAL), context=CONTEXT)
+    assert len(twin._buffer) == 3
 
-    assert twin._anchor != {}
+    twin.adapt(applied=command, measured=_state(NOMINAL), context=ContextClass.RAIN_NIGHT)
+
+    assert len(twin._buffer) == 1, "the three highway samples must not join a rain update"
 
 
-def test_the_elastic_penalty_can_resist_movement_once_an_anchor_exists(
+def test_predictions_follow_the_context_once_the_heads_differ(
     actuation_space: ActuationSpace, twin_component: ComponentId
 ) -> None:
-    # This checks the *mechanism*, not the operating point. Twelve samples at a
-    # buffer of four gives three consolidations; the anchor is established by
-    # the first, so the second and third are the ones the penalty constrains.
-    #
-    # A very large lambda is needed to see the effect, and that is itself worth
-    # recording: gradients are norm-clipped, and immediately after re-anchoring
-    # `(theta - theta_anchor)` is near zero, so the penalty's contribution is
-    # small next to the data and physics terms until it has something to pull
-    # against. Whether the *configured* lambda prevents forgetting on real
-    # dynamics is RK-5, and only the catastrophic-forgetting test in Phase 7
-    # can answer it.
+    # The other half of what per-context heads buy, and the reason this is a
+    # correctness fix rather than only a forgetting fix: the ICP score's
+    # reference is now conditioned on the same partition as the quantile it is
+    # compared against.
+    twin = _twin(actuation_space, twin_component, adaptation_buffer=4)
     command = ControlCommand(space=actuation_space, values=(0.9, -0.4))
+    for _ in range(12):
+        twin.adapt(applied=command, measured=_state(NOMINAL), context=CONTEXT)
 
-    def parameter_movement(ewc_lambda: float) -> float:
-        twin = _twin(actuation_space, twin_component, adaptation_buffer=4, ewc_lambda=ewc_lambda)
-        start = torch.cat([p.detach().flatten().clone() for p in twin._network.output.parameters()])
-        for _ in range(12):
-            twin.adapt(applied=command, measured=_state(NOMINAL))
-        end = torch.cat([p.detach().flatten() for p in twin._network.output.parameters()])
-        return float(torch.linalg.vector_norm(end - start))
+    adapted = twin.predict(tick=TickId(1), state=_state(NOMINAL), context=CONTEXT)
+    untouched = twin.predict(tick=TickId(1), state=_state(NOMINAL))
 
-    assert parameter_movement(1e12) < parameter_movement(0.0)
+    assert adapted.command.values != pytest.approx(untouched.command.values)
 
 
 def test_a_divergent_update_is_rolled_back_rather_than_kept(
     actuation_space: ActuationSpace, twin_component: ComponentId
 ) -> None:
-    # An absurd lambda drives the output layer to infinity within a few steps.
-    # A twin holding NaN weights does not fail loudly, it predicts NaN -- which
-    # the statistical gate compares against its quantile and reads as a PASS.
-    # Adaptation is the cold path, so the update is abandoned instead.
-    twin = _twin(actuation_space, twin_component, adaptation_buffer=4, ewc_lambda=1e30)
+    # An absurd physics weight overflows the loss, and a NaN gradient then takes
+    # the head with it. A twin holding NaN weights does not fail loudly, it
+    # predicts NaN -- which the statistical gate compares against its quantile
+    # and reads as a PASS. Adaptation is the cold path, so the update is
+    # abandoned instead.
+    #
+    # Provoked through `physics_weight` since ADR-0019 removed `ewc_lambda`,
+    # which is what used to reach this guard. With gradients clipped to norm 1
+    # and a step of 1e-3 the guard is otherwise close to unreachable, and an
+    # unreachable fail-safe that no test enters is indistinguishable from one
+    # that does not work.
+    twin = _twin(actuation_space, twin_component, adaptation_buffer=4, physics_weight=1e308)
     command = ControlCommand(space=actuation_space, values=(0.9, -0.4))
 
     for _ in range(12):
-        twin.adapt(applied=command, measured=_state(NOMINAL))
+        twin.adapt(applied=command, measured=_state(NOMINAL), context=CONTEXT)
 
-    prediction = twin.predict(tick=TickId(9), state=_state(NOMINAL))
+    prediction = twin.predict(tick=TickId(9), state=_state(NOMINAL), context=CONTEXT)
     assert all(math.isfinite(value) for value in prediction.command.values)
 
 

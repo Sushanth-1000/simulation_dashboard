@@ -7,45 +7,56 @@ loudly. It predicts confidently and wrongly, the non-conformity score
 ``|pi_prop - pi_hat| / sigma`` is computed against a wrong reference, and two
 gates then reason carefully about a number that means nothing.
 
-Why this is a comparison and not a threshold
---------------------------------------------
-The obvious test is *"highway error after adapting to rain must stay below X"*.
-That test is worthless, because X gets chosen until the test passes and then
-measures nothing but the choice. RK-5 already records that EWC **may fail** to
-prevent forgetting, so the question is not "is the error small" but "does the
-penalty do anything at all".
+What this file measured, and what changed because of it
+-------------------------------------------------------
+It was written on 2 August 2026 against an elastic-weight-consolidation penalty,
+and it found three things in order.
 
-So every test here runs the identical experiment twice, at the configured
-``ewc_lambda`` and at zero, from the same seed, and compares. Lambda zero is not
-a hypothetical: it is precisely what a lambda too small to matter reduces to, and
-that is the defect P3.1 names --
+1. The configured ``ewc_lambda`` was not weak, it was **bit-for-bit inert** --
+   forgetting 0.038951 against 0.038972 unregularised.
+2. The cause was the anchor, re-taken on every buffer flush, so the penalty
+   resisted the last twenty samples and permitted unlimited total drift
+   (ADR-0018).
+3. With that fixed, the penalty still only ever acted as a **brake**: across
+   every lambda from 0 to 1e5 the ratio of forgetting to learning was constant
+   to three significant figures. It could not have been otherwise. Adaptation
+   touched a single 16x2 readout that both contexts used in full, so there was
+   no disjoint subspace for a Fisher-weighted penalty to protect.
 
-    *EWC is inert at the configured lambda. Do not ship a value that does
-    nothing while the configuration implies it does something.*
+ADR-0019 replaced the penalty with **one output head per**
+:class:`~astra.kernel.enums.ContextClass`. Forgetting is now prevented by the
+shape of the network: adapting in the rain writes to the rain head, and the
+parameters the highway is read from are not in the optimiser. The assertions
+below are therefore *exact* -- the highway prediction after a rainstorm must be
+unchanged to the bit, not merely close.
 
-A pair of runs that forget equally means the configured value is decoration.
+The control that keeps this honest
+----------------------------------
+An exact-equality test would also pass on a twin that adapted nothing at all, so
+:func:`test_forgetting_is_real_when_one_head_serves_both_contexts` feeds the same
+rain through the *highway* head -- which is precisely the pre-ADR-0019 behaviour,
+reproduced by mislabelling rather than by keeping old code around. It still
+destroys the highway, by a factor of 159. That number is what the structure now
+prevents.
 
 Where the experiment starts
 ---------------------------
-FB2 trains **only the output layer**, on top of a hidden layer it freezes. That
-is the right design -- adaptation should adjust a trained twin, not retrain one --
-but it means an experiment that starts from seeded random weights is measuring
-something the mechanism was never meant to do. Measured on the way to writing
-this: from random initialisation, 2,400 samples of one context moved the output
-layer's parameters by 0.14 in norm and left the error at 0.094, converged and
-useless. So each trial below **pre-trains the whole network on the highway
-first**, exactly as ``training/train_twin.py`` does with Adam over both layers,
-and only then hands over to FB2. That is where a real twin starts.
+FB2 trains only an output head, on top of a hidden trunk it freezes. That is the
+right design -- adaptation should adjust a trained twin, not retrain one -- but
+it means an experiment starting from seeded random weights measures something
+the mechanism was never meant to do. Measured on the way to writing this: from
+random initialisation, 2,400 samples moved the parameters 0.14 in norm and left
+the error at 0.094, converged and useless. So each trial **pre-trains the whole
+network on the highway first**, exactly as ``training/train_twin.py`` does with
+Adam over both layers, and only then hands over to FB2.
 
 The two contexts
 ----------------
 "Highway" and "rain" are two different mappings from motion to command: the same
 lateral acceleration is produced by a larger steering command on a slippery road.
-That is what a context change *is* for this twin, whose input is
-``(v, sin psi, cos psi, a_lat)`` and whose output is a command. Both are linear
-and exactly learnable by the output layer, which is deliberate -- a context the
-network cannot represent would make every result a statement about capacity
-rather than about consolidation.
+Both are linear and exactly learnable by an output head, which is deliberate -- a
+context the network cannot represent would make every result a statement about
+capacity rather than about interference.
 """
 
 from __future__ import annotations
@@ -57,7 +68,6 @@ from pathlib import Path
 import pytest
 import torch
 
-from astra.config.loader import load_settings
 from astra.config.schema import TwinSettings
 from astra.contracts.actuation import ActuationChannel, ActuationSpace, ControlCommand
 from astra.contracts.estimation import FastStateEstimate
@@ -79,7 +89,7 @@ exercised repeatedly rather than once. Forgetting is cumulative; a single update
 would understate it in both arms equally and shrink the gap the tests measure."""
 
 BUFFER = 20
-PRETRAIN_EPOCHS = 4_000
+PRETRAIN_EPOCHS = 6_000
 """Full-batch Adam epochs for the offline twin. `train_twin.py` uses 3,000 on a
 harder corpus; this one is linear and converges well inside that."""
 RAIN_SAMPLES = 4_000
@@ -140,22 +150,20 @@ forgetting is unmistakable when it happens, and physically the right direction:
 less grip, more input for the same result."""
 
 
-def _settings(ewc_lambda: float) -> TwinSettings:
+def _settings() -> TwinSettings:
     return TwinSettings(
         physics_weight=1.0,
-        ewc_lambda=ewc_lambda,
         control_effectiveness=list(EFFECTIVENESS),
         hidden_width=16,
         adaptation_buffer=BUFFER,
         adaptation_steps=10,
-        fisher_sample_count=120,
         seed=11,
     )
 
 
-def _twin(ewc_lambda: float) -> PhysicsInformedTwin:
+def _twin() -> PhysicsInformedTwin:
     return PhysicsInformedTwin(
-        settings=_settings(ewc_lambda),
+        settings=_settings(),
         space=_space(),
         component=COMPONENT,
         clock=ManualClock(Instant(0, Timeline.MANUAL)),
@@ -213,28 +221,50 @@ def _pretrain(context: Context, path: Path) -> None:
         loss.backward()  # type: ignore[no-untyped-call]
         optimiser.step()
 
+    network.seed_heads_from()
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(network.state_dict(), path)
 
 
-def _drive(twin: PhysicsInformedTwin, context: Context, *, count: int) -> None:
-    """Feed one context's worth of executed outcomes through ``adapt``."""
+def _drive(
+    twin: PhysicsInformedTwin,
+    context: Context,
+    *,
+    count: int,
+    labelled: ContextClass | None = None,
+) -> None:
+    """Feed one context's worth of executed outcomes through ``adapt``.
+
+    Args:
+        twin: The twin to adapt.
+        context: The context whose dynamics the samples come from.
+        count: How many samples.
+        labelled: The context to *tell* the twin it is in. Defaults to the
+            truthful one; the control test passes the wrong one deliberately, to
+            reproduce a single head serving two contexts.
+    """
     space = _space()
     for index in range(count):
         state = _state(index)
         twin.adapt(
             applied=ControlCommand(values=context.command(state.mean[-1]), space=space),
             measured=state,
-            context=context.klass,
+            context=labelled or context.klass,
         )
 
 
-def _error_on(twin: PhysicsInformedTwin, context: Context) -> float:
+def _error_on(
+    twin: PhysicsInformedTwin, context: Context, *, through: ContextClass | None = None
+) -> float:
     """Return the twin's mean absolute command error in a context.
 
     Args:
         twin: The twin to probe.
         context: The context whose mapping is the ground truth.
+        through: Which head to read. Defaults to the context's own. The
+            shared-head control reads everything through one head, which is the
+            whole point of it -- measuring the rain through an untouched rain
+            head would report no change and make the comparison vacuous.
 
     Returns:
         Mean absolute error over held-out states, across both channels.
@@ -243,7 +273,9 @@ def _error_on(twin: PhysicsInformedTwin, context: Context) -> float:
     for index in range(PROBE_COUNT):
         # Phase-shifted: different states, same underlying mapping.
         state = _state(index, phase=1.7)
-        predicted = twin.predict(tick=TickId(index), state=state).command.values
+        predicted = twin.predict(
+            tick=TickId(index), state=state, context=through or context.klass
+        ).command.values
         expected = context.command(state.mean[-1])
         total += sum(abs(p - e) for p, e in zip(predicted, expected, strict=True))
     return total / (PROBE_COUNT * len(EFFECTIVENESS))
@@ -254,16 +286,14 @@ class Trial:
     """One highway-then-rain experiment.
 
     Attributes:
-        ewc_lambda: The penalty strength this trial ran at.
-        highway_before: Highway error after learning the highway.
+        highway_before: Highway error after loading the offline twin.
         highway_after: Highway error after then adapting to rain.
-        rain_before: Rain error *before* adapting -- a highway twin judged on
-            rain. The baseline plasticity is measured against, because "rain
-            error 0.18" means nothing until you know it started at 0.18.
+        rain_before: Rain error before adapting -- a highway twin judged on rain.
+            The baseline plasticity is measured against, because "rain error
+            0.18" means nothing until you know it started at 0.18.
         rain_after: Rain error after adapting to rain.
     """
 
-    ewc_lambda: float
     highway_before: float
     highway_after: float
     rain_before: float
@@ -275,59 +305,69 @@ class Trial:
         return self.highway_after - self.highway_before
 
     @property
+    def learned(self) -> float:
+        """Return how much rain accuracy was gained, in absolute error."""
+        return self.rain_before - self.rain_after
+
+    @property
     def gap_closed(self) -> float:
         """Return the fraction of the context change FB2 actually learned."""
-        return (self.rain_before - self.rain_after) / self.rain_before
+        return self.learned / self.rain_before
+
+    @property
+    def interference(self) -> float:
+        """Return highway accuracy lost per unit of rain accuracy gained.
+
+        The scale-free statement of catastrophic interference, and deliberately
+        not a bare error threshold: how well the offline stage happened to
+        converge changes every absolute number here but leaves this one alone.
+        """
+        return self.forgetting / self.learned
 
 
-def _trial(ewc_lambda: float, checkpoint: Path) -> Trial:
+def _trial(checkpoint: Path, *, labelled: ContextClass | None = None) -> Trial:
     """Start from a highway-trained twin, adapt it to rain, measure both.
 
     Args:
-        ewc_lambda: The penalty strength.
         checkpoint: A twin already trained on the highway.
+        labelled: The context to tell the twin the rain belongs to. ``None``
+            tells it the truth; the control test lies, to put both contexts
+            through one head.
 
     Returns:
         The trial's four numbers.
     """
-    twin = _twin(ewc_lambda)
+    twin = _twin()
     twin.load_checkpoint(checkpoint)
     highway_before = _error_on(twin, HIGHWAY)
-    rain_before = _error_on(twin, RAIN)
-    _drive(twin, RAIN, count=RAIN_SAMPLES)
+    rain_before = _error_on(twin, RAIN, through=labelled)
+    _drive(twin, RAIN, count=RAIN_SAMPLES, labelled=labelled)
     return Trial(
-        ewc_lambda=ewc_lambda,
         highway_before=highway_before,
         highway_after=_error_on(twin, HIGHWAY),
         rain_before=rain_before,
-        rain_after=_error_on(twin, RAIN),
+        rain_after=_error_on(twin, RAIN, through=labelled),
     )
 
 
 @pytest.fixture(scope="module")
 def highway_twin(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """A twin trained offline on the highway, shared by both arms.
-
-    One checkpoint for both trials, so the only difference between them is the
-    penalty. Re-training per arm would put a second source of variation between
-    numbers whose difference is the entire result.
-    """
+    """A twin trained offline on the highway, shared by every trial."""
     path = tmp_path_factory.mktemp("twin") / "highway.pt"
     _pretrain(HIGHWAY, path)
     return path
 
 
 @pytest.fixture(scope="module")
-def unregularised(highway_twin: Path) -> Trial:
-    """The control arm: no penalty at all."""
-    return _trial(0.0, highway_twin)
+def separated(highway_twin: Path) -> Trial:
+    """Rain adapted into the rain head, as ADR-0019 intends."""
+    return _trial(highway_twin)
 
 
 @pytest.fixture(scope="module")
-def configured(highway_twin: Path) -> Trial:
-    """The shipped arm, at whatever ``simulation.toml`` sets."""
-    resolved = load_settings(environment="simulation", include_environment_variables=False)
-    return _trial(float(resolved.settings.twin.ewc_lambda), highway_twin)
+def shared_head(highway_twin: Path) -> Trial:
+    """Rain adapted into the *highway* head -- the pre-ADR-0019 behaviour."""
+    return _trial(highway_twin, labelled=HIGHWAY.klass)
 
 
 # --------------------------------------------------------------------------- #
@@ -335,32 +375,18 @@ def configured(highway_twin: Path) -> Trial:
 # --------------------------------------------------------------------------- #
 
 
-def test_the_offline_twin_knows_the_highway(unregularised: Trial) -> None:
-    # Every result below is a difference between two highway errors. If the twin
-    # never knew the highway, both are the error of an untrained network and the
-    # comparison is between two kinds of noise.
-    assert unregularised.highway_before < 0.05, (
-        f"the twin did not learn the highway ({unregularised.highway_before:.4f} "
+def test_the_offline_twin_knows_the_highway(separated: Trial) -> None:
+    # Everything below is a statement about a highway error. If the twin never
+    # knew the highway, they are all statements about noise.
+    assert separated.highway_before < 0.01, (
+        f"the offline twin did not learn the highway ({separated.highway_before:.6f} "
         "mean absolute error); nothing downstream of this measures forgetting"
-    )
-
-
-def test_fb2_moves_a_trained_twin_toward_a_new_context(unregularised: Trial) -> None:
-    # The other half of the premise, and a measurement worth reading directly:
-    # an unregularised twin closes about a fifth of the gap over 4,000 samples,
-    # which is 200 seconds of driving at 20 Hz. FB2 is slow. It is not, however,
-    # inert, which is all this premise needs.
-    assert unregularised.gap_closed > 0.10, (
-        f"FB2 closed only {unregularised.gap_closed:.1%} of the context change "
-        f"even unregularised ({unregularised.rain_before:.4f} -> "
-        f"{unregularised.rain_after:.4f}); with no adaptation there is no "
-        "forgetting to prevent and nothing below means anything"
     )
 
 
 def test_the_two_contexts_are_actually_different() -> None:
     # If highway and rain demanded similar commands, adapting to one would fit
-    # the other for free and every arm would look regularised.
+    # the other for free and every arm would look protected.
     separation = sum(
         abs(h - r) for h, r in zip(HIGHWAY.command(2.0), RAIN.command(2.0), strict=True)
     )
@@ -368,20 +394,34 @@ def test_the_two_contexts_are_actually_different() -> None:
     assert separation > 0.3, "the contexts are too alike to distinguish forgetting from noise"
 
 
-def test_forgetting_happens_without_the_penalty(unregularised: Trial) -> None:
-    # The defect this whole file exists to detect, demonstrated in the arm that
-    # should show it. If an unregularised twin did not forget, EWC would have
-    # nothing to do and a passing comparison would prove nothing.
-    # A ratio, not an absolute bound. "Forgetting exceeds 0.05" is a number
-    # chosen without knowing the scale; what makes forgetting catastrophic is
-    # that it is enormous *relative to how well the twin knew the task*, and the
-    # offline twin knows the highway to 2.5e-4. Measured: 159x.
-    assert unregularised.highway_after > unregularised.highway_before * 20.0, (
-        f"an unregularised twin went from {unregularised.highway_before:.6f} to "
-        f"{unregularised.highway_after:.6f} highway error, only "
-        f"{unregularised.highway_after / unregularised.highway_before:.1f}x; the "
-        "experiment is not provoking catastrophic forgetting, so it cannot show "
-        "that anything prevents it"
+def test_forgetting_is_real_when_one_head_serves_both_contexts(shared_head: Trial) -> None:
+    # THE control, and the reason the exact-equality assertion below is worth
+    # anything: it would also pass on a twin that adapted nothing at all.
+    # Driving the same rain through the highway head is exactly what the code did
+    # before ADR-0019, reproduced by mislabelling the context rather than by
+    # keeping the old implementation around to rot.
+    #
+    # Stated as interference rather than as an error bound: the shared head must
+    # give up a substantial part of the highway for what it gains in rain. That
+    # framing survives the offline stage converging better or worse on a given
+    # day, which a bare "highway error exceeds X" does not. Measured: 0.85 --
+    # nearly a unit of highway lost per unit of rain gained.
+    assert shared_head.interference > 0.5, (
+        f"a shared head lost {shared_head.forgetting:.4f} of highway accuracy while "
+        f"gaining {shared_head.learned:.4f} of rain, an interference ratio of "
+        f"{shared_head.interference:.2f}; the experiment is not provoking "
+        "catastrophic forgetting, so it cannot show that anything prevents it"
+    )
+
+
+def test_fb2_moves_a_trained_twin_toward_a_new_context(separated: Trial) -> None:
+    # The other half of the premise. Worth reading directly: FB2 closes about a
+    # fifth of the gap over 4,000 samples, which is 200 seconds of driving at
+    # 20 Hz. It is slow. It is not inert, which is all this premise needs.
+    assert separated.gap_closed > 0.10, (
+        f"FB2 closed only {separated.gap_closed:.1%} of the context change "
+        f"({separated.rain_before:.4f} -> {separated.rain_after:.4f}); with no "
+        "adaptation there is no forgetting to prevent and nothing here means anything"
     )
 
 
@@ -390,70 +430,30 @@ def test_forgetting_happens_without_the_penalty(unregularised: Trial) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_the_configured_lambda_is_not_inert(configured: Trial, unregularised: Trial) -> None:
-    # THE test. P3.1: "Do not ship a value that does nothing while the
-    # configuration implies it does something." A configured penalty that forgets
-    # as much as no penalty at all is a comment, not a mechanism -- and worse
-    # than no penalty, because the configuration claims protection that a reader
-    # will believe.
-    assert configured.forgetting < unregularised.forgetting * 0.75, (
-        f"ewc_lambda={configured.ewc_lambda:g} forgets {configured.forgetting:.4f} "
-        f"against {unregularised.forgetting:.4f} unregularised -- the penalty is "
-        "inert at the configured value. Either raise it until this passes or "
-        "rescale the term; do not relax this bound."
+def test_adapting_to_rain_leaves_the_highway_bit_for_bit_unchanged(separated: Trial) -> None:
+    # THE test, and the whole content of ADR-0019. Not "forgetting is small" --
+    # exactly zero, because the parameters the highway is read from were never in
+    # the optimiser. An approximate assertion would leave room for a future
+    # change to reintroduce cross-context interference and still pass.
+    assert separated.highway_after == separated.highway_before, (
+        f"the highway moved by {separated.forgetting:.3e} while the twin adapted to "
+        "rain. Forgetting is supposed to be structurally impossible here, so any "
+        "change at all means something is writing across heads -- check that the "
+        "shared trunk is still frozen during adaptation"
     )
+    assert separated.interference == 0.0
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "OPEN, measured 2 August 2026: the penalty is a brake, not a consolidator. "
-        "Across lambda from 0 to 1e5 the ratio of forgetting to gap-closed is "
-        "constant to three significant figures -- 0.00184, 0.00184, 0.00186, "
-        "0.00186, 0.00194 -- so EWC buys nothing here that a smaller learning "
-        "rate would not buy equally. Structural rather than a tuning miss: FB2 "
-        "adapts a 16->2 linear readout and both contexts use all of it, so there "
-        "is no disjoint parameter subspace for a Fisher-weighted penalty to "
-        "exploit. RK-5 anticipated exactly this. Recorded as P3.1a; the candidate "
-        "answer is a per-ContextClass output head, which makes forgetting "
-        "structurally impossible instead of penalised. Do not delete this test "
-        "to make the suite green -- it is the statement of the defect."
-    ),
-)
-def test_the_penalty_protects_the_old_context_more_than_it_blocks_the_new(
-    configured: Trial, unregularised: Trial
+def test_the_separated_head_learns_at_least_as_well_as_a_shared_one(
+    separated: Trial, shared_head: Trial
 ) -> None:
-    # What "consolidation" actually claims: that the penalty is *selective*, and
-    # gives up less plasticity than it buys in retention. A penalty that scales
-    # both down together is a speed dial with a misleading name.
-    retention_gain = unregularised.forgetting / max(configured.forgetting, 1e-9)
-    plasticity_cost = unregularised.gap_closed / max(configured.gap_closed, 1e-9)
-
-    assert retention_gain > plasticity_cost * 1.5, (
-        f"at ewc_lambda={configured.ewc_lambda:g} forgetting improved "
-        f"{retention_gain:.2f}x while adaptation slowed {plasticity_cost:.2f}x; "
-        "the penalty is not distinguishing the highway's parameters from the "
-        "rain's, it is slowing every parameter down"
-    )
-
-
-def test_the_highway_is_still_usable_after_the_rain(configured: Trial) -> None:
-    # What the shipped value has to deliver even if the mechanism is only a
-    # brake. The twin's prediction is the right operand of every ICP score, so
-    # what survives has to be good enough to compute one against.
-    assert configured.highway_after < 0.01, (
-        f"highway error after adapting to rain is {configured.highway_after:.4f}; "
-        "a twin this wrong makes both gates reason about a meaningless number"
-    )
-
-
-def test_the_shipped_lambda_still_permits_some_adaptation(configured: Trial) -> None:
-    # The other side of the brake. A lambda that stopped FB2 entirely would be
-    # the loop switched off with extra steps -- and switching it off is a
-    # decision to take deliberately, in configuration a reader can see, not one
-    # to arrive at because a penalty was set too high.
-    assert configured.gap_closed > 0.0, (
-        f"at ewc_lambda={configured.ewc_lambda:g} the twin learned nothing at all "
-        f"about the new context ({configured.rain_before:.4f} -> "
-        f"{configured.rain_after:.4f}); FB2 is off"
+    # Zero forgetting bought at the price of learning would be FB2 switched off
+    # with extra steps. The point of structure over a penalty is that it costs
+    # nothing in plasticity: the rain head sees exactly the same gradients it
+    # would have if it were the only head.
+    assert separated.gap_closed >= shared_head.gap_closed * 0.99, (
+        f"separating the heads closed {separated.gap_closed:.1%} of the gap against "
+        f"{shared_head.gap_closed:.1%} shared; structure is supposed to prevent "
+        "interference without slowing adaptation, which is exactly what the elastic "
+        "penalty it replaced could not do"
     )

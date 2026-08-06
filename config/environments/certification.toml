@@ -58,10 +58,11 @@ environment = "certification"
 # Weight on the physics residual during training. Derive from the trained twin's
 # validation error against held-out dynamics; record the corpus and the split.
 # physics_weight =
-# Fisher-anchored EWC penalty for FB2. Must be justified against an explicit
-# catastrophic-forgetting test: accuracy in the original context must not
-# degrade after adapting to a new one (RK-5).
-# ewc_lambda =
+# There is deliberately no EWC penalty to set. ADR-0019 replaced it with one
+# output head per ContextClass, so forgetting is prevented by the shape of the
+# network rather than by a term whose strength has to be certified. RK-5's
+# catastrophic-forgetting requirement is still what must be demonstrated; the
+# test is tests/unit/test_l5_forgetting.py.
 # Row mapping a command vector to the lateral acceleration it produces, in the
 # actuation space's channel order. A certified platform characterisation, not a
 # tuning parameter -- derive from the vehicle's steering response measurement.

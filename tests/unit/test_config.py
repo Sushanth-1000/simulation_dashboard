@@ -46,7 +46,6 @@ CERTIFICATION_MISSING_FIELDS = frozenset(
         "trust.coverage_level",
         "trust.highway_speed_boundary_kmh",
         "twin.physics_weight",
-        "twin.ewc_lambda",
         "twin.control_effectiveness",
         "gate.significance_epsilon",
         "gate.mmd_threshold",
@@ -110,7 +109,6 @@ highway_speed_boundary_kmh = 70.0
 
 [twin]
 physics_weight = 1.0
-ewc_lambda = 100.0
 control_effectiveness = [0.0, 0.0, 120.0]
 
 [gate]

@@ -166,6 +166,11 @@ def train(
                 f"physics {phys_loss.detach().item():.6e}"
             )
 
+    # Fit one head, then give every context the same starting point. Without
+    # this the other heads keep their random initialisation and the twin
+    # predicts noise everywhere but UNCLASSIFIED -- see
+    # `TwinNetwork.seed_heads_from`.
+    network.seed_heads_from()
     network.eval()
     return network, data_loss.detach().item(), phys_loss.detach().item()
 

@@ -952,18 +952,23 @@ Rescaling the penalty, the other option the entry offered, was **measured and
 rejected**: normalising the Fisher by its mean shifts the window without widening
 it and cuts the best available protection from 0.084 to 0.309 of unregularised.
 
-**3. P3.1a — the penalty is a brake, not a consolidator. OPEN.** Across λ from 0
-to 10⁵ the ratio of forgetting to adaptation is constant to three significant
-figures: 0.00184, 0.00184, 0.00186, 0.00186, 0.00194. EWC buys nothing here that
-a smaller learning rate would not buy equally. Structural, not a tuning miss —
-FB2 adapts a 16→2 linear readout and both contexts use all of it, so there is no
-disjoint parameter subspace for a Fisher-weighted penalty to exploit. RK-5
-anticipated this in as many words.
+**3. P3.1a — the penalty was a brake, not a consolidator. RESOLVED by
+[ADR-0019](adr/0019-one-twin-head-per-context.md).** Across λ from 0 to 10⁵ the
+ratio of forgetting to adaptation was constant to three significant figures. That
+could not have been otherwise: EWC protects an old task by holding the parameters
+*that task* depends on, which needs the two tasks to use partially disjoint
+subspaces, and FB2 adapted a single 16×2 readout that both contexts used in full.
 
-Recorded as a **strict xfail**, not a comment: the test fails the suite the day
-it starts passing. The candidate answer is a per-`ContextClass` output head,
-which makes forgetting structurally impossible rather than expensive, and which
-fits the Mondrian design the rest of the system already has.
+Replaced with **one output head per `ContextClass`**. Forgetting is now
+structurally impossible rather than penalised, and the test asserts *exact*
+equality. `ewc_lambda`, `fisher_sample_count` and the Fisher machinery are
+deleted — one fewer empirical safety number, and coverage went **up** to 98.13%.
+The second reason it was worth doing: the ICP score was comparing a
+context-blind `π̂` against a per-context quantile, and now is not.
+
+It also uncovered a live defect in `training/train_twin.py`, which fitted one
+head and left the rest at random initialisation — caught by the forgetting test
+refusing to agree that the offline twin knew the highway.
 
 **4. FB2 is slow.** Unregularised, 4,000 samples — 200 s at 20 Hz — closed 21% of
 a large context change; at λ=10⁴, 1.7%. SGD at 10⁻³ with gradients clipped to

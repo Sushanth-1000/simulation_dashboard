@@ -110,6 +110,27 @@ relocate the reference point that the statistical gate scores against.
 """
 
 
+def _with_heads(state: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    """Migrate a pre-ADR-0019 checkpoint to the per-context head layout.
+
+    Args:
+        state: A loaded ``state_dict``.
+
+    Returns:
+        The same mapping if it already has heads; otherwise one in which the
+        single ``output`` layer has been copied into every context's head.
+    """
+    if not any(name.startswith("output.") for name in state):
+        return state
+    migrated = {name: value for name, value in state.items() if not name.startswith("output.")}
+    for context in ContextClass:
+        for suffix in ("weight", "bias"):
+            source = state.get(f"output.{suffix}")
+            if source is not None:
+                migrated[f"heads.{context.value}.{suffix}"] = source.clone()
+    return migrated
+
+
 class PhysicsInformedTwin:
     """The digital twin. Satisfies :class:`~astra.ports.pipeline.DynamicsPredictor`.
 
@@ -127,8 +148,6 @@ class PhysicsInformedTwin:
         "_component",
         "_context",
         "_effectiveness",
-        "_fisher",
-        "_history",
         "_network",
         "_settings",
         "_space",
@@ -194,18 +213,26 @@ class PhysicsInformedTwin:
         self._network.eval()
         self._effectiveness = torch.tensor(effectiveness, dtype=torch.float32)
         self._buffer: list[tuple[tuple[float, ...], tuple[float, ...]]] = []
-        self._history: list[tuple[tuple[float, ...], tuple[float, ...]]] = []
-        self._fisher: dict[str, torch.Tensor] = {}
-        self._anchor: dict[str, torch.Tensor] = {}
-        self._anchored_context: ContextClass | None = None
         self._context: ContextClass | None = None
 
-    def predict(self, *, tick: TickId, state: FastStateEstimate) -> PredictedCommand:
+    def predict(
+        self,
+        *,
+        tick: TickId,
+        state: FastStateEstimate,
+        context: ContextClass | None = None,
+    ) -> PredictedCommand:
         """Predict the command the modelled physics expects next.
 
         Args:
             tick: The control tick.
             state: The current fast state estimate.
+            context: The operational context L3 classified this tick into, which
+                selects the output head. ``None`` -- no classification was
+                produced -- reads ``UNCLASSIFIED``'s head, the offline-trained
+                twin that FB2 never writes to. Reading a *stale* context's head
+                would be worse than reading the factory one, because it would be
+                confidently conditioned on a place the vehicle may have left.
 
         Returns:
             ``pi_hat_{t+1}`` as a :class:`~astra.contracts.actuation.PredictedCommand`.
@@ -224,7 +251,7 @@ class PhysicsInformedTwin:
             lateral_index=_LATERAL_INDEX,
         )
         with torch.no_grad():
-            predicted = self._network(torch.tensor([features], dtype=torch.float32))
+            predicted = self._network(torch.tensor([features], dtype=torch.float32), context)
         values = tuple(float(value) for value in predicted[0])
         self._require_finite(tick, values, what="prediction")
         return PredictedCommand(
@@ -266,6 +293,14 @@ class PhysicsInformedTwin:
     def load_checkpoint(self, path: Path) -> None:
         """Load parameters from a checkpoint, replacing the seeded initialisation.
 
+        A checkpoint written before ADR-0019 holds one ``output`` layer rather
+        than a head per context. It is migrated by broadcasting that layer into
+        every head, which is the semantically right migration and not merely a
+        convenient one: the offline-trained twin *is* the common starting point
+        that every context then adapts away from. Every twin trained by
+        ``training/train_twin.py`` before 2 August 2026 loads unchanged and
+        predicts identically until FB2 first runs.
+
         Args:
             path: The checkpoint to load.
 
@@ -277,7 +312,7 @@ class PhysicsInformedTwin:
                 half-trained weights.
         """
         try:
-            state = torch.load(path, map_location="cpu", weights_only=True)
+            state = _with_heads(torch.load(path, map_location="cpu", weights_only=True))
             self._network.load_state_dict(state)
         except (RuntimeError, KeyError) as error:
             message = (
@@ -300,8 +335,8 @@ class PhysicsInformedTwin:
         """Record an executed outcome and update the twin when enough have arrived.
 
         Feedback loop FB2. Buffers the sample; once
-        ``settings.adaptation_buffer`` have accumulated, performs one
-        Fisher-anchored update of the output layer and clears the buffer.
+        ``settings.adaptation_buffer`` have accumulated, takes several gradient
+        steps on **this context's output head** and clears the buffer.
 
         A sample whose state or command is non-finite is discarded rather than
         raising. This is the cold path: a bad measurement here must not take
@@ -315,14 +350,17 @@ class PhysicsInformedTwin:
                 exactly the coupling FB1 exists to remove from L2.
             measured: The state measured after applying it.
             context: The operational context this outcome was observed in, from
-                L3's Mondrian classifier. Supplied, it becomes EWC's task
-                boundary: the anchor is re-taken when the context changes and
-                held constant within one, which is what makes the penalty
-                consolidation rather than a step-size limit. Omitted, the anchor
-                is taken once and never moved, which protects the offline-trained
-                twin -- the conservative reading, and the right default for a
-                caller that does not know what it is driving through.
+                L3's Mondrian classifier. It selects the head the update writes
+                to, which is what makes forgetting structurally impossible
+                (ADR-0019). ``None`` or
+                :attr:`~astra.kernel.enums.ContextClass.UNCLASSIFIED` **does not
+                adapt at all**: a twin that rewrote itself while it could not
+                tell where it was would be the failure mode the architecture
+                exists to prevent, and ``UNCLASSIFIED``'s head has a second job
+                as the pristine offline reference.
         """
+        if context is None or context is ContextClass.UNCLASSIFIED:
+            return
         # Checked before the features are built, not after: `state_features`
         # takes the sine and cosine of the heading, and `math.sin(inf)` raises
         # rather than returning a NaN that a later guard could catch.
@@ -335,173 +373,85 @@ class PhysicsInformedTwin:
             heading_index=_HEADING_INDEX,
             lateral_index=_LATERAL_INDEX,
         )
-        if self._anchor and context is not self._anchored_context:
-            # The context changed. Re-anchor *now*, on weights that still
-            # describe the outgoing context, before a single sample of the new
-            # one has moved them -- so the label recorded is `self._context`, the
-            # context being left, not the one being entered. The partial buffer
-            # is dropped rather than consolidated, because an update mixing two
-            # contexts teaches the twin the average of a highway and a rainstorm.
-            self._reanchor(self._context)
+        if context is not self._context:
+            # Drop the partial buffer rather than consolidating across a
+            # boundary. An update mixing two contexts teaches one head the
+            # average of a highway and a rainstorm, which is a worse answer than
+            # either and belongs to neither.
             self._buffer.clear()
         self._context = context
 
         sample = (features, applied.values)
         self._buffer.append(sample)
-        self._history.append(sample)
-        if len(self._history) > self._settings.fisher_sample_count:
-            del self._history[0]
 
         if len(self._buffer) >= self._settings.adaptation_buffer:
             self._consolidate()
             self._buffer.clear()
 
     def _consolidate(self) -> None:
-        """Run one elastic-weight-consolidation update over the buffered samples.
+        """Take several gradient steps on the current context's head.
 
-        Takes several gradient steps on the output layer against a loss
-        combining command error, the physics residual, and the Fisher-weighted
-        penalty holding parameters near the point they reached at the end of the
-        *previous* consolidation.
+        The loss is command error plus the physics residual. There is no
+        consolidation penalty and no Fisher information, because there is
+        nothing left for them to protect: the update writes to one head, and the
+        parameters every other context is read from are not in the optimiser.
+        Forgetting is prevented by the shape of the network rather than by a
+        term in the loss (ADR-0019).
 
-        The anchor is deliberately the previous consolidation's parameters, not
-        the current ones. Anchoring on the current values makes the penalty
-        identically zero at the moment its gradient is taken -- ``(theta -
-        theta)^2`` has both zero value and zero derivative -- so the term would
-        appear in the loss, cost time to compute, and constrain nothing. That is
-        a silent failure: the twin would forget exactly as fast as an
-        unregularised one while the configuration claimed otherwise.
-
-        On the first consolidation there is no anchor and the penalty is zero,
-        which is correct: there is nothing yet to forget.
+        The shared trunk is frozen for the duration, which is what keeps the
+        heads comparable -- moving it would silently re-specify the features
+        every *other* context's head was fitted against, and reintroduce
+        cross-context interference through the back door.
         """
+        head = self._network.head(self._context)
         features = torch.tensor([row for row, _ in self._buffer], dtype=torch.float32)
         targets = torch.tensor([cmd for _, cmd in self._buffer], dtype=torch.float32)
         lateral = features[:, -1]
 
-        # Kept so the update can be abandoned wholesale. A large `ewc_lambda`
-        # or an ill-conditioned batch can drive the output layer to infinity in
-        # a few steps, and a twin holding NaN weights does not fail loudly -- it
-        # predicts NaN, which the statistical gate would compare against its
-        # quantile and read as a PASS. Adaptation is the cold path, so refusing
-        # a divergent update costs a missed adaptation and nothing else.
-        restore = {
-            name: parameter.detach().clone()
-            for name, parameter in self._network.output.named_parameters()
-        }
+        # Kept so the update can be abandoned wholesale. An ill-conditioned batch
+        # can drive a head to infinity in a few steps, and a twin holding NaN
+        # weights does not fail loudly -- it predicts NaN, which the statistical
+        # gate would compare against its quantile and read as a PASS. Adaptation
+        # is the cold path, so refusing a divergent update costs a missed
+        # adaptation and nothing else.
+        restore = {name: parameter.detach().clone() for name, parameter in head.named_parameters()}
 
         for parameter in self._network.hidden.parameters():
             parameter.requires_grad_(False)
 
         self._network.train()
-        optimiser = torch.optim.SGD(self._network.output.parameters(), lr=_ADAPTATION_LEARNING_RATE)
+        optimiser = torch.optim.SGD(head.parameters(), lr=_ADAPTATION_LEARNING_RATE)
         for _ in range(self._settings.adaptation_steps):
             optimiser.zero_grad()
-            predicted = self._network(features)
+            predicted = self._network(features, self._context)
             loss = torch.mean((predicted - targets) ** 2)
             loss = loss + self._settings.physics_weight * physics_residual(
                 predicted, lateral, self._effectiveness
             )
-            loss = loss + self._settings.ewc_lambda * self._elastic_penalty()
             loss.backward()  # type: ignore[no-untyped-call]
-            torch.nn.utils.clip_grad_norm_(
-                self._network.output.parameters(), _ADAPTATION_GRADIENT_CLIP
-            )
+            torch.nn.utils.clip_grad_norm_(head.parameters(), _ADAPTATION_GRADIENT_CLIP)
             optimiser.step()
 
         self._network.eval()
         for parameter in self._network.hidden.parameters():
             parameter.requires_grad_(True)
 
-        if not self._output_is_finite():
+        if not self._head_is_finite(head):
             with torch.no_grad():
-                for name, parameter in self._network.output.named_parameters():
+                for name, parameter in head.named_parameters():
                     parameter.copy_(restore[name])
-            return
 
-        # Anchor once, on the first consolidation, and then leave it alone until
-        # the context changes. Re-anchoring after *every* consolidation is what
-        # this used to do, and it is why the penalty did nothing: with the anchor
-        # following the parameters every twenty samples, the term resisted the
-        # last step and permitted unlimited total drift. Measured on 2 August
-        # 2026 -- 4,000 samples of a second context, ewc_lambda 0 against 150,
-        # forgetting 0.038972 against 0.038951. Identical to four decimals.
-        #
-        # With the anchor held, the same experiment is monotone across six orders
-        # of magnitude, from 0.86x the unregularised forgetting at 1e2 to 0.018x
-        # at 1e8, with no cliff anywhere. See ADR-0018.
-        if not self._anchor:
-            self._reanchor(self._context)
-
-    def _reanchor(self, context: ContextClass | None) -> None:
-        """Capture the current parameters and their Fisher information.
-
-        Both move together or neither does: an anchor from one point weighted by
-        importances measured at another would penalise drift from a place the
-        twin was never at.
+    @staticmethod
+    def _head_is_finite(head: torch.nn.Module) -> bool:
+        """Return whether every parameter of one head is finite.
 
         Args:
-            context: The context these parameters describe.
-        """
-        self._fisher = self._estimate_fisher()
-        self._anchor = {
-            name: parameter.detach().clone()
-            for name, parameter in self._network.output.named_parameters()
-        }
-        self._anchored_context = context
-
-    def _output_is_finite(self) -> bool:
-        """Return whether every output-layer parameter is finite.
+            head: The output layer just updated.
 
         Returns:
-            ``True`` if the layer can still produce a usable prediction.
+            ``True`` if it can still produce a usable prediction.
         """
-        return all(
-            bool(torch.isfinite(parameter).all()) for parameter in self._network.output.parameters()
-        )
-
-    def _estimate_fisher(self) -> dict[str, torch.Tensor]:
-        """Estimate diagonal Fisher information for the output layer.
-
-        Returns:
-            Squared-gradient magnitude per output-layer parameter over the
-            retained history, or an empty mapping if no history has accumulated.
-            An empty mapping makes the elastic penalty zero, which is the right
-            behaviour for the first adaptation: there is nothing yet to forget.
-        """
-        if not self._history:
-            return {}
-        features = torch.tensor([row for row, _ in self._history], dtype=torch.float32)
-        targets = torch.tensor([cmd for _, cmd in self._history], dtype=torch.float32)
-        self._network.zero_grad()
-        loss = torch.mean((self._network(features) - targets) ** 2)
-        loss.backward()  # type: ignore[no-untyped-call]
-        fisher = {
-            name: (
-                parameter.grad.detach() ** 2
-                if parameter.grad is not None
-                else torch.zeros_like(parameter)
-            )
-            for name, parameter in self._network.output.named_parameters()
-        }
-        self._network.zero_grad()
-        return fisher
-
-    def _elastic_penalty(self) -> torch.Tensor:
-        """Return the Fisher-weighted squared drift from the anchored parameters.
-
-        Returns:
-            A scalar tensor, zero before the first consolidation has established
-            an anchor.
-        """
-        penalty = torch.zeros((), dtype=torch.float32)
-        for name, parameter in self._network.output.named_parameters():
-            information = self._fisher.get(name)
-            anchored = self._anchor.get(name)
-            if information is None or anchored is None:
-                continue
-            penalty = penalty + torch.sum(information * (parameter - anchored) ** 2)
-        return penalty
+        return all(bool(torch.isfinite(parameter).all()) for parameter in head.parameters())
 
     @staticmethod
     def _require_finite(tick: TickId, values: Sequence[float], *, what: str) -> None:

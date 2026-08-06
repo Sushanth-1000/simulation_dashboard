@@ -9,6 +9,7 @@ import pytest
 import torch
 
 from astra.config.schema import TwinSettings
+from astra.kernel.enums import ContextClass
 from astra.kernel.errors import ConfigurationError
 from astra.kernel.identifiers import TickId
 from astra.kernel.matrix import SymmetricMatrix
@@ -24,18 +25,17 @@ if TYPE_CHECKING:
 from astra.contracts.actuation import ControlCommand
 from astra.contracts.estimation import FastStateEstimate
 
+CONTEXT = ContextClass.HIGHWAY_CLEAR
 NOMINAL: tuple[float, ...] = (10.0, 20.0, 15.0, 0.3, 1.2)
 
 
 def _settings(**overrides: object) -> TwinSettings:
     base: dict[str, object] = {
         "physics_weight": 1.0,
-        "ewc_lambda": 10.0,
         "control_effectiveness": [0.0, 120.0],
         "hidden_width": 8,
         "adaptation_buffer": 4,
         "adaptation_steps": 10,
-        "fisher_sample_count": 6,
         "seed": 7,
     }
     base.update(overrides)
@@ -93,12 +93,12 @@ def test_the_digest_moves_when_adaptation_moves_the_twin(
 ) -> None:
     # The point of recording it: FB2 changes the model during a run, so a
     # verdict is only traceable if the record says which model produced it.
-    twin = _twin(actuation_space, twin_component, adaptation_buffer=2, ewc_lambda=0.0)
+    twin = _twin(actuation_space, twin_component, adaptation_buffer=2)
     before = twin.weights_digest
     command = ControlCommand(space=actuation_space, values=(0.9, -0.4))
 
     for _ in range(2):
-        twin.adapt(applied=command, measured=_state())
+        twin.adapt(applied=command, measured=_state(), context=CONTEXT)
 
     assert twin.weights_digest != before
 
@@ -108,7 +108,7 @@ def test_a_checkpoint_round_trips(
 ) -> None:
     trained = _twin(actuation_space, twin_component, seed=5)
     with torch.no_grad():
-        trained._network.output.bias.fill_(0.25)
+        trained._network.head(None).bias.fill_(0.25)
     expected = trained.predict(tick=TickId(1), state=_state()).command.values
     path = tmp_path / "nested" / "twin.pt"
     trained.save_checkpoint(path)

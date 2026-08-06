@@ -259,10 +259,6 @@ class TwinSettings(_Section):
             sets how strongly the twin is held to Newtonian consistency versus
             fitting its training data, which is the whole point of a PINN rather
             than a plain regressor. **No default** (A-4).
-        ewc_lambda: Strength of the Fisher-anchored elastic-weight-consolidation
-            penalty applied during online adaptation. Too low and adapting to
-            rain forgets the highway; too high and the twin cannot adapt at all.
-            The balance is empirical. **No default** (A-4).
         control_effectiveness: Row mapping a command vector to the lateral
             acceleration it produces, in the actuation space's channel order.
             This is a platform fact, not a core assumption, which is why it is
@@ -273,24 +269,17 @@ class TwinSettings(_Section):
             rather than empirical, so it carries a default.
         adaptation_buffer: Fresh measurements to accumulate before an EWC update
             fires. The validation plan specifies 50.
-        adaptation_steps: Gradient steps taken per consolidation. More than one
-            is required for the elastic penalty to do anything at all: on the
-            first step the parameters still sit on their anchor, where the
-            penalty has zero value *and* zero gradient.
-        fisher_sample_count: Historical samples the Fisher information is
-            estimated over. The validation plan specifies 200.
+        adaptation_steps: Gradient steps taken per consolidation.
         seed: Seed for weight initialisation. Present because A-5 requires a run
             to be byte-reproducible, and a randomly initialised network would
             defeat that in the one layer whose output feeds a gate.
     """
 
     physics_weight: NonNegativeFloat
-    ewc_lambda: NonNegativeFloat
     control_effectiveness: list[float]
     hidden_width: PositiveInt = 32
     adaptation_buffer: PositiveInt = 50
     adaptation_steps: PositiveInt = 10
-    fisher_sample_count: PositiveInt = 200
     seed: int = 0
 
     @field_validator("control_effectiveness")
