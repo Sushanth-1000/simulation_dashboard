@@ -426,6 +426,7 @@ def assemble_pipeline[PayloadT](
     audit_sink: JsonlAuditSink,
     initial_speed: MetresPerSecond = _STATIONARY,
     twin_checkpoint: Path | None = None,
+    shadow_fb2: bool = False,
     corpus: CalibrationCorpus | None = None,
     cold_path: ColdPathContext | None = None,
     policy: Policy | None = None,
@@ -440,6 +441,10 @@ def assemble_pipeline[PayloadT](
         extractor: Turns fused frames into measurements. Adapter-supplied.
         audit_sink: Where decision records are written.
         initial_speed: The speed the filter starts from.
+        shadow_fb2: Run a second twin that FB2 adapts and nothing reads, so a
+            long run can measure what online adaptation would do before it is
+            given authority over anything. Off by default; see
+            :meth:`~astra.runtime.pipeline.ControlPipeline._shadow`.
         twin_checkpoint: Trained twin weights. **Strongly recommended.** An
             untrained twin has random weights and predicts commands that are not
             merely inaccurate but physically absurd -- a lateral acceleration of
@@ -539,6 +544,21 @@ def assemble_pipeline[PayloadT](
     if twin_checkpoint is not None:
         twin.load_checkpoint(twin_checkpoint)
 
+    # A second twin of the same architecture, from the same checkpoint, that FB2
+    # is allowed to move. Built here rather than deep-copied so it goes through
+    # exactly the construction the real one did -- a shadow assembled by a
+    # different route would be measuring the route as much as the loop.
+    shadow_twin: PhysicsInformedTwin | None = None
+    if shadow_fb2:
+        shadow_twin = PhysicsInformedTwin(
+            settings=settings.twin,
+            space=space,
+            component=ComponentId(LayerId.L5_PINN_TWIN),
+            clock=clock,
+        )
+        if twin_checkpoint is not None:
+            shadow_twin.load_checkpoint(twin_checkpoint)
+
     statistical_gate = IcpStatisticalGate(
         calibration=calibration,
         classifier=classifier,
@@ -621,6 +641,7 @@ def assemble_pipeline[PayloadT](
         slow_period_ticks=slow_period_ticks,
         control_effectiveness=settings.twin.control_effectiveness,
         context=cold_path,
+        shadow_twin=shadow_twin,
     )
     return AssembledPipeline(
         pipeline=pipeline,

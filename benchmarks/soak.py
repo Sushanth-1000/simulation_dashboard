@@ -294,6 +294,14 @@ class WindowSummary:
             tests the exploration envelope before it tests the verdict.
             Reported, never gated: whether that ordering is correct is a design
             question this instrument has no standing to answer.
+        mean_shadow_divergence: Mean gap between the live twin's prediction and
+            the one a shadow twin running FB2 would have made, or ``None`` when
+            no shadow was running. Also never gated, and for a stronger reason:
+            FB2 is switched off, so this is a counterfactual and a criterion
+            built on it would be gating the run on something that did not happen.
+        max_shadow_divergence: The largest such gap in the window.
+        shadow_digest: The shadow twin's weights digest, so a flat divergence can
+            be told apart from a shadow that never moved.
     """
 
     index: int
@@ -316,6 +324,9 @@ class WindowSummary:
     origins: tuple[tuple[str, int], ...] = ()
     arbitrations: tuple[tuple[str, int], ...] = ()
     proposals_issued_under_veto: int = 0
+    mean_shadow_divergence: float | None = None
+    max_shadow_divergence: float | None = None
+    shadow_digest: str | None = None
 
     @property
     def veto_rate(self) -> float:
@@ -383,6 +394,10 @@ class _WindowAccumulator:
     origins: Counter[str] = field(default_factory=Counter)
     arbitrations: Counter[str] = field(default_factory=Counter)
     overridden: int = 0
+    shadow_total: float = 0.0
+    shadow_peak: float = 0.0
+    shadow_samples: int = 0
+    shadow_digest: str | None = None
 
     def observe(self, sample: TickSample) -> None:
         """Fold one tick into the window.
@@ -429,6 +444,12 @@ class _WindowAccumulator:
             if gate_verdict.verdict.is_blocking:
                 self.reasons[f"{gate_verdict.gate.value}:{gate_verdict.reason_code}"] += 1
 
+        if sample.shadow_divergence_m_s2 is not None:
+            self.shadow_total += sample.shadow_divergence_m_s2
+            self.shadow_peak = max(self.shadow_peak, sample.shadow_divergence_m_s2)
+            self.shadow_samples += 1
+            self.shadow_digest = sample.shadow_digest
+
     def close(self) -> WindowSummary:
         """Summarise the window and reset for the next one.
 
@@ -461,6 +482,11 @@ class _WindowAccumulator:
             origins=tuple(sorted(self.origins.items())),
             arbitrations=tuple(sorted(self.arbitrations.items())),
             proposals_issued_under_veto=self.overridden,
+            mean_shadow_divergence=(
+                self.shadow_total / self.shadow_samples if self.shadow_samples else None
+            ),
+            max_shadow_divergence=self.shadow_peak if self.shadow_samples else None,
+            shadow_digest=self.shadow_digest,
         )
         self.index += 1
         self.first_tick += self.ticks
@@ -480,6 +506,9 @@ class _WindowAccumulator:
         self.origins.clear()
         self.arbitrations.clear()
         self.overridden = 0
+        self.shadow_total = 0.0
+        self.shadow_peak = 0.0
+        self.shadow_samples = 0
         return summary
 
 
@@ -869,6 +898,7 @@ def run(
     seed: int,
     policy_path: Path | None,
     output: Path,
+    shadow_fb2: bool = False,
     progress_every: int,
     cold_path: str = "off",
 ) -> SoakReport:
@@ -883,6 +913,9 @@ def run(
         output: Directory for the window series, the summary and the audit log.
         progress_every: Print a progress line every this many windows. Zero
             silences it.
+        shadow_fb2: Run a second twin that FB2 adapts and nothing reads. The
+            run behaves identically either way; the only difference is that the
+            windows carry a divergence column and the report grows a section.
         cold_path: Which entry of :data:`COLD_PATH_CONTEXTS` to run under.
 
     Returns:
@@ -934,6 +967,7 @@ def run(
             directory=output / "audit",
             observer=observe,
             cold_path=cold_path_context(cold_path),
+            shadow_fb2=shadow_fb2,
         )
         wall = time.perf_counter() - started
         non_finite = accumulator.non_finite
@@ -1067,6 +1101,23 @@ def render(report: SoakReport) -> Iterable[str]:
             yield f"  {name:<34}{count:>12}"
     else:
         yield "  none ran -- the knowledge base was dormant"
+    shadowed = [w for w in report.windows if w.mean_shadow_divergence is not None]
+    if shadowed:
+        first, last = shadowed[0], shadowed[-1]
+        peak = max(w.max_shadow_divergence or 0.0 for w in shadowed)
+        digests = {w.shadow_digest for w in shadowed if w.shadow_digest}
+        yield ""
+        yield "  FB2 in shadow -- adapted, read by nothing, gating nothing"
+        yield (
+            f"  {'twin divergence':<34}"
+            f"{first.mean_shadow_divergence:>12.5f} -> {last.mean_shadow_divergence:.5f}"
+            f"  peak {peak:.5f}"
+        )
+        yield (
+            f"  {'distinct shadow digests':<34}{len(digests):>12}"
+            f"{'  -- the shadow never moved' if len(digests) <= 1 else ''}"
+        )
+
     yield ""
     yield "  criteria"
     for criterion in report.criteria:
@@ -1107,6 +1158,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             "before August 2026 used"
         ),
     )
+    parser.add_argument(
+        "--shadow-fb2",
+        action="store_true",
+        help=(
+            "run FB2 against a twin nothing reads, and report how far it would "
+            "have moved the model. Changes no verdict and gates no criterion"
+        ),
+    )
     parser.add_argument("--progress-every", type=int, default=10)
     arguments = parser.parse_args(argv)
 
@@ -1124,6 +1183,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         output=arguments.output,
         progress_every=arguments.progress_every,
         cold_path=arguments.cold_path,
+        shadow_fb2=arguments.shadow_fb2,
     )
     print()
     for line in render(report):

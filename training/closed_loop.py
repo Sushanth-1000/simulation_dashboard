@@ -235,6 +235,14 @@ class TickSample:
         pipeline_duration_ns: Wall-clock cost of ``pipeline.tick`` alone. The
             sensor publish, the plant step and this callback are outside it, so
             the figure describes ASTRA rather than the harness around it.
+        shadow_divergence_m_s2: How far the shadow twin's prediction has drifted
+            from the live one, in command units, or ``None`` when no shadow is
+            running. This is FB2's counterfactual: nothing in the run reads the
+            shadow, so the number says what adaptation *would* have changed
+            without anything having changed.
+        shadow_digest: The shadow twin's weights digest, or ``None``. A run that
+            reports a divergence of zero throughout should be checkable against
+            whether the shadow moved at all.
     """
 
     tick: int
@@ -244,6 +252,8 @@ class TickSample:
     speed_mps: float
     lateral_acceleration_mps2: float
     pipeline_duration_ns: int
+    shadow_divergence_m_s2: float | None = None
+    shadow_digest: str | None = None
 
 
 @dataclass(slots=True)
@@ -305,6 +315,7 @@ def drive_closed_loop(
     directory: Path | None = None,
     observer: Callable[[TickSample], None] | None = None,
     cold_path: ColdPathContext | None = None,
+    shadow_fb2: bool = False,
 ) -> ClosedLoopResult:
     """Run the pipeline against the plant, feeding issued commands back in.
 
@@ -322,6 +333,8 @@ def drive_closed_loop(
         observer: Called once per tick with a :class:`TickSample`, after the
             plant has applied the issued command. ``None`` -- the default --
             leaves the loop as it was.
+        shadow_fb2: Run FB2 against a twin nothing reads, so the run can report
+            what online adaptation would have done. Off by default.
         cold_path: What RCM needs to evaluate the knowledge base. ``None`` --
             the default, and what every run before the first soak used --
             leaves the cold path dormant: the arbitrator keeps its initial
@@ -357,6 +370,7 @@ def drive_closed_loop(
         twin_checkpoint=TWIN,
         corpus=CalibrationCorpus.read(CORPUS),
         cold_path=cold_path,
+        shadow_fb2=shadow_fb2,
         policy=policy,
     )
 
@@ -412,6 +426,10 @@ def drive_closed_loop(
                     speed_mps=float(plant._state[2]),  # noqa: SLF001
                     lateral_acceleration_mps2=previous_lateral,
                     pipeline_duration_ns=duration_ns,
+                    shadow_divergence_m_s2=(
+                        None if outcome.shadow is None else outcome.shadow.divergence
+                    ),
+                    shadow_digest=None if outcome.shadow is None else outcome.shadow.digest,
                 )
             )
         clock.advance(period)

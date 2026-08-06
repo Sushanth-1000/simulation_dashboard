@@ -91,7 +91,7 @@ class _Extractor:
 
 
 def _build(
-    tmp_path: Path, *, friction: float = DRY_FRICTION
+    tmp_path: Path, *, friction: float = DRY_FRICTION, shadow_fb2: bool = False
 ) -> tuple[AssembledPipeline[JsonValue], JsonlAuditSink, ManualClock, Seconds]:
     resolved = load_settings(environment="simulation", include_environment_variables=False)
     settings = resolved.settings
@@ -108,6 +108,7 @@ def _build(
         initial_speed=settings.shield.legal_speed_limit,
         twin_checkpoint=TWIN_CHECKPOINT,
         corpus=CalibrationCorpus.read(CORPUS_PATH),
+        shadow_fb2=shadow_fb2,
     )
     return built, sink, clock, Seconds(1.0 / settings.estimation.fast_rate_hz)
 
@@ -354,6 +355,107 @@ def test_a_nominal_drive_issues_nothing_labelled_speed_capped(tmp_path: Path) ->
         issued = outcome.record.issued  # type: ignore[attr-defined]
         assert issued is not None
         assert issued.origin is not CommandOrigin.SPEED_CAPPED
+
+
+# --------------------------------------------------------------------------- #
+# FB2 in shadow has no authority
+# --------------------------------------------------------------------------- #
+#
+# FB2 has never run. Rather than choose its step size and observe afterwards --
+# which is how `ewc_lambda` came to sit at a value that did nothing -- it runs
+# against a twin nothing reads, so a long drive can say what adaptation would
+# have done before it is allowed to do it.
+#
+# That argument is worth exactly as much as the isolation being real, which is
+# what these pin.
+
+
+def test_the_shadow_changes_no_command_and_no_verdict(tmp_path: Path) -> None:
+    # THE test. Same seed, same sensors, same everything: turning the shadow on
+    # must produce a bit-identical drive. If it does not, the shadow is not a
+    # shadow and every number it reports is contaminated by its own presence.
+    plain, plain_sink, plain_clock, period = _build(tmp_path / "plain")
+    with_shadow, shadow_sink, shadow_clock, _ = _build(tmp_path / "shadow", shadow_fb2=True)
+
+    plain_outcomes = list(_drive(plain, plain_clock, period, _nominal, ticks=24))
+    shadow_outcomes = list(_drive(with_shadow, shadow_clock, period, _nominal, ticks=24))
+    plain_sink.flush()
+    shadow_sink.flush()
+
+    for left, right in zip(plain_outcomes, shadow_outcomes, strict=True):
+        assert left.verdict is right.verdict  # type: ignore[attr-defined]
+        assert left.record.issued is not None  # type: ignore[attr-defined]
+        assert right.record.issued is not None  # type: ignore[attr-defined]
+        assert left.record.issued.command.values == pytest.approx(  # type: ignore[attr-defined]
+            right.record.issued.command.values  # type: ignore[attr-defined]
+        )
+
+
+def test_the_live_twin_never_moves_while_the_shadow_runs(tmp_path: Path) -> None:
+    # The twin the gates consult is the one the run started with. FB2 being
+    # switched on in shadow must not become FB2 being switched on.
+    built, sink, clock, period = _build(tmp_path, shadow_fb2=True)
+
+    outcomes = list(_drive(built, clock, period, _nominal, ticks=24))
+    sink.flush()
+
+    digests = {outcome.record.twin_weights_digest for outcome in outcomes}  # type: ignore[attr-defined]
+
+    assert len(digests) == 1, "the live twin moved; only the shadow may adapt"
+
+
+def test_no_shadow_runs_unless_one_is_asked_for(tmp_path: Path) -> None:
+    # Off by default, and observably so. A shadow that appeared without being
+    # requested would put a second twin on every run's cold path.
+    built, sink, clock, period = _build(tmp_path)
+
+    outcomes = list(_drive(built, clock, period, _nominal, ticks=4))
+    sink.flush()
+
+    assert all(outcome.shadow is None for outcome in outcomes)  # type: ignore[attr-defined]
+
+
+def test_the_shadow_reports_a_divergence_and_a_digest(tmp_path: Path) -> None:
+    # The control for the tests above, which would all pass on a shadow that was
+    # never constructed.
+    built, sink, clock, period = _build(tmp_path, shadow_fb2=True)
+
+    outcomes = list(_drive(built, clock, period, _nominal, ticks=8))
+    sink.flush()
+
+    for outcome in outcomes:
+        assert outcome.shadow is not None  # type: ignore[attr-defined]
+        assert outcome.shadow.digest  # type: ignore[attr-defined]
+        assert outcome.shadow.divergence >= 0.0  # type: ignore[attr-defined]
+
+
+def test_the_shadow_starts_agreeing_with_the_live_twin(tmp_path: Path) -> None:
+    # Both load the same checkpoint, so before FB2's first consolidation the two
+    # predictions must be identical. A non-zero divergence on tick zero would
+    # mean the shadow started somewhere else, and every later reading would be
+    # measuring that difference rather than adaptation.
+    built, sink, clock, period = _build(tmp_path, shadow_fb2=True)
+
+    first = next(iter(_drive(built, clock, period, _nominal, ticks=1)))
+    sink.flush()
+
+    assert first.shadow is not None  # type: ignore[attr-defined]
+    assert first.shadow.divergence == pytest.approx(0.0)  # type: ignore[attr-defined]
+
+
+def test_the_shadow_is_not_written_into_the_evidence_log(tmp_path: Path) -> None:
+    # The audit log is a certification artefact and says what the system did. A
+    # counterfactual from a loop that is switched off is a different kind of
+    # claim, and filing the two together would leave a reader years from now no
+    # way to tell them apart.
+    built, sink, clock, period = _build(tmp_path, shadow_fb2=True)
+
+    list(_drive(built, clock, period, _nominal, ticks=4))
+    sink.flush()
+
+    written = "".join(path.read_text(encoding="utf-8") for path in tmp_path.rglob("*.jsonl"))
+
+    assert "shadow" not in written
 
 
 # --------------------------------------------------------------------------- #

@@ -152,6 +152,32 @@ class ColdPathContext:
 
 
 @dataclass(frozen=True, slots=True)
+class ShadowAdaptation:
+    """What FB2 *would* have done this tick, had it been switched on.
+
+    Deliberately not part of :class:`~astra.contracts.audit.DecisionRecord`. The
+    audit log is a certification artefact and describes what the system did; a
+    counterfactual produced by a loop that is switched off is a different kind of
+    claim, and filing the two together would be a category error that a reader
+    years from now has no way to unpick.
+
+    Attributes:
+        divergence: The largest absolute per-channel difference between the
+            prediction the live twin made and the one the shadow would have made.
+            Zero until the shadow's first consolidation fires.
+        digest: The shadow twin's weights digest, so a run can show the shadow
+            actually moved rather than assuming it did.
+        adapted: Whether this tick's outcome was handed to the shadow at all.
+            False on a tick that issued nothing, or one with no context to adapt
+            in -- both are cases FB2 would also have skipped.
+    """
+
+    divergence: float
+    digest: str
+    adapted: bool
+
+
+@dataclass(frozen=True, slots=True)
 class TickOutcome:
     """Everything one tick produced.
 
@@ -164,11 +190,14 @@ class TickOutcome:
         failed_stage: The pipeline stage that raised, if one did. ``None`` on a
             tick that completed, whether the verdict was PASS or VETO -- a VETO
             is a working pipeline reaching a conclusion, not a failure.
+        shadow: FB2's counterfactual, when a shadow twin was supplied. ``None``
+            means no shadow was running, which is the default.
     """
 
     record: DecisionRecord
     issued: IssuedCommand | None = None
     failed_stage: str | None = None
+    shadow: ShadowAdaptation | None = None
 
     @property
     def was_issued(self) -> bool:
@@ -215,6 +244,7 @@ class GovernancePipeline[PayloadT]:
         "_proposer",
         "_run",
         "_sensor_bus",
+        "_shadow_twin",
         "_shield",
         "_slow_period_ticks",
         "_staleness_budget",
@@ -246,6 +276,7 @@ class GovernancePipeline[PayloadT]:
         slow_period_ticks: int,
         context: ColdPathContext | None = None,
         control_effectiveness: Sequence[float] | None = None,
+        shadow_twin: PhysicsInformedTwin | None = None,
     ) -> None:
         """Assemble the pipeline from already-constructed layers.
 
@@ -259,7 +290,8 @@ class GovernancePipeline[PayloadT]:
             proposer: L4.
             proposal_writer: Core-A's end of the one-way channel.
             proposal_reader: Core-B's end of the one-way channel.
-            twin: L5.
+            twin: L5. Never adapted by the tick loop: FB2 is not wired, and
+                repairing its mechanism (ADR-0019) did not switch it on.
             statistical_gate: L6.
             physical_gate: L7b.
             shield: L7a.
@@ -283,6 +315,16 @@ class GovernancePipeline[PayloadT]:
                 the thresholds, and the three signature components the pipeline
                 cannot observe. ``None`` leaves the cold path dormant, which is
                 what every test that only exercises the hot path wants.
+            shadow_twin: A second twin, of the same architecture and starting
+                from the same checkpoint, which **is** fed executed outcomes.
+                Nothing reads its predictions: it exists so a long run can
+                measure how far FB2 would have moved the twin, and whether that
+                movement would have been an improvement, before FB2 is given any
+                authority over a command. ``None``, the default, runs no shadow.
+
+                The idiom is L9's, not a new one -- :class:`ShadowExecution`
+                stages a candidate calibration profile and measures its
+                divergence before committing to it, for the same reason.
         """
         self._run = run
         self._config_hash = config_hash
@@ -293,6 +335,7 @@ class GovernancePipeline[PayloadT]:
         self._proposal_writer = proposal_writer
         self._proposal_reader = proposal_reader
         self._twin = twin
+        self._shadow_twin = shadow_twin
         self._statistical_gate = statistical_gate
         self._physical_gate = physical_gate
         self._shield = shield
@@ -361,6 +404,9 @@ class GovernancePipeline[PayloadT]:
         )
 
         self._reanchor(issued)
+        shadow = self._shadow(
+            tick=tick, state=state, issued=issued, prediction=prediction, trust=trust
+        )
         self._maybe_arbitrate(tick=tick, frame=frame, frame_health=frame_health, state=state)
 
         record = DecisionRecord(
@@ -380,7 +426,7 @@ class GovernancePipeline[PayloadT]:
             issued=issued,
         )
         self._audit_sink.record_decision(record)
-        return TickOutcome(record=record, issued=issued)
+        return TickOutcome(record=record, issued=issued, shadow=shadow)
 
     # ----------------------------------------------------------------- #
     # Stages
@@ -566,6 +612,68 @@ class GovernancePipeline[PayloadT]:
             context: The new cold-path context.
         """
         self._context = context
+
+    def _shadow(
+        self,
+        *,
+        tick: TickId,
+        state: FastStateEstimate,
+        issued: IssuedCommand | None,
+        prediction: PredictedCommand,
+        trust: TrustAssessment,
+    ) -> ShadowAdaptation | None:
+        """Run FB2 against a twin nothing reads, and report what it would do.
+
+        Placed after the command has been issued, on the cold path, so the extra
+        forward pass cannot enter the hot-path latency budget. Nothing here can
+        change this tick's verdict or the next one's: the shadow twin is not the
+        twin the gates consult, and the only thing that leaves this method is a
+        number for a report.
+
+        That isolation is the whole point. FB2 has never run, and the honest way
+        to find out whether it should is to measure it -- how far it moves the
+        twin over a real drive, and whether the movement tracks the plant or
+        wanders. Choosing its step size first and observing afterwards is how
+        ``ewc_lambda`` came to be set to a value that did nothing for months.
+
+        Args:
+            tick: The control tick.
+            state: The fast state estimate, both the adaptation's target and the
+                input the shadow's prediction is read at.
+            issued: The command actually sent to the actuators, or ``None``.
+            prediction: What the live twin predicted, to difference against.
+            trust: Supplies the context the shadow adapts in.
+
+        Returns:
+            The counterfactual, or ``None`` if no shadow twin was supplied.
+        """
+        if self._shadow_twin is None:
+            return None
+
+        context = trust.context_class
+        shadow = self._shadow_twin.predict(tick=tick, state=state, context=context)
+        divergence = max(
+            (
+                abs(mine - theirs)
+                for mine, theirs in zip(
+                    prediction.command.values, shadow.command.values, strict=True
+                )
+            ),
+            default=0.0,
+        )
+
+        # Adapt on the *issued* command, not the proposal: FB2's contract is that
+        # the twin learns the vehicle's response, and the vehicle responds to
+        # what it was told, which on a blocked tick is the fallback's command
+        # rather than the proposer's.
+        adapted = issued is not None
+        if issued is not None:
+            self._shadow_twin.adapt(applied=issued.command, measured=state, context=context)
+        return ShadowAdaptation(
+            divergence=divergence,
+            digest=self._shadow_twin.weights_digest,
+            adapted=adapted,
+        )
 
     def _reanchor(self, issued: IssuedCommand | None) -> None:
         """Feed the issued command back into the estimator. Feedback loop FB1.
