@@ -170,10 +170,14 @@ class AutomotiveCommandProjector:
     Attributes:
         steering_index: Which channel steers.
         effectiveness: Lateral acceleration produced per unit of that channel.
+        throttle_index: Which channel drives.
+        brake_index: Which channel brakes.
     """
 
     steering_index: int
     effectiveness: float
+    throttle_index: int = THROTTLE_INDEX
+    brake_index: int = BRAKE_INDEX
 
     def __post_init__(self) -> None:
         """Validate the effectiveness.
@@ -206,6 +210,38 @@ class AutomotiveCommandProjector:
         steer = target / self.effectiveness
         return tuple(
             steer if index == self.steering_index else float(value)
+            for index, value in enumerate(values)
+        )
+
+    def with_speed_cap(
+        self, values: Sequence[float], *, current_speed: float, cap: float
+    ) -> tuple[float, ...]:
+        """Return the command with propulsion withdrawn if the cap is exceeded.
+
+        Below the cap, unchanged: a cap is a ceiling, not a target. At or above
+        it, throttle goes to zero and the brake goes full on. Full rather than
+        proportional because this is a *fail-safe* posture, not a controller --
+        proportional braking would need a gain, a gain is a tuning parameter,
+        and a tuning parameter in the fail-safe path is a thing that can be set
+        wrong. The FSM has already decided the situation warrants a cap; the
+        cheapest correct response is to stop approaching it.
+
+        Args:
+            values: The command vector to adjust, in actuation-space order.
+            current_speed: The vehicle's speed, in m/s.
+            cap: The ceiling the fail-safe posture imposes, in m/s.
+
+        Returns:
+            The vector with the two longitudinal channels set, or unchanged.
+        """
+        if current_speed <= cap:
+            return tuple(float(value) for value in values)
+        return tuple(
+            0.0
+            if index == self.throttle_index
+            else 1.0
+            if index == self.brake_index
+            else float(value)
             for index, value in enumerate(values)
         )
 

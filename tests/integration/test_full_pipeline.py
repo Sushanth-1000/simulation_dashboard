@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from astra.config.loader import load_settings
+from astra.contracts.actuation import CommandOrigin
 from astra.contracts.sensing import SensorSample
 from astra.kernel.enums import FailSafeState, GateId, SensorModality, Verdict
 from astra.kernel.identifiers import RunId, TickId
@@ -28,7 +29,7 @@ from astra.kernel.units import Probability, Seconds
 from astra.layers.l2_estimation.measurement import fast_measurement, slow_measurement
 from astra.layers.l3_trust.corpus import CalibrationCorpus
 from astra.observability.audit import JsonlAuditSink
-from astra.runtime.assembly import assemble_pipeline
+from astra.runtime.assembly import BRAKE_INDEX, THROTTLE_INDEX, assemble_pipeline
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -46,6 +47,12 @@ CORPUS_PATH = Path("var/calibration/synthetic.json")
 # configured jerk limit of 8 m/s^3 over a 50 ms tick, so a ramped turn is
 # comfortably admissible and the physical gate has no reason to fire.
 RAMP_PER_TICK = 0.2
+# Read rather than written: these are durations expressed in ticks, and the last
+# time a test hardcoded one it went on asserting a threshold the config no
+# longer had.
+THETA_HALT = load_settings(
+    environment="simulation", include_environment_variables=False
+).settings.failsafe.ood_threshold_halt
 
 pytestmark = pytest.mark.skipif(
     not (TWIN_CHECKPOINT.exists() and CORPUS_PATH.exists()),
@@ -272,6 +279,81 @@ def test_the_same_manoeuvre_fires_a_gate_only_once_the_road_is_ice(
     assert dry == set(), "an admissible ramped turn on dry tarmac must fire nothing"
     assert dry < ice, "ice must fire strictly more gates than dry tarmac"
     assert GateId.DETERMINISTIC in ice
+
+
+# --------------------------------------------------------------------------- #
+# The fail-safe posture reaches an actuator
+# --------------------------------------------------------------------------- #
+#
+# Finding F2 of the 2 August soak review: every layer below was correct and the
+# composition was not. L8 computed a speed cap, recorded it in the evidence and
+# reported it to L9; L9 wrote SPEED_CAPPED into the origin. No one ever changed
+# a number in the command vector. A run could sit in HALT -- a commanded stop --
+# holding 17.2 m/s, and the audit log would agree that it was capped.
+#
+# The unit tests around the arbiter and the projector pin the two halves. These
+# pin the wiring, which is where the defect actually lived, and they are the
+# only tests in the suite that watch a *posture* become a *pedal*.
+
+
+def _speeding(index: int) -> dict[str, float]:
+    # 45 m/s against a 33.3 m/s limit: the deterministic gate blocks every tick
+    # and nothing else has to be provoked. Sustained refusal is what walks the
+    # machine down, and refusal is all this needs to be.
+    del index
+    return {"v": 45.0, "a": 0.0}
+
+
+def test_a_sustained_refusal_walks_the_posture_down_to_halt(tmp_path: Path) -> None:
+    # The premise of the two tests below. If the drive never reached HALT they
+    # would pass vacuously, asserting things about an empty list.
+    built, sink, clock, period = _build(tmp_path)
+
+    outcomes = list(_drive(built, clock, period, _speeding, ticks=THETA_HALT + 4))
+    sink.flush()
+
+    states = [outcome.record.failsafe.state for outcome in outcomes]  # type: ignore[attr-defined]
+
+    assert states[0] is FailSafeState.NOMINAL
+    assert states[-1] is FailSafeState.HALT
+
+
+def test_the_command_issued_in_halt_actually_brakes(tmp_path: Path) -> None:
+    # THE regression test for F2. HALT's cap is zero and the vehicle is doing
+    # 45 m/s, so the issued vector must command a stop -- not merely be labelled
+    # as though it had been.
+    built, sink, clock, period = _build(tmp_path)
+
+    outcomes = list(_drive(built, clock, period, _speeding, ticks=THETA_HALT + 4))
+    sink.flush()
+
+    halted = [
+        outcome.record.issued  # type: ignore[attr-defined]
+        for outcome in outcomes
+        if outcome.record.failsafe.state is FailSafeState.HALT  # type: ignore[attr-defined]
+    ]
+
+    assert halted, "the drive never reached HALT; see the test above"
+    for issued in halted:
+        assert issued is not None
+        assert issued.origin is CommandOrigin.SPEED_CAPPED
+        assert issued.command.values[THROTTLE_INDEX] == pytest.approx(0.0)
+        assert issued.command.values[BRAKE_INDEX] == pytest.approx(1.0)
+
+
+def test_a_nominal_drive_issues_nothing_labelled_speed_capped(tmp_path: Path) -> None:
+    # The control. A cap that binds when there is no cap would be a brake that
+    # comes on for no reason, which is its own hazard -- and it would make the
+    # test above pass for the wrong reason.
+    built, sink, clock, period = _build(tmp_path)
+
+    outcomes = list(_drive(built, clock, period, _nominal, ticks=12))
+    sink.flush()
+
+    for outcome in outcomes:
+        issued = outcome.record.issued  # type: ignore[attr-defined]
+        assert issued is not None
+        assert issued.origin is not CommandOrigin.SPEED_CAPPED
 
 
 # --------------------------------------------------------------------------- #

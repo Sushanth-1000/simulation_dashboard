@@ -74,15 +74,20 @@ class CommandOrigin(StrEnum):
     """The deterministic PID controller governed, because a gate vetoed or the FSM left NOMINAL."""
 
     SPEED_CAPPED = "SPEED_CAPPED"
-    """Issued while the L8 state machine reported a speed cap.
+    """The fail-safe speed cap altered this command.
 
-    **An attribution label, not a transformation.** The command carrying it is
-    clamped to the actuation space and nothing else -- the identical call the
-    ``PROPOSED`` branch makes -- so a ``SPEED_CAPPED`` record and a ``PROPOSED``
-    one describe the same vector. The repository's own test says so in its name:
-    ``test_a_fail_safe_cap_is_recorded_in_the_origin``. Why the cap is not
-    applied, and what it would take to apply it, are in
-    :class:`~astra.kernel.enums.FailSafeState`."""
+    Propulsion withdrawn and braking applied because the vehicle was at or above
+    the ceiling the L8 state machine imposes. Recorded **only when the cap
+    actually changed the vector**, so the label distinguishes a capped command
+    from one merely issued while a cap was in force.
+
+    It did not, until 2 August 2026. The cap was one branch among four,
+    reachable only on a tick that was neither blocked nor exploring, and that
+    branch clamped to the actuation space exactly as the uncapped branch did --
+    so a ``SPEED_CAPPED`` record described a vector bit-identical to a
+    ``PROPOSED`` one. In a 100,000-tick run the vehicle held 17.2 m/s in HALT,
+    whose cap is 0.0 m/s, with 99,000 ticks labelled capped. The cap is now
+    applied to whatever governed, last, because a posture is not a branch."""
 
     EXPLORATION_BOUNDED = "EXPLORATION_BOUNDED"
     """A bounded safe-exploration command, issued when no admissible profile was found."""

@@ -511,22 +511,87 @@ decision with a cost, and the cost accrues on a calendar rather than a backlog.
 
 # P2 — Required for the safety argument
 
-## P2.1 — The `CommandProjector` seam — HALF DONE, 2 Aug 2026
+## ~~P2.1 — The `CommandProjector` seam~~ — DONE, 2 Aug 2026
 
-**The L7a half is done.** The shield gained a fourth bound,
-`|position_y| <= corridor_half_width`, after six options were compared. It stays
-*reactive* — a predictive L7a would share `control_effectiveness` with L7b, so
-one wrong platform constant would fail both gates together, and its independence
-comes precisely from depending on nothing but measured state and configured
-bounds. A corridor rather than a lane, so NFR5 survives.
+Both halves closed. Finding F2 — *the fail-safe speed cap is recorded and never
+enforced* — is fixed, and the exit criterion the original entry named, *"a test
+that a command issued in HALT decelerates the vehicle"*, now exists and passes.
+
+### What F2 actually was
+
+Every layer was individually correct and the composition was not. L8 computed a
+cap, wrote it into the evidence and reported it to L9. L9 wrote `SPEED_CAPPED`
+into the issued command's origin. **Nobody ever changed a number in the command
+vector.** A 100,000-tick run sat in HALT — a commanded stop — holding 17.2 m/s,
+and every audit row agreed it had been capped. A label had been standing in for
+an actuation for the entire life of the pipeline.
+
+### Decisions taken
+
+**Decision 1 — how a cap in m/s becomes a command in throttle/brake/steer.**
+
+| Option | Benefit | Drawback | |
+|---|---|---|---|
+| **A. Extend `CommandProjector` with `with_speed_cap(values, *, current_speed, cap)`, implemented by the automotive adapter** | The one existing seam already carries platform knowledge out of the core; L9 keeps saying "cap the speed" and stays ignorant of which channel brakes. NFR5 survives untouched | Grows a port that was introduced for something else (ADR-0017's rate limiter) | **chosen** |
+| B. Let L9 index the brake channel directly | Fewest lines | L9 becomes a road-vehicle component. NFR5's domain-independence claim dies in the one layer that has actuation authority (SI-7) | rejected |
+| C. Have L8 emit a command rather than a cap | The layer that decides the posture also expresses it | Breaks SI-7 outright: L8 gains actuation authority, and the invariant that L9 is the *sole* issuer is the load-bearing one | rejected |
+
+**Decision 2 — full braking or proportional.** Full. Proportional needs a gain, a
+gain is a tuning parameter, and a tuning parameter in the fail-safe path is a
+thing that can be set wrong. The FSM has already decided the situation warrants
+a cap; the response does not need to be gentle, it needs to be right.
+
+**Decision 3 — brake, or merely withdraw throttle.** Brake. Withdrawing throttle
+is *coasting*, and this plant has no drag, so a coasting vehicle in HALT never
+stops — which is precisely the 17.2 m/s observed. Pinned by
+`test_the_cap_brakes_rather_than_merely_coasting`.
+
+**Decision 4 — where in `issue()` the cap applies.**
+
+| Option | Benefit | Drawback | |
+|---|---|---|---|
+| **A. Restructure into `_govern()` then `_speed_capped()`, applying the cap *last* to whatever governed** | The cap binds on every path — proposed, rate-limited, fallback, exploring. Nothing can route around it | Requires threading `FastStateEstimate` through `issue()` and its port | **chosen** |
+| B. Plumb the cap into the fallback's `target_speed` | Reuses the controller already there | Amends the fallback's written contract that *"it does not take the FSM posture"* — for no gain, since A reaches the same vehicles without touching it | rejected |
+| C. Leave it as a fourth branch beside the others | Smallest diff | Unreachable in HALT: blocked ticks return the fallback first, so the branch that mattered most would never run. This *is* the original bug | rejected |
+
+**Decision 5 — when to claim `SPEED_CAPPED`.** Only when the projection actually
+changed the vector. A cap the vehicle is already within changes nothing, and an
+origin that says otherwise is the same class of defect as F2 itself: evidence
+describing an intervention that did not occur.
+
+### Tests
+
+Fourteen in a new `tests/unit/test_command_projector.py` — the adapter had *no*
+direct tests, having been added with ADR-0017 and exercised only through a stub.
+Five in `test_l9_arbiter.py` for the arbiter's side, including the cap binding on
+blocked and exploring ticks. Three in `test_full_pipeline.py` for the wiring,
+which is where the defect actually lived: a sustained refusal walks the posture
+to HALT, the issued command brakes, and a nominal drive labels nothing capped.
+
+### Results
+
+Gate green — 2,639 passed, 97.95 % coverage, ruff + mypy --strict +
+import-linter clean. A 100,000-tick soak still passes all ten criteria
+(`var/soak/p21b-100k`): deviation 0.0290 → 0.0298 m, p99 ×0.59, RSS +0.2 MiB.
+
+**Honest limitation:** the soak does not exercise this path. Its FSM stays in
+NOMINAL for all 100,000 ticks, so there is never a cap to enforce — which is the
+correct outcome for a healthy drive, and the reason the integration test provokes
+HALT deliberately rather than waiting for one. Enforcement under a *fault* rather
+than a deliberate provocation stays open until P4.2's fault injection.
+
+### The L7a half, decided earlier the same day
+
+The shield gained a fourth bound, `|position_y| <= corridor_half_width`, after
+six options were compared. It stays *reactive* — a predictive L7a would share
+`control_effectiveness` with L7b, so one wrong platform constant would fail both
+gates together, and its independence comes precisely from depending on nothing
+but measured state and configured bounds. A corridor rather than a lane, so NFR5
+survives.
 
 Pinned limitation: the bound reads the *estimate*, so it refuses a departure the
-filter knows about and is blind to one it does not. Had it existed before
-lateral position was observable it would have passed every tick.
-
-**The speed-cap half is open** — see below. It amends the fallback controller's
-written design contract ("it does not take the FSM posture"), so it wants its own
-ADR.
+filter knows about and is blind to one it does not. Had it existed before lateral
+position was observable it would have passed every tick.
 
 <details><summary>Original entry</summary>
 

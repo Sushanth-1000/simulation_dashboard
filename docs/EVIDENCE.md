@@ -37,7 +37,7 @@ Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 tick
 
 | # | Claim | Value | Produced by | Date |
 |:--:|---|---|---|:--:|
-| E-1 | Quality gate is green | **2,618 tests, 97.88% coverage**, `ruff` + `mypy --strict` over 140 files + **12** import contracts, 0 broken | `make check` | 2 Aug |
+| E-1 | Quality gate is green | **2,639 tests, 97.95% coverage**, `ruff` + `mypy --strict` over 140 files + **12** import contracts, 0 broken | `make check` | 2 Aug |
 | E-2 | The closed loop is stable over a long run | **All ten soak criteria pass over 100,000 ticks** | `python -m benchmarks.soak --ticks 100000 --window 1000` | 2 Aug |
 | E-3 | A command is issued on every tick | **100,000 of 100,000**, and 400,000 of 400,000 across the four runs of the day | as E-2 | 2 Aug |
 | E-4 | The proposer's commands are accepted | `PROPOSED` on **99,997** ticks; **3** vetoed, all answered by the rate limiter. Veto rate 3×10⁻⁵, which the console rounds to 0.0% — the JSON is authoritative | as E-2, `summary.json` | 2 Aug |
@@ -57,6 +57,7 @@ Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 tick
 | E-22 | The closed loop is stable **under sensor noise** | All ten criteria over 100,000 ticks with readings drawn at the declared sigmas: `PROPOSED` on **99,911** ticks, `RATE_LIMITED` on 89, lane deviation **0.0290 → 0.0298 m**, fail-safe never leaving NOMINAL, resident +0.1 MiB, p99 ×0.81 | `python -m benchmarks.soak --ticks 100000 --window 1000` | 2 Aug |
 | E-23 | The Trust Index is a graded index, not a flag | Distinct values across 8,001 ticks: **2 → 5 → 90**. Mean 0.960, p05 0.902, p50 0.964, p95 1.000 | as E-22, `trust.trust_index` in the audit log | 2 Aug |
 | E-18 | The Trust Index and the gate were calibrated against incompatible statistics | Gate scores span **1.155–1.191**; innovations span **0.518–7.497** (clear) and **7.549–154.8** (degraded). Sharing one distribution pinned the Trust Index to **2 distinct values across 4,001 ticks**. Separating them gave 5; matching the filter's `R` to the injected noise on top gave 90 — see E-23 | `python -m training.generate_calibration --policy var/policy/synthetic.pt`, then read `innovations` in the corpus | 2 Aug |
+| E-24 | The fail-safe speed cap constrains an actuator | Driving the **assembled** pipeline into HALT (whose cap is 0.0 m/s) at 45 m/s: every tick in HALT issues throttle **0.0**, brake **1.0**, origin `SPEED_CAPPED`. A nominal drive issues nothing so labelled. Before P2.1 the identical situation issued a bit-identical command to the uncapped path — see finding F2 | `pytest tests/integration/test_full_pipeline.py -k halt_actually_brakes` | 2 Aug |
 
 ### Controlled comparisons
 
@@ -83,8 +84,8 @@ claim it, that is a defect and is named.
 | N-5 | **Coverage on real driving** | E-12 shows the quantile arithmetic is right, against a corpus drawn from a world the twin already models |
 | N-6 | **Domain independence (NFR5, assumption A-1)** | Asserted and structurally defended, never tested. Needs a non-automotive profile through the pipeline without touching `src/astra/` outside adapters |
 | N-7 | **Three of four feedback loops** | FB1 is wired. FB2 (`adapt`), FB3 (`recalibrate`) and FB4 exist and are never called from the tick loop; the twin digest was constant across all 400,000 ticks measured |
-| N-8 | **The fail-safe speed cap constrains anything** | `speed_cap` is recorded and read by no issue path. Open as P2.1 |
-| N-9 | **The deterministic shield's contribution** | L7a vetoed **once** in ~500,000 ticks. It is a state monitor and cannot see a lane departure. Open as P2.1/§6.3 |
+| ~~N-8~~ | ~~**The fail-safe speed cap constrains anything**~~ | Closed by P2.1 — now E-24. What remains undemonstrated is enforcement under an *injected fault* rather than a deliberately provoked one: open as P4.2 |
+| N-9 | **The deterministic shield's contribution** | L7a vetoed **once** in ~500,000 ticks. It is a state monitor and cannot see a lane departure. The corridor bound added by P2.1 gives it one that it can, but no run has yet fired it |
 | N-10 | **Tamper-evidence of the evidence log** | Integrity-checked, not tamper-evident. No threat model, no signed artefacts, no key management |
 | N-11 | **Anything about a real vehicle** | The UKF has met only synthetic dynamics. Technical-debt item 1 |
 | N-12 | **The paper's §5 validation drive** | 21 minutes, seven phases, 47 evidence tuples — never run. Recorded in `WORK_PLAN.md` §1.1 |
@@ -97,7 +98,7 @@ Feeding [`PENDING.md`](PENDING.md) P1.4, documentation sync.
 
 | Where | Claim | Status |
 |---|---|---|
-| `README.md` | "2 513 tests, 97.97% coverage" | **Corrected 2 Aug** to 2,611 / 97.89% (E-1) |
+| `README.md` | "2 513 tests, 97.97% coverage" | **Corrected 2 Aug** to 2,639 / 97.95% (E-1) |
 | `README.md` | "Full ten-layer tick p99 **1.98 ms**" | **Corrected 2 Aug.** The soak measures **9.3 ms** p99 for the full tick; `benchmarks/latency.py` measures a *subset* (L1+L2+L7a+L8) at 0.811 ms (E-10). Neither was "the full ten-layer tick" at 1.98 ms, and the two must not be compared |
 | `README.md` | "Closed-loop over 400 ticks: trained policy 41.0% veto rate and 0.383 m mean lane deviation vs 59.8% / 0.836 m" | **Corrected 2 Aug.** Measured with a policy that stopped the vehicle, an unobservable lateral position, a corpus harvested from a different proposer, and a plant integrating 2.5× fast. Superseded by E-4, E-5, E-13 |
 | `docs/PROJECT_STATE_AND_ROADMAP.md` | Contract, certification-field and layer-status counts | **Open.** Not re-verified since 31 July |

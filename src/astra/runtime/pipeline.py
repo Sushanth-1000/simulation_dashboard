@@ -349,7 +349,12 @@ class GovernancePipeline[PayloadT]:
         verdict = self._adjudicate(tick=tick, proposal=proposal, prediction=prediction, state=state)
         failsafe = self._failsafe.observe(tick=tick, verdict=verdict)
         issued = self._issue(
-            tick=tick, proposal=proposal, verdict=verdict, failsafe=failsafe, trust=trust
+            tick=tick,
+            proposal=proposal,
+            verdict=verdict,
+            failsafe=failsafe,
+            trust=trust,
+            state=state,
         )
 
         self._reanchor(issued)
@@ -503,6 +508,7 @@ class GovernancePipeline[PayloadT]:
         verdict: SafetyVerdict,
         failsafe: FailSafeSnapshot,
         trust: TrustAssessment,
+        state: FastStateEstimate,
     ) -> IssuedCommand | None:
         """Ask L9 for the final command.
 
@@ -512,6 +518,7 @@ class GovernancePipeline[PayloadT]:
             verdict: Core-B's combined verdict.
             failsafe: The posture after this tick.
             trust: The Trust Index, a routing input for L9.
+            state: The fast state estimate, for the fail-safe speed cap.
 
         Returns:
             The issued command, or ``None`` if the arbitrator could not produce
@@ -525,6 +532,7 @@ class GovernancePipeline[PayloadT]:
                 verdict=verdict,
                 failsafe=failsafe,
                 trust=trust,
+                state=state,
             )
         except AstraError:
             return None

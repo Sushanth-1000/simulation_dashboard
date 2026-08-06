@@ -404,6 +404,36 @@ class CommandProjector(Protocol):
         """
         ...
 
+    def with_speed_cap(
+        self, values: Sequence[float], *, current_speed: float, cap: float
+    ) -> tuple[float, ...]:
+        """Return the command with propulsion withdrawn if the cap is exceeded.
+
+        The other half of the platform knowledge L9 lacks. A fail-safe speed cap
+        arrives in m/s and the actuation space is throttle, brake and steer;
+        turning one into the other needs to know which channel drives, which
+        brakes, and that steering is none of its business.
+
+        **Braking, not just coasting.** Withdrawing propulsion is not enough:
+        HALT's cap is 0.0 m/s -- a commanded stop -- and a vehicle that merely
+        stops accelerating is still travelling. On a platform with drag the
+        distinction is a matter of time; on one without it, the vehicle never
+        stops at all.
+
+        Below the cap the command passes through untouched. A cap is a ceiling,
+        not a target, and a projector that also *accelerated* toward it would
+        make the fail-safe posture into a controller.
+
+        Args:
+            values: The command vector to adjust, in actuation-space order.
+            current_speed: The vehicle's speed, in m/s.
+            cap: The ceiling the fail-safe posture imposes, in m/s.
+
+        Returns:
+            A vector in the same space, unchanged when within the cap.
+        """
+        ...
+
 
 @runtime_checkable
 class DeterministicShield(Protocol):
@@ -494,6 +524,7 @@ class CalibrationArbiter(Protocol):
         verdict: SafetyVerdict,
         failsafe: FailSafeSnapshot,
         trust: TrustAssessment,
+        state: FastStateEstimate,
     ) -> IssuedCommand:
         """Decide and issue the final actuator command for this tick.
 
@@ -509,6 +540,8 @@ class CalibrationArbiter(Protocol):
             verdict: Core-B's combined verdict.
             failsafe: The FSM's posture, supplying speed caps and permissions.
             trust: The Trust Index, used for routing only.
+            state: The fast state estimate. Read for the speed the fail-safe cap
+                is compared against, and nothing else.
 
         Returns:
             The command actually sent to the actuators.

@@ -16,6 +16,7 @@ from astra.contracts.actuation import (
     ProposedCommand,
 )
 from astra.contracts.assurance import FailSafeSnapshot, GateVerdict, SafetyVerdict, TrustAssessment
+from astra.contracts.estimation import FastStateEstimate
 from astra.contracts.governance import (
     ArbitrationDecision,
     CalibrationProfile,
@@ -157,12 +158,35 @@ PERMITTED_STEP = JERK_LIMIT * TICK_PERIOD
 
 
 class _StubProjector:
-    """Puts the target on the steer channel, as the automotive adapter does."""
+    """Puts the target on the steer channel, as the automotive adapter does.
+
+    The test space is (throttle, steer) rather than the automotive
+    (throttle, brake, steer), so the cap withdraws propulsion and has no brake
+    channel to apply. That is the point of the seam: the projector knows the
+    platform and the arbitrator does not.
+    """
 
     def with_lateral_acceleration(
         self, values: Sequence[float], target: float
     ) -> tuple[float, ...]:
         return (float(values[0]), target / STEER_EFFECTIVENESS)
+
+    def with_speed_cap(
+        self, values: Sequence[float], *, current_speed: float, cap: float
+    ) -> tuple[float, ...]:
+        if current_speed <= cap:
+            return tuple(float(value) for value in values)
+        return (0.0, float(values[1]))
+
+
+def _fast_state(speed: float = 0.0) -> FastStateEstimate:
+    """A state carrying only the field the speed cap reads."""
+    return FastStateEstimate(
+        tick=TickId(1),
+        valid_at=AT,
+        mean=(0.0, 0.0, speed, 0.0, 0.0),
+        covariance=SymmetricMatrix.from_diagonal([1.0, 1.0, 1.0, 1.0, 1.0]),
+    )
 
 
 def _jerk_verdict(*, current: float, proposed: float) -> SafetyVerdict:
@@ -193,6 +217,7 @@ def _arbiter(
     profiles: list[CalibrationProfile] | None = None,
     active: CalibrationProfile | None = None,
     rate_limiting: bool = False,
+    projector: bool | None = None,
 ) -> RuntimeCalibrationManager:
     resolved_active = active or _profile()
     return RuntimeCalibrationManager(
@@ -203,7 +228,7 @@ def _arbiter(
         profiles=profiles if profiles is not None else [resolved_active],
         weights=WEIGHTS,
         active=resolved_active,
-        projector=_StubProjector() if rate_limiting else None,
+        projector=_StubProjector() if (rate_limiting if projector is None else projector) else None,
         rate_limited_reasons=frozenset({JERK_REASON}) if rate_limiting else frozenset(),
     )
 
@@ -239,6 +264,7 @@ def test_every_verdict_still_produces_a_command(verdicts: tuple[Verdict, ...]) -
         verdict=_verdict(*verdicts),
         failsafe=_failsafe(),
         trust=_trust(),
+        state=_fast_state(),
     )
 
     assert issued.command.is_admissible()
@@ -253,6 +279,7 @@ def test_a_blocked_tick_hands_over_to_the_fallback_controller() -> None:
         verdict=_verdict(Verdict.VETO),
         failsafe=_failsafe(),
         trust=_trust(),
+        state=_fast_state(),
     )
 
     assert issued.origin is CommandOrigin.FALLBACK_PID
@@ -267,22 +294,99 @@ def test_a_passing_tick_issues_the_proposal_unmodified() -> None:
         verdict=_verdict(Verdict.PASS),
         failsafe=_failsafe(),
         trust=_trust(),
+        state=_fast_state(),
     )
 
     assert issued.origin is CommandOrigin.PROPOSED
     assert issued.command.values == (0.5, 0.2)
 
 
-def test_a_fail_safe_cap_is_recorded_in_the_origin() -> None:
-    issued = _arbiter().issue(
+def test_a_fail_safe_cap_withdraws_propulsion_above_the_ceiling() -> None:
+    # What replaced `test_a_fail_safe_cap_is_recorded_in_the_origin`, which was
+    # honestly named and asserted only that a label appeared. The cap was one
+    # branch among four and clamped exactly as the uncapped branch did, so the
+    # label described a bit-identical vector. Measured: a 100,000-tick run held
+    # 17.2 m/s in HALT, whose cap is 0.0 m/s, with 99,000 ticks recorded capped.
+    issued = _arbiter(projector=True).issue(
         tick=TickId(1),
-        proposal=_proposal(),
+        proposal=_proposal((0.5, 0.2)),
         verdict=_verdict(Verdict.PASS),
         failsafe=_failsafe(speed_cap=5.0),
         trust=_trust(),
+        state=_fast_state(speed=20.0),
     )
 
     assert issued.origin is CommandOrigin.SPEED_CAPPED
+    assert issued.command.values[0] == pytest.approx(0.0)
+
+
+def test_a_cap_the_vehicle_is_within_changes_nothing_and_says_so() -> None:
+    # The control, and the property that makes the origin mean something: below
+    # the ceiling the command passes through and is *not* labelled capped. A cap
+    # is a ceiling, not a target.
+    issued = _arbiter(projector=True).issue(
+        tick=TickId(1),
+        proposal=_proposal((0.5, 0.2)),
+        verdict=_verdict(Verdict.PASS),
+        failsafe=_failsafe(speed_cap=30.0),
+        trust=_trust(),
+        state=_fast_state(speed=20.0),
+    )
+
+    assert issued.origin is CommandOrigin.PROPOSED
+    assert issued.command.values[0] == pytest.approx(0.5)
+
+
+def test_the_cap_binds_on_a_blocked_tick_too() -> None:
+    # THE test the old ordering could not pass. The cap used to be reached only
+    # after the blocking branch returned, so in HALT -- where every tick is
+    # blocked -- it was never consulted at all. HALT's cap is 0.0 m/s.
+    fallback = _StubFallback((0.9, 0.0))
+    issued = _arbiter(fallback=fallback, projector=True).issue(
+        tick=TickId(1),
+        proposal=_proposal(),
+        verdict=_verdict(Verdict.VETO),
+        failsafe=_failsafe(speed_cap=0.0),
+        trust=_trust(),
+        state=_fast_state(speed=17.2),
+    )
+
+    assert issued.origin is CommandOrigin.SPEED_CAPPED
+    assert issued.command.values[0] == pytest.approx(0.0)
+    assert fallback.calls == 1, "the fallback still governed; the cap shaped what it produced"
+
+
+def test_the_cap_binds_inside_the_exploration_envelope_too() -> None:
+    arbiter = _arbiter(projector=True)
+    arbiter.engage_exploration(EXPLORATION_SPACE)
+
+    issued = arbiter.issue(
+        tick=TickId(1),
+        proposal=_proposal((0.3, 0.2)),
+        verdict=_verdict(Verdict.PASS),
+        failsafe=_failsafe(speed_cap=5.0),
+        trust=_trust(),
+        state=_fast_state(speed=20.0),
+    )
+
+    assert issued.origin is CommandOrigin.SPEED_CAPPED
+    assert issued.command.values[0] == pytest.approx(0.0)
+
+
+def test_without_a_projector_the_cap_cannot_be_enforced_and_is_not_claimed() -> None:
+    # Fail to the honest label rather than to a false one. Enforcing a cap in
+    # m/s on a throttle vector needs platform knowledge; absent it, the command
+    # is whatever the regimes chose and is not labelled capped.
+    issued = _arbiter(projector=False).issue(
+        tick=TickId(1),
+        proposal=_proposal((0.5, 0.2)),
+        verdict=_verdict(Verdict.PASS),
+        failsafe=_failsafe(speed_cap=5.0),
+        trust=_trust(),
+        state=_fast_state(speed=20.0),
+    )
+
+    assert issued.origin is CommandOrigin.PROPOSED
 
 
 def test_the_issuer_is_always_l9() -> None:
@@ -294,6 +398,7 @@ def test_the_issuer_is_always_l9() -> None:
         verdict=_verdict(Verdict.PASS),
         failsafe=_failsafe(),
         trust=_trust(),
+        state=_fast_state(),
     )
 
     assert issued.issuer.layer is LayerId.L9_RCM
@@ -326,6 +431,7 @@ def test_an_inadmissible_proposal_is_clamped_rather_than_refused() -> None:
         verdict=_verdict(Verdict.PASS),
         failsafe=_failsafe(),
         trust=_trust(),
+        state=_fast_state(),
     )
 
     assert issued.command.values == (1.0, -0.5)
@@ -339,6 +445,7 @@ def test_a_fallback_command_out_of_bounds_is_also_clamped() -> None:
         verdict=_verdict(Verdict.VETO),
         failsafe=_failsafe(),
         trust=_trust(),
+        state=_fast_state(),
     )
 
     assert issued.command.is_admissible()
@@ -353,6 +460,7 @@ def test_a_fallback_returning_the_wrong_width_fails_closed() -> None:
             verdict=_verdict(Verdict.VETO),
             failsafe=_failsafe(),
             trust=_trust(),
+            state=_fast_state(),
         )
 
 
@@ -371,6 +479,7 @@ def test_exploration_clamps_to_the_restricted_space() -> None:
         verdict=_verdict(Verdict.PASS),
         failsafe=_failsafe(),
         trust=_trust(),
+        state=_fast_state(),
     )
 
     assert issued.origin is CommandOrigin.EXPLORATION_BOUNDED
@@ -399,6 +508,7 @@ def test_a_blocking_verdict_outranks_exploration() -> None:
         verdict=_verdict(Verdict.VETO),
         failsafe=_failsafe(),
         trust=_trust(),
+        state=_fast_state(),
     )
 
     assert issued.origin is CommandOrigin.FALLBACK_PID
@@ -424,6 +534,7 @@ def test_a_jerk_veto_issues_the_largest_step_the_bound_permits() -> None:
         verdict=_jerk_verdict(current=0.0, proposed=2.0),
         failsafe=_failsafe(),
         trust=_trust(),
+        state=_fast_state(),
     )
 
     assert issued.origin is CommandOrigin.RATE_LIMITED
@@ -443,6 +554,7 @@ def test_the_step_never_overshoots_the_proposal() -> None:
         verdict=_jerk_verdict(current=0.0, proposed=0.1),
         failsafe=_failsafe(),
         trust=_trust(),
+        state=_fast_state(),
     )
 
     assert issued.command.values[1] == pytest.approx(0.1 / STEER_EFFECTIVENESS)
@@ -457,6 +569,7 @@ def test_the_step_follows_the_sign_of_the_correction() -> None:
         verdict=_jerk_verdict(current=0.0, proposed=-2.0),
         failsafe=_failsafe(),
         trust=_trust(),
+        state=_fast_state(),
     )
 
     assert issued.command.values[1] == pytest.approx(-PERMITTED_STEP / STEER_EFFECTIVENESS)
@@ -478,6 +591,7 @@ def test_repeated_steps_converge_on_the_proposal() -> None:
             verdict=_jerk_verdict(current=current, proposed=target),
             failsafe=_failsafe(),
             trust=_trust(),
+            state=_fast_state(),
         )
         current = issued.command.values[1] * STEER_EFFECTIVENESS
 
@@ -509,6 +623,7 @@ def test_a_veto_from_any_other_gate_falls_back_rather_than_ratcheting() -> None:
         verdict=verdict,
         failsafe=_failsafe(),
         trust=_trust(),
+        state=_fast_state(),
     )
 
     assert issued.origin is CommandOrigin.FALLBACK_PID
@@ -527,6 +642,7 @@ def test_an_arbiter_without_a_projector_keeps_the_old_behaviour() -> None:
         verdict=_jerk_verdict(current=0.0, proposed=2.0),
         failsafe=_failsafe(),
         trust=_trust(),
+        state=_fast_state(),
     )
 
     assert issued.origin is CommandOrigin.FALLBACK_PID
@@ -557,6 +673,7 @@ def test_evidence_missing_the_keys_rate_limiting_needs_falls_back() -> None:
         verdict=verdict,
         failsafe=_failsafe(),
         trust=_trust(),
+        state=_fast_state(),
     )
 
     assert issued.origin is CommandOrigin.FALLBACK_PID
@@ -577,6 +694,7 @@ def test_exploration_still_governs_a_tick_no_gate_blocked() -> None:
         verdict=_verdict(Verdict.PASS),
         failsafe=_failsafe(),
         trust=_trust(),
+        state=_fast_state(),
     )
 
     assert issued.origin is CommandOrigin.EXPLORATION_BOUNDED
@@ -595,6 +713,7 @@ def test_leaving_exploration_restores_the_nominal_space() -> None:
         verdict=_verdict(Verdict.PASS),
         failsafe=_failsafe(),
         trust=_trust(),
+        state=_fast_state(),
     )
 
     assert engaged

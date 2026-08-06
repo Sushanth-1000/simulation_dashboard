@@ -38,11 +38,21 @@ ordinary clamp domain-independent makes the exploration clamp domain-independent
 
 The order of restriction
 ------------------------
-A blocking verdict first, then bounded exploration, then a fail-safe speed cap,
-then nominal. The origin recorded on the issued command names which one applied,
-and that field is what lets the audit log answer "why did the vehicle do that" --
-finding R-7's definition of explainability, which is decision provenance rather
-than model attribution.
+Three regimes select a command -- a blocking verdict first, then bounded
+exploration, then nominal -- and the fail-safe speed cap is then applied to
+whichever of them governed. The origin recorded on the issued command names what
+shaped it, and that field is what lets the audit log answer "why did the vehicle
+do that" -- finding R-7's definition of explainability, which is decision
+provenance rather than model attribution.
+
+**The cap is applied last rather than being a fourth regime**, because a posture
+is not a branch. As a branch it was reachable only on a tick that was neither
+blocked nor exploring, so in HALT -- where every tick is blocked -- it was never
+consulted at all; and the branch clamped to the actuation space exactly as the
+uncapped one did, so it changed nothing when it *was* reached. A 100,000-tick run
+held 17.2 m/s in HALT, whose cap is 0.0 m/s, with 99,000 ticks recorded as
+capped. If the FSM says the vehicle may not exceed a speed, that is equally true
+of the fallback's command and the rate limiter's.
 
 **The verdict comes first, and that ordering is ADR-0016.** It used to be the
 other way round, on the reasoning that under an uncertified profile the
@@ -84,6 +94,7 @@ if TYPE_CHECKING:
 
     from astra.contracts.actuation import ActuationSpace, ProposedCommand
     from astra.contracts.assurance import FailSafeSnapshot, SafetyVerdict, TrustAssessment
+    from astra.contracts.estimation import FastStateEstimate
     from astra.contracts.governance import CalibrationProfile, RuntimeContextSignature
     from astra.kernel.identifiers import ComponentId, TickId
     from astra.kernel.time import Clock
@@ -282,6 +293,7 @@ class RuntimeCalibrationManager:
         verdict: SafetyVerdict,
         failsafe: FailSafeSnapshot,
         trust: TrustAssessment,
+        state: FastStateEstimate,
     ) -> IssuedCommand:
         """Decide and issue the final actuator command for this tick.
 
@@ -293,6 +305,11 @@ class RuntimeCalibrationManager:
             trust: The Trust Index. Accepted because the port routes it to L9,
                 and deliberately unused in this decision: it informs the cold
                 path's calibration routing, and SI-4 keeps it out of any verdict.
+            state: The current fast state estimate. Read for one thing only --
+                the speed the fail-safe cap is compared against. A cap in m/s
+                cannot be enforced without knowing how fast the vehicle is
+                going, and inferring it from the command would be modelling the
+                platform inside the arbitrator.
 
         Returns:
             The command actually sent to the actuators. Never ``None``: a
@@ -319,20 +336,76 @@ class RuntimeCalibrationManager:
         # so there is no veto left to work around, and the two gates whose
         # bounds are configuration rather than calibration keep full authority
         # inside the envelope exactly as they do outside it.
+        chosen, origin = self._govern(tick, proposal, verdict)
+
+        # The cap is applied to whatever governed, last, rather than being one
+        # branch among several. It used to be a fourth branch -- reachable only
+        # on a tick that was neither blocked nor exploring -- and that branch
+        # called the same `_clamp` as the uncapped one, so `SPEED_CAPPED`
+        # labelled a command bit-identical to `PROPOSED`. Measured: a
+        # 100,000-tick run held 17.2 m/s in HALT, whose cap is 0.0 m/s, and
+        # 99,000 of those ticks were recorded as capped.
+        #
+        # A posture is not a branch. If the FSM says the vehicle may not exceed
+        # a speed, that is true of the fallback's command and the rate limiter's
+        # too, and most of all in HALT -- where the old ordering meant the cap
+        # was never even consulted, because a blocked tick returned first.
+        capped = self._speed_capped(chosen, failsafe, state)
+        if capped is not None:
+            return self._build(tick, capped, CommandOrigin.SPEED_CAPPED)
+        return self._build(tick, chosen, origin)
+
+    def _govern(
+        self, tick: TickId, proposal: ProposedCommand, verdict: SafetyVerdict
+    ) -> tuple[tuple[float, ...], CommandOrigin]:
+        """Return the command the regimes select, before any speed cap.
+
+        Args:
+            tick: The control tick.
+            proposal: The untrusted proposal.
+            verdict: Core-B's combined verdict.
+
+        Returns:
+            The command and the origin naming which regime produced it.
+        """
         if verdict.is_blocking:
             limited = self._rate_limited(proposal, verdict)
             if limited is not None:
-                return self._build(tick, limited, CommandOrigin.RATE_LIMITED)
-            return self._build(tick, self._fallback_values(tick), CommandOrigin.FALLBACK_PID)
+                return limited, CommandOrigin.RATE_LIMITED
+            return self._fallback_values(tick), CommandOrigin.FALLBACK_PID
         if self._exploration_space is not None:
-            return self._build(
-                tick, self._clamp(proposal.command.values), CommandOrigin.EXPLORATION_BOUNDED
-            )
-        if failsafe.speed_cap is not None:
-            return self._build(
-                tick, self._clamp(proposal.command.values), CommandOrigin.SPEED_CAPPED
-            )
-        return self._build(tick, self._clamp(proposal.command.values), CommandOrigin.PROPOSED)
+            return self._clamp(proposal.command.values), CommandOrigin.EXPLORATION_BOUNDED
+        return self._clamp(proposal.command.values), CommandOrigin.PROPOSED
+
+    def _speed_capped(
+        self,
+        values: tuple[float, ...],
+        failsafe: FailSafeSnapshot,
+        state: FastStateEstimate,
+    ) -> tuple[float, ...] | None:
+        """Return the command with the fail-safe cap enforced, or ``None``.
+
+        ``None`` means the cap did not change anything -- either no cap is in
+        force, no projector was supplied, or the vehicle is already within it.
+        That is what makes :attr:`~astra.contracts.actuation.CommandOrigin.SPEED_CAPPED`
+        mean something: it now labels a command the cap *altered*, rather than
+        one issued while a cap happened to be reported.
+
+        Args:
+            values: The command the regimes selected.
+            failsafe: The FSM's posture, supplying the cap.
+            state: The current fast state estimate, supplying the speed.
+
+        Returns:
+            The capped command, or ``None`` if the cap did not bind.
+        """
+        cap = failsafe.speed_cap
+        if cap is None or self._projector is None:
+            return None
+        capped = self._clamp(
+            self._projector.with_speed_cap(values, current_speed=float(state.speed), cap=float(cap))
+        )
+        return None if capped == values else capped
 
     def arbitrate(
         self,

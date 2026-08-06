@@ -265,17 +265,22 @@ class FailSafeState(StrEnum):
     is the only exit, because leaving a pull-over is an engineering or operator
     decision rather than something a run of clean ticks should accomplish.
 
-    **The speed caps these states report are not enforced on any actuator.**
-    :attr:`~astra.contracts.assurance.FailSafeSnapshot.speed_cap` is recorded in
-    the evidence and read by nothing:
-    :meth:`~astra.layers.l9_rcm.arbiter.RuntimeCalibrationManager.issue` returns
-    on the blocked path before the cap is consulted, and the branch that does
-    consult it clamps only to the actuation space -- the identical call the
-    uncapped path makes. Converting a cap in m/s into a throttle and brake
-    vector needs to know which channel brakes and how hard, which is platform
-    knowledge NFR5 keeps out of the core; the seam for it is the open question
-    recorded as P2.1 in ``docs/PENDING.md``. Measured: a 100,000-tick run held
-    17.2 m/s in HALT, whose cap is 0.0 m/s.
+    The speed caps these states report *are* enforced, as of P2.1 on 2 August
+    2026. :attr:`~astra.contracts.assurance.FailSafeSnapshot.speed_cap` is
+    projected onto the actuation vector by
+    :meth:`~astra.layers.l9_rcm.arbiter.RuntimeCalibrationManager.issue`, last
+    and after whatever governed the tick, so it binds on proposed, rate-limited,
+    fallback and exploring commands alike. Converting a cap in m/s into throttle
+    and brake needs to know which channel brakes -- platform knowledge NFR5 keeps
+    out of the core -- so the conversion happens across the
+    :class:`~astra.ports.pipeline.CommandProjector` seam, supplied by the
+    adapter.
+
+    They were *not* enforced for the whole life of the pipeline before that, and
+    the failure mode is worth remembering: every layer was individually correct,
+    L8 reported the cap and L9 labelled the command ``SPEED_CAPPED``, and no one
+    changed a number in the vector. A 100,000-tick run held 17.2 m/s in HALT,
+    whose cap is 0.0 m/s, with every audit row agreeing it had been capped.
     """
 
     NOMINAL = "NOMINAL"
@@ -283,18 +288,18 @@ class FailSafeState(StrEnum):
 
     DEGRADED = "DEGRADED"
     """OOD counter above theta-1. Fallback PID governs. Reports a reduced speed
-    cap, which is recorded and not enforced -- see the class docstring."""
+    cap, enforced by withdrawing propulsion above it."""
 
     LIMP = "LIMP"
     """OOD counter above theta-2. Lane changes excluded. Reports a hard speed
-    cap, which is recorded and not enforced -- see the class docstring."""
+    cap, enforced by withdrawing propulsion above it."""
 
     HALT = "HALT"
     """Hardware fault, BIST failure, or counter above theta-3. Reports a cap of
-    0.0 m/s -- a commanded stop -- which is recorded and not enforced. The
-    intent is a controlled pull-over; the implemented behaviour is a terminal
-    state that constrains nothing but the origin label. See the class
-    docstring."""
+    0.0 m/s -- a commanded stop -- enforced as full braking, since this plant has
+    no drag and a vehicle that merely stops accelerating never stops. The intent
+    is a controlled pull-over; what is implemented is the deceleration, not the
+    pulling over."""
 
     @property
     def severity_rank(self) -> int:

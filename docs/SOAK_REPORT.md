@@ -232,6 +232,17 @@ is why it is recorded here rather than done.
 
 ### F2 — HALT does not halt, because the fail-safe speed cap is never applied
 
+**Resolved 2 August 2026 by P2.1.** The cap is now projected onto the issued
+command across the `CommandProjector` seam, applied last and after whatever
+governed the tick, so it binds on the blocked path too. Above the cap, throttle
+goes to zero and the brake goes full on; `SPEED_CAPPED` is recorded only when the
+projection actually changed the vector. Pinned by
+`test_the_command_issued_in_halt_actually_brakes` in
+[`test_full_pipeline.py`](../tests/integration/test_full_pipeline.py), which
+drives the assembled pipeline into HALT and asserts the deceleration. The
+decision record is in [`PENDING.md`](PENDING.md) under P2.1. The finding below
+stands as written — it is what the 1 August run showed.
+
 `FailSafeStateMachine.speed_cap` returns `MetresPerSecond(0.0)` in HALT, and its
 docstring is explicit about why: *"a controlled pull-over is a commanded stop,
 and reporting 'no cap' there would invert the meaning."*
