@@ -1177,6 +1177,32 @@ Write down the asymmetry: the architecture assumes an untrusted *proposer* on a
 Pure design work, no compute. Blocks every industrial conversation.
 **Estimate:** 3–5 days.
 
+## P4.6 — Make the data-split protocol enforceable, *with* the ingestion code
+
+[`DATA_SPLIT_PROTOCOL.md`](DATA_SPLIT_PROTOCOL.md) is written and it is right.
+Nothing enforces it. There is no manifest recording which segment went to TRAIN,
+CALIBRATE or TEST, no test that the three are disjoint, and nothing stopping
+`generate_calibration.py` reading a segment the twin was fitted on.
+
+That is the same defect class as OD-2 and OD-7 in the credibility matrix — a
+document asserting a property no code checks — and the protocol's own warning is
+why it matters more here than usual: violating it *"does not fail loudly. It just
+stops being true."* Once a corpus is built from an overlapping split, every D-row
+resting on it is worthless and nothing anywhere raises.
+
+**Deliberately not done yet, and this is a decision rather than an omission.**
+There is no external-data ingestion code in the repository at all — nothing reads
+a segment. Enforcement written today would wrap a pipeline that does not exist,
+against a dataset layout nobody here has seen, and would very likely be the wrong
+shape. Building unused abstractions is a thing this codebase's standards call out.
+
+**Binding exit criterion, so this cannot quietly not happen:** the split manifest
+and a segment-level disjointness test land **in the same change** as the first
+ingestion script, or the ingestion script does not land. Reviewer's rule, not a
+suggestion.
+
+**Estimate:** 0.5 days, on top of whatever the ingestion costs.
+
 ---
 
 # P5 — Hardware-gated, and the highest single value in the project
