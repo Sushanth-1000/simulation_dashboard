@@ -640,18 +640,50 @@ command issued in HALT decelerates the vehicle.
 
 **Estimate:** 1.5–2 days.
 
-## P2.3 — Clamp the OOD counter
+## ~~P2.3 — Clamp the OOD counter~~ — DONE, 2 Aug 2026
 
-**Finding F5.** The counter reached 1,508 by tick 2,000 and kept climbing; there
-is no ceiling. In HALT this is harmless because HALT is terminal — `reset()` is
-documented as the only exit — but the counter is written into every
-`FailSafeSnapshot`, and `FailSafeState`'s docstring claims recovery is
-*"bidirectional and automatic without a restart"*, which holds only for
-excursions short enough that the counter can be walked back down.
+Finding F5. The counter now lives in `[0, ood_threshold_halt]`.
 
-**Exit:** a clamp at some multiple of `ood_threshold_halt`, or the docstring
-corrected to say recovery is bounded in duration.
-**Estimate:** 0.5 days.
+### One thing the original entry got wrong
+
+It said the recovery claim *"holds only for excursions short enough that the
+counter can be walked back down"*. That was already false, and finding out why is
+what made the ceiling the obvious choice: **outside HALT the counter could never
+exceed `ood_threshold_halt`, because reaching it is what enters HALT**, and
+`_next_state` returns before consulting the counter thereafter. So recovery was
+always bounded. What was unbounded was the *number written into every audit row*,
+which is a real defect but a different one — evidence hygiene, not safety.
+
+### Decisions taken
+
+**Where to put the ceiling.**
+
+| Option | Benefit | Drawback | |
+|---|---|---|---|
+| **A. `min(ood_threshold_halt, counter + 1)`** | The only non-arbitrary bound available: no value above it can change any decision, so the clamp discards exactly the information nothing consumes. One `min`, no new state, no new constant | Loses "how long have we been in HALT" as a side-effect of the counter | **chosen** |
+| B. Clamp at a multiple — 2×, 10× | Keeps some of that duration signal | The multiple is a magic number with no consumer, and a constant nobody can justify is a constant nobody can maintain | rejected |
+| C. Freeze the counter on entering HALT | Same outcome, arguably more explicit | Needs a branch on state inside the counter arithmetic. A is the same invariant expressed as a bound, and bounds are easier to test than branches | rejected |
+| D. Correct the docstring, leave the counter | No behaviour change | Leaves a field in a safety-evidence record growing without limit and meaning nothing above 100 | rejected |
+
+**On option A's drawback:** duration in HALT is not actually lost. The snapshot
+carries the tick and the entry tick is in the log, so it is a subtraction —
+pinned by `test_time_spent_in_halt_is_still_recoverable_from_the_snapshot`.
+Reading it off the counter would be one field answering two questions, which is
+how an evidence log becomes ambiguous.
+
+**What the ceiling buys that the original entry did not ask for.** It turns the
+module's promise of automatic recovery into a *bounded* one that can be written
+down: at most `ood_threshold_halt - ood_threshold_degraded + hysteresis`
+consecutive clean ticks — 91 at the simulation profile, 4.6 s at 20 Hz. That is
+now in the module docstring and pinned by
+`test_recovery_is_bounded_in_duration_and_not_merely_automatic`, which computes
+the bound from the thresholds rather than hardcoding it.
+
+### Verification
+
+Deleting the `min` fails exactly the two tests that name the ceiling and no
+others — the mutation check, because a test that would pass without the fix is
+not evidence of the fix. Gate green: 2,643 passed, 97.95 %.
 
 ## ~~P2.4 — Decide what to do about the unobserved lateral position~~ — DONE, 2 Aug 2026
 

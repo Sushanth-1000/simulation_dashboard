@@ -38,6 +38,10 @@ SETTINGS = FailSafeSettings(
 
 LONG_CLEAN_RUN = 100
 ALTERNATIONS = 20
+# Mirrors the machine's private `_HYSTERESIS`. Written out rather than imported:
+# a test that reaches into a module's privates stops being able to tell you that
+# the module's *published* behaviour changed.
+HYSTERESIS = 1
 
 # The Phase 3 exit criterion, written out tick by tick: every verdict, the
 # counter it produces and the state it implies, from NOMINAL up to LIMP and all
@@ -303,6 +307,68 @@ def test_a_reset_machine_escalates_again_from_scratch() -> None:
 
     assert snapshot.ood_counter == THETA_DEGRADED
     assert snapshot.state is FailSafeState.DEGRADED
+
+
+# --------------------------------------------------------------------------- #
+# The counter is bounded at both ends
+# --------------------------------------------------------------------------- #
+# Finding F5 of the 2 August soak review: the counter reached 1,508 by tick 2,000
+# and kept climbing, in a field written into every snapshot and every audit row.
+# Nothing consulted the excess -- the machine had been in HALT since 10 and HALT
+# does not look at the counter -- so it was 1,498 ticks of pure noise.
+
+
+def test_the_counter_never_climbs_past_the_halt_threshold() -> None:
+    machine = _machine()
+
+    snapshot = _drive(machine, Verdict.VETO, THETA_HALT * 20)
+
+    assert snapshot.ood_counter == THETA_HALT
+    assert snapshot.state is FailSafeState.HALT
+
+
+def test_the_ceiling_is_the_halt_threshold_and_not_some_multiple_of_it() -> None:
+    # A ceiling above the threshold would be an arbitrary constant with no
+    # consumer: no counter value above THETA_HALT can change any decision.
+    machine = _machine()
+    _drive(machine, Verdict.VETO, THETA_HALT * 3)
+
+    assert machine.ood_counter == THETA_HALT
+
+
+def test_time_spent_in_halt_is_still_recoverable_from_the_snapshot() -> None:
+    # What capping costs, and why it costs nothing: the tick is in the record,
+    # so duration is a subtraction. Reading it off the counter instead would be
+    # one field answering two questions.
+    machine = _machine()
+    snapshots = _drive_all(machine, [Verdict.VETO] * (THETA_HALT * 5))
+
+    entered = next(s for s in snapshots if s.state is FailSafeState.HALT)
+
+    assert snapshots[-1].tick.value - entered.tick.value == THETA_HALT * 5 - THETA_HALT
+
+
+def test_recovery_is_bounded_in_duration_and_not_merely_automatic() -> None:
+    # The property the ceiling actually buys. Outside HALT the counter cannot
+    # exceed THETA_HALT, because reaching it is what enters HALT -- so the walk
+    # back to NOMINAL has a worst case, and this is it. Without a ceiling the
+    # module's promise of automatic recovery would carry no duration at all.
+    machine = _machine()
+    _drive(machine, Verdict.VETO, THETA_HALT - 1)
+
+    assert machine.state is FailSafeState.LIMP, "the deepest state short of HALT"
+    assert machine.ood_counter == THETA_HALT - 1, "the highest counter short of HALT"
+
+    snapshots = _drive_all(machine, [Verdict.PASS] * THETA_HALT * 2, first_tick=THETA_HALT)
+    recovered = next(
+        index for index, s in enumerate(snapshots, start=1) if s.state is FailSafeState.NOMINAL
+    )
+    worst_case = THETA_HALT - THETA_DEGRADED + HYSTERESIS
+
+    assert recovered == worst_case, (
+        f"recovery took {recovered} clean ticks; the bound the module docstring "
+        f"states is {worst_case}"
+    )
 
 
 # --------------------------------------------------------------------------- #

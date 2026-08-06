@@ -324,6 +324,18 @@ the record that it was.
 
 ### F5 — The OOD counter is unbounded
 
+**Resolved 2 August 2026 by P2.3**, with one correction to the finding. The
+counter is now clamped to `[0, ood_threshold_halt]`, the only non-arbitrary
+ceiling available: no value above it can change any decision, because reaching it
+is what enters HALT and HALT does not consult the counter again.
+
+The correction: the sentence below about recovery was wrong. Outside HALT the
+counter could never exceed the HALT threshold in the first place, so recovery was
+always bounded — at most `theta_halt - theta_degraded + hysteresis` clean ticks,
+91 here, 4.6 s at 20 Hz. The real defect was narrower than stated: a field in
+every audit row growing without limit and meaning nothing above the threshold.
+Evidence hygiene, not safety.
+
 It reached 1,508 by tick 2,000 and kept climbing. There is no ceiling. In HALT
 this is harmless because HALT is terminal, but the counter is written into every
 `FailSafeSnapshot`, and the enum's claim that recovery is *"bidirectional and

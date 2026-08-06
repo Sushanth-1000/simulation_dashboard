@@ -39,6 +39,21 @@ counter sitting exactly on a threshold would oscillate between two states on
 alternating verdicts, and an oscillating safety posture is worse than either of
 the states it flips between: it makes the speed cap and the lane-change
 permission change every tick.
+
+Bounds
+------
+The counter lives in ``[0, ood_threshold_halt]``. The ceiling was added on
+2 August 2026 after a soak recorded 1,508 by tick 2,000 and climbing; nothing
+consulted the excess, because the machine had been in HALT since 100 and HALT
+does not look at the counter.
+
+The bound also puts a *duration* on the recovery promised above, which is the
+part worth stating: outside HALT the counter cannot exceed
+``ood_threshold_halt``, because reaching it is what enters HALT. So the longest
+walk back to NOMINAL is ``ood_threshold_halt - ood_threshold_degraded +
+hysteresis`` consecutive clean ticks -- 91 at the simulation profile's
+thresholds, 4.6 seconds at 20 Hz. Recovery is automatic *and* bounded, not
+merely automatic.
 """
 
 from __future__ import annotations
@@ -110,14 +125,38 @@ class FailSafeStateMachine:
         Returns:
             The safety posture after the transition.
         """
-        self._counter = (
-            self._counter + 1 if verdict.is_blocking else max(_COUNTER_FLOOR, self._counter - 1)
-        )
+        self._counter = self._advanced_counter(blocking=verdict.is_blocking)
         self._state = self._next_state()
         self._tick = tick
         if self._state is FailSafeState.HALT:
             self._human_intervention_requested = True
         return self.snapshot
+
+    def _advanced_counter(self, *, blocking: bool) -> int:
+        """Return the counter after one verdict, bounded at both ends.
+
+        The floor stops a long clean run building 'credit'. The ceiling is the
+        HALT threshold, because no value above it can change any decision: the
+        machine is already in HALT, HALT is terminal, and
+        :meth:`_next_state` returns before consulting the counter at all. An
+        integer that grows without bound and influences nothing is noise, and
+        this one is written into every :class:`FailSafeSnapshot` and every audit
+        row. A 100,000-tick soak recorded 1,508 by tick 2,000 and climbing.
+
+        Time spent in HALT is not lost by capping it: the snapshot carries the
+        tick, and the tick HALT was entered is in the log. Reading it off the
+        counter would mean one field answering two questions, which is how an
+        evidence log becomes ambiguous.
+
+        Args:
+            blocking: Whether this tick's verdict was blocking.
+
+        Returns:
+            The new counter, in ``[0, ood_threshold_halt]``.
+        """
+        if not blocking:
+            return max(_COUNTER_FLOOR, self._counter - 1)
+        return min(self._settings.ood_threshold_halt, self._counter + 1)
 
     def _next_state(self) -> FailSafeState:
         """Resolve the state the current counter implies.

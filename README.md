@@ -74,7 +74,7 @@ component's PASS.
 | **Current phase** | **All ten layers built and composed. A trained policy drives the pipeline. FB1 closed.** |
 | Implemented | All of **L1-L9** - the tick loop composing them - trained PINN digital twin - calibration corpus - **trained PPO policy under Lagrangian constraints** - **FB1 (UKF re-anchor)** - replay spine - one-way Core-A to Core-B channel |
 | Not yet implemented | **FB2, FB3, FB4** - the ASTRA-vs-Core-A comparison harness - the ablation study - the CARLA adapter - the dashboard |
-| Quality gate | Green - **2 639 tests, 97.95% coverage**, `ruff` + `mypy --strict` over 140 files + **12** `lint-imports` contracts clean |
+| Quality gate | Green - **2 643 tests, 97.95% coverage**, `ruff` + `mypy --strict` over 140 files + **12** `lint-imports` contracts clean |
 | Invariants | 10 declared, **all 10 mechanically enforced**. SI-3 now also covers issuance and abstention ([ADR-0016](docs/adr/0016-exploration-may-not-override-a-deterministic-veto.md)). |
 | Measured | **100 000 ticks, all ten soak criteria pass.** 100 000/100 000 commands issued - proposer accepted on **99 997** ticks - mean lane deviation **0.0332 m** - resident set **+0.2 MiB** - full-tick p99 **9.3 ms** against a 50 ms tick - **0** audit records dropped. Every figure traces to a row in [`docs/EVIDENCE.md`](docs/EVIDENCE.md). |
 | Next | Linux + CARLA for non-synthetic validation, then FB2-FB4 - see [`docs/PENDING.md`](docs/PENDING.md) |
