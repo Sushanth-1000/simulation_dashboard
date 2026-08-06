@@ -79,6 +79,7 @@ from astra.kernel.enums import (
     Verdict,
 )
 from astra.kernel.errors import AstraError, SafetyPathError
+from astra.layers.l6_statistical_gate.gate import CONTROL_DIMENSION, non_conformity_score
 from astra.layers.l9_rcm.exploration import exploration_envelope, restricted_space
 from astra.layers.l9_rcm.signature import build_signature
 
@@ -170,11 +171,27 @@ class ShadowAdaptation:
         adapted: Whether this tick's outcome was handed to the shadow at all.
             False on a tick that issued nothing, or one with no context to adapt
             in -- both are cases FB2 would also have skipped.
+        live_score: The non-conformity score L6 computed this tick, against the
+            twin the gates actually read.
+        shadow_score: The score L6 *would* have computed had it read the shadow
+            twin instead. The pair is the whole question about FB2: the twin's
+            module docstring says training it on the proposer's output would
+            "make every score small and quietly disarm the statistical gate",
+            and FB2's only labels are the proposer's commands. If the shadow's
+            scores fall away from the live ones over a long run, that is the
+            disarming, observed before it was ever given authority.
+
+            Both are computed with
+            :func:`~astra.layers.l6_statistical_gate.gate.non_conformity_score`,
+            the gate's own arithmetic, because a comparison against a
+            reimplementation would be evidence about the reimplementation.
     """
 
     divergence: float
     digest: str
     adapted: bool
+    live_score: float
+    shadow_score: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -405,7 +422,12 @@ class GovernancePipeline[PayloadT]:
 
         self._reanchor(issued)
         shadow = self._shadow(
-            tick=tick, state=state, issued=issued, prediction=prediction, trust=trust
+            tick=tick,
+            state=state,
+            issued=issued,
+            proposal=proposal,
+            prediction=prediction,
+            trust=trust,
         )
         self._maybe_arbitrate(tick=tick, frame=frame, frame_health=frame_health, state=state)
 
@@ -619,6 +641,7 @@ class GovernancePipeline[PayloadT]:
         tick: TickId,
         state: FastStateEstimate,
         issued: IssuedCommand | None,
+        proposal: ProposedCommand,
         prediction: PredictedCommand,
         trust: TrustAssessment,
     ) -> ShadowAdaptation | None:
@@ -641,6 +664,7 @@ class GovernancePipeline[PayloadT]:
             state: The fast state estimate, both the adaptation's target and the
                 input the shadow's prediction is read at.
             issued: The command actually sent to the actuators, or ``None``.
+            proposal: The untrusted proposal, the score's left operand.
             prediction: What the live twin predicted, to difference against.
             trust: Supplies the context the shadow adapts in.
 
@@ -662,6 +686,18 @@ class GovernancePipeline[PayloadT]:
             default=0.0,
         )
 
+        variance = state.variance_of(CONTROL_DIMENSION)
+        live_score, _, _ = non_conformity_score(
+            proposed=proposal.command.values,
+            predicted=prediction.command.values,
+            variance=variance,
+        )
+        shadow_score, _, _ = non_conformity_score(
+            proposed=proposal.command.values,
+            predicted=shadow.command.values,
+            variance=variance,
+        )
+
         # Adapt on the *issued* command, not the proposal: FB2's contract is that
         # the twin learns the vehicle's response, and the vehicle responds to
         # what it was told, which on a blocked tick is the fallback's command
@@ -673,6 +709,8 @@ class GovernancePipeline[PayloadT]:
             divergence=divergence,
             digest=self._shadow_twin.weights_digest,
             adapted=adapted,
+            live_score=live_score,
+            shadow_score=shadow_score,
         )
 
     def _reanchor(self, issued: IssuedCommand | None) -> None:

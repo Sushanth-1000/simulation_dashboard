@@ -302,6 +302,13 @@ class WindowSummary:
         max_shadow_divergence: The largest such gap in the window.
         shadow_digest: The shadow twin's weights digest, so a flat divergence can
             be told apart from a shadow that never moved.
+        mean_live_score: Mean non-conformity score against the twin the gates
+            read, or ``None``.
+        mean_shadow_score: Mean score against the shadow twin, or ``None``. The
+            twin's own docstring says training it on the proposer's output would
+            "make every score small and quietly disarm the statistical gate";
+            FB2's only labels are the proposer's commands, so this column is
+            where that would show up first.
     """
 
     index: int
@@ -327,6 +334,8 @@ class WindowSummary:
     mean_shadow_divergence: float | None = None
     max_shadow_divergence: float | None = None
     shadow_digest: str | None = None
+    mean_live_score: float | None = None
+    mean_shadow_score: float | None = None
 
     @property
     def veto_rate(self) -> float:
@@ -365,6 +374,8 @@ class WindowSummary:
             "mean_shadow_divergence": self.mean_shadow_divergence,
             "max_shadow_divergence": self.max_shadow_divergence,
             "shadow_digest": self.shadow_digest,
+            "mean_live_score": self.mean_live_score,
+            "mean_shadow_score": self.mean_shadow_score,
         }
 
 
@@ -401,6 +412,8 @@ class _WindowAccumulator:
     shadow_peak: float = 0.0
     shadow_samples: int = 0
     shadow_digest: str | None = None
+    live_score_total: float = 0.0
+    shadow_score_total: float = 0.0
 
     def observe(self, sample: TickSample) -> None:
         """Fold one tick into the window.
@@ -452,6 +465,8 @@ class _WindowAccumulator:
             self.shadow_peak = max(self.shadow_peak, sample.shadow_divergence_m_s2)
             self.shadow_samples += 1
             self.shadow_digest = sample.shadow_digest
+            self.live_score_total += sample.live_score or 0.0
+            self.shadow_score_total += sample.shadow_score or 0.0
 
     def close(self) -> WindowSummary:
         """Summarise the window and reset for the next one.
@@ -490,6 +505,12 @@ class _WindowAccumulator:
             ),
             max_shadow_divergence=self.shadow_peak if self.shadow_samples else None,
             shadow_digest=self.shadow_digest,
+            mean_live_score=(
+                self.live_score_total / self.shadow_samples if self.shadow_samples else None
+            ),
+            mean_shadow_score=(
+                self.shadow_score_total / self.shadow_samples if self.shadow_samples else None
+            ),
         )
         self.index += 1
         self.first_tick += self.ticks
@@ -512,6 +533,8 @@ class _WindowAccumulator:
         self.shadow_total = 0.0
         self.shadow_peak = 0.0
         self.shadow_samples = 0
+        self.live_score_total = 0.0
+        self.shadow_score_total = 0.0
         return summary
 
 
@@ -1120,6 +1143,19 @@ def render(report: SoakReport) -> Iterable[str]:
             f"  {'distinct shadow digests':<34}{len(digests):>12}"
             f"{'  -- the shadow never moved' if len(digests) <= 1 else ''}"
         )
+        if first.mean_live_score is not None and last.mean_shadow_score is not None:
+            yield (
+                f"  {'non-conformity, live twin':<34}"
+                f"{first.mean_live_score:>12.4f} -> {last.mean_live_score:.4f}"
+            )
+            yield (
+                f"  {'non-conformity, shadow twin':<34}"
+                f"{first.mean_shadow_score:>12.4f} -> {last.mean_shadow_score:.4f}"
+            )
+            yield (
+                "  a shadow score falling away from the live one is the "
+                "statistical gate disarming itself"
+            )
 
     yield ""
     yield "  criteria"

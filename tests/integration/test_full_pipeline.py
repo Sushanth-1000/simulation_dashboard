@@ -443,6 +443,45 @@ def test_the_shadow_starts_agreeing_with_the_live_twin(tmp_path: Path) -> None:
     assert first.shadow.divergence == pytest.approx(0.0)  # type: ignore[attr-defined]
 
 
+def test_the_shadows_live_score_is_the_one_the_gate_actually_recorded(tmp_path: Path) -> None:
+    # The comparison FB2 is judged on is live score against shadow score. If the
+    # "live" half were computed by a copy of the gate's arithmetic rather than by
+    # the gate's arithmetic, the whole experiment would be measuring the copy.
+    # This is what makes the two halves comparable.
+    built, sink, clock, period = _build(tmp_path, shadow_fb2=True)
+
+    outcomes = list(_drive(built, clock, period, _nominal, ticks=8))
+    sink.flush()
+
+    for outcome in outcomes:
+        verdict = outcome.record.safety_verdict  # type: ignore[attr-defined]
+        assert verdict is not None
+        recorded = next(
+            value
+            for gate_verdict in verdict.gate_verdicts
+            if gate_verdict.gate is GateId.STATISTICAL
+            for name, value in gate_verdict.evidence
+            if name == "non_conformity_score"
+        )
+        assert outcome.shadow is not None  # type: ignore[attr-defined]
+        assert outcome.shadow.live_score == pytest.approx(recorded)  # type: ignore[attr-defined]
+
+
+def test_the_shadow_and_live_scores_agree_before_the_first_adaptation(tmp_path: Path) -> None:
+    # Both twins start from the same checkpoint, so the two scores must be
+    # identical on the first tick. Any gap there would be a difference in setup
+    # masquerading as a difference made by FB2.
+    built, sink, clock, period = _build(tmp_path, shadow_fb2=True)
+
+    first = next(iter(_drive(built, clock, period, _nominal, ticks=1)))
+    sink.flush()
+
+    assert first.shadow is not None  # type: ignore[attr-defined]
+    assert first.shadow.shadow_score == pytest.approx(  # type: ignore[attr-defined]
+        first.shadow.live_score  # type: ignore[attr-defined]
+    )
+
+
 def test_the_shadow_is_not_written_into_the_evidence_log(tmp_path: Path) -> None:
     # The audit log is a certification artefact and says what the system did. A
     # counterfactual from a loop that is switched off is a different kind of

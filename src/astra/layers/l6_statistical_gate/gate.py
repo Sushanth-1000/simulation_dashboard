@@ -61,6 +61,8 @@ from astra.kernel.enums import GateId, LayerId, Verdict
 from astra.kernel.errors import SafetyPathError
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from astra.contracts.actuation import PredictedCommand, ProposedCommand
     from astra.contracts.estimation import FastStateEstimate
     from astra.kernel.identifiers import TickId
@@ -68,7 +70,7 @@ if TYPE_CHECKING:
     from astra.layers.l3_trust.trust import ContextClassifier
     from astra.layers.l6_statistical_gate.mmd import MmdShiftDetector
 
-__all__ = ["REASON_CODES", "IcpStatisticalGate"]
+__all__ = ["REASON_CODES", "IcpStatisticalGate", "non_conformity_score"]
 
 REASON_NOMINAL: Final = "NOMINAL"
 REASON_SCORE_ABOVE_QUANTILE: Final = "SCORE_EXCEEDS_CONFORMAL_QUANTILE"
@@ -101,6 +103,33 @@ a VETO, which is the right answer, but by way of an overflow rather than a
 decision. The floor makes the veto explicit and keeps the number in the evidence
 log finite and readable.
 """
+
+
+def non_conformity_score(
+    *, proposed: Sequence[float], predicted: Sequence[float], variance: float
+) -> tuple[float, float, float]:
+    """Return ``(score, departure, sigma)`` for one proposal against one prediction.
+
+    Extracted from :meth:`IcpStatisticalGate.evaluate` so that anything wanting
+    to know what the gate *would* have said computes it with the gate's own
+    arithmetic rather than a copy. The specific thing that motivated it was
+    measuring FB2 in shadow: a shadow score computed by a reimplementation would
+    be evidence about the reimplementation.
+
+    Args:
+        proposed: The untrusted proposal's command vector.
+        predicted: The twin's prediction.
+        variance: ``P_f`` at the control dimension.
+
+    Returns:
+        The score, the raw Euclidean departure, and the normalisation term. The
+        last two are returned because they are what makes a score readable in
+        the evidence log -- a score alone cannot be told apart from a large
+        departure and a large sigma.
+    """
+    departure = math.dist(proposed, predicted)
+    sigma = math.sqrt(max(variance, _MINIMUM_SIGMA))
+    return departure / sigma, departure, sigma
 
 
 class IcpStatisticalGate:
@@ -238,9 +267,9 @@ class IcpStatisticalGate:
         variance = state.variance_of(CONTROL_DIMENSION)
         self._require_finite(tick, (*proposed, *predicted, variance))
 
-        departure = math.dist(proposed, predicted)
-        sigma = math.sqrt(max(variance, _MINIMUM_SIGMA))
-        score = departure / sigma
+        score, departure, sigma = non_conformity_score(
+            proposed=proposed, predicted=predicted, variance=variance
+        )
 
         context = self._classifier.classify(state=state, innovation=None)
         epsilon = self.effective_epsilon()
