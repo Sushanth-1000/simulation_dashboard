@@ -39,7 +39,7 @@ Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 tick
 
 | # | Claim | Value | Produced by | Date |
 |:--:|---|---|---|:--:|
-| E-1 | Quality gate is green | **2,672 tests, 98.10% coverage**, `ruff` + `mypy --strict` over 140 files + **12** import contracts, 0 broken | `make check` | 2 Aug |
+| E-1 | Quality gate is green | **2,675 tests, 97.99% coverage**, `ruff` + `mypy --strict` over 140 files + **12** import contracts, 0 broken | `make check` | 2 Aug |
 | E-2 | The closed loop is stable over a long run | **All ten soak criteria pass over 100,000 ticks** | `python -m benchmarks.soak --ticks 100000 --window 1000` | 2 Aug |
 | E-3 | A command is issued on every tick | **100,000 of 100,000**, and 400,000 of 400,000 across the four runs of the day | as E-2 | 2 Aug |
 | E-4 | The proposer's commands are accepted | `PROPOSED` on **99,997** ticks; **3** vetoed, all answered by the rate limiter. Veto rate 3×10⁻⁵, which the console rounds to 0.0% — the JSON is authoritative | as E-2, `summary.json` | 2 Aug |
@@ -110,7 +110,7 @@ claim it, that is a defect and is named.
 | N-5 | **Coverage on real driving** | E-12 shows the quantile arithmetic is right, against a corpus drawn from a world the twin already models |
 | N-6 | **Domain independence (NFR5, assumption A-1)** | Asserted and structurally defended, never tested. Needs a non-automotive profile through the pipeline without touching `src/astra/` outside adapters |
 | N-14 | **That the gate's false-positive rate can be under 1%** | `significance_epsilon` is **0.05**, and a correctly functioning conformal gate vetoes epsilon of exchangeable nominal traffic by construction (E-40). D-1 in the credibility matrix targets **< 1%**. The two are incompatible; the decision is which one moves |
-| N-7 | **Three of four feedback loops** | FB1 is wired. FB2 (`adapt`), FB3 (`recalibrate`) and FB4 exist and are never called from the tick loop -- `adapt` has no callers anywhere in `src/`; the twin digest was constant across all 400,000 ticks measured. FB2's *mechanism* is now tested and repaired (E-28..E-30), which is not the same as being on |
+| N-7 | **Two of four feedback loops** | FB1 is wired. **FB4 is too** -- `training/closed_loop.py` steps the plant with whatever L9 issued, which is what makes a veto change the trajectory; it lives in the harness rather than `src/` because it is prototype-only and has no deployment counterpart. FB2 and FB3 have no callers, and both were measured in shadow and found to break the gate they feed (E-39, E-40). This row previously said three of four were unwired, which was wrong about FB4 |
 | ~~N-8~~ | ~~**The fail-safe speed cap constrains anything**~~ | Closed by P2.1 — now E-24. What remains undemonstrated is enforcement under an *injected fault* rather than a deliberately provoked one: open as P4.2 |
 | N-9 | **The deterministic shield's contribution** | L7a vetoed **once** in ~500,000 ticks. It is a state monitor and cannot see a lane departure. The corridor bound added by P2.1 gives it one that it can, but no run has yet fired it |
 | N-10 | **Tamper-evidence of the evidence log** | Integrity-checked, not tamper-evident. No threat model, no signed artefacts, no key management |
@@ -125,7 +125,7 @@ Feeding [`PENDING.md`](PENDING.md) P1.4, documentation sync.
 
 | Where | Claim | Status |
 |---|---|---|
-| `README.md` | "2 513 tests, 97.97% coverage" | **Corrected 2 Aug** to 2,672 / 98.10% (E-1) |
+| `README.md` | "2 513 tests, 97.97% coverage" | **Corrected 2 Aug** to 2,675 / 97.99% (E-1) |
 | `README.md` | "Full ten-layer tick p99 **1.98 ms**" | **Corrected 2 Aug.** The soak measures **9.3 ms** p99 for the full tick; `benchmarks/latency.py` measures a *subset* (L1+L2+L7a+L8) at 0.811 ms (E-10). Neither was "the full ten-layer tick" at 1.98 ms, and the two must not be compared |
 | `README.md` | "Closed-loop over 400 ticks: trained policy 41.0% veto rate and 0.383 m mean lane deviation vs 59.8% / 0.836 m" | **Corrected 2 Aug.** Measured with a policy that stopped the vehicle, an unobservable lateral position, a corpus harvested from a different proposer, and a plant integrating 2.5× fast. Superseded by E-4, E-5, E-13 |
 | `docs/PROJECT_STATE_AND_ROADMAP.md` | Contract, certification-field and layer-status counts | **Open.** Not re-verified since 31 July |

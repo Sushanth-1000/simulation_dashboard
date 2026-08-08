@@ -1186,18 +1186,53 @@ be until finding 2 is settled — the veto rate it produces is a direct conseque
 of ε, so choosing ε is choosing FB3's behaviour.
 **Estimate:** the ε decision, then 1 day to wire and re-soak.
 
-## P3.3 — FB4, plant synchronisation (work plan §3.3)
+## ~~P3.3 — FB4, plant synchronisation~~ — ALREADY WIRED, 2 Aug 2026
 
-Return the executed command to the synthetic plant so its internal state reflects
-what happened rather than what was planned. Lowest risk of the four; bring up
-last. Prototype-only; no counterpart in a real vehicle.
+**My prediction was wrong and it is worth recording as such.** After FB2 and FB3
+both turned out to be broken, I said FB4 should be assumed to carry a latent
+defect too. It does not, and it is not even unwired: `training/closed_loop.py`
+steps the plant with whatever L9 issued —
 
-**Exit:** all four loops running together through a long soak without
-oscillation.
-**Estimate:** 1–2 days.
+> *Close the loop: whatever L9 actually issued is what the plant applies. A veto
+> therefore changes the vehicle's trajectory, which is the whole point and what
+> an open-loop harness cannot show.*
 
-**Bring the loops up one at a time**, confirming stability before adding the
-next. The roadmap is explicit that this does not compress.
+It lives in the harness rather than in `src/` because FB4 is the one loop with
+**no deployment counterpart** — `FeedbackLoop.FB4_SIMULATOR_SYNC.is_deployment_relevant`
+is `False`. A simulator sync belongs in the simulator's driver, not in the
+runtime. So it is both wired and in the right place.
+
+That also means **every soak in this project measured ASTRA driving, not the
+proposer driving.** Worth stating explicitly, because had it been otherwise every
+closed-loop number since the first run would have been meaningless.
+
+### One real defect, in the branch that never runs
+
+The `else` arm — what the plant gets when the pipeline issued *nothing* — read
+`[0.0, 1.0, 0.0]`. That is the plant's **normalised** action space, where
+`v = lower + (action + 1) / 2 × (upper − lower)`, so on a channel bounded `[0, 1]`
+an action of `0.0` is **half throttle**. The branch that exists for "the pipeline
+failed to issue a command" was commanding half throttle and full brake together.
+
+Unreachable in everything measured — 0 ticks of 100,000 issued nothing (E-3) —
+which is exactly why nothing caught it, and no less wrong for that. Now
+`[-1.0, 1.0, 0.0]`, with a test that decodes the constant through the plant's own
+bounds rather than asserting the literal.
+
+### The four loops, closed out
+
+| | state | if wired |
+|---|---|---|
+| FB1 | wired | works |
+| FB2 | dormant | would disarm the statistical gate (E-39) |
+| FB3 | dormant | drives the veto rate to ε by construction (E-40) |
+| FB4 | **wired, in the harness** | works; one unreachable branch fixed |
+
+The pattern I named after FB3 — *every unwired loop carries a latent defect* —
+survives, but it should be stated more precisely: **the two loops that feed a
+gate's own inputs were both broken; the two that feed state estimation and the
+plant were not.** That is a sharper claim and a more useful one, because it says
+where to look next rather than merely that something will be wrong.
 
 ## P3.4 — Ablation study (work plan §4.1)
 

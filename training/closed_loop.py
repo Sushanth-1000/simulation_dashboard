@@ -423,7 +423,18 @@ def drive_closed_loop(
             values = np.asarray(record.issued.command.values, dtype=np.float64)
             action = 2.0 * (values - lower) / (upper - lower) - 1.0
         else:
-            action = np.array([0.0, 1.0, 0.0])
+            # Throttle shut, brake full, wheel straight -- expressed in the
+            # *normalised* action space the plant takes, which is why the first
+            # entry is -1.0 and not 0.0.
+            #
+            # It read `[0.0, 1.0, 0.0]` until 2 August 2026. The mapping is
+            # `v = lower + (action + 1) / 2 * (upper - lower)`, so on channels
+            # bounded [0, 1] an action of 0.0 is **half throttle**: the branch
+            # that runs when the pipeline issued nothing was commanding half
+            # throttle and full brake together. Unreachable in every run
+            # measured -- 0 ticks of 100,000 issued nothing (E-3) -- and wrong in
+            # the one situation it exists for.
+            action = np.array([-1.0, 1.0, 0.0])
         plant.step(action.astype(np.float32))
         previous_lateral = float(plant._state[4])  # noqa: SLF001
         deviation_total += abs(float(plant._state[1]))  # noqa: SLF001

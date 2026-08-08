@@ -97,6 +97,8 @@ def _drive_the_plant_directly(steps: int) -> list[float]:
     return speeds
 
 
+THROTTLE, BRAKE, STEER = 0, 1, 2
+
 # --------------------------------------------------------------------------- #
 # The vehicle has to keep moving, which nothing here used to check
 # --------------------------------------------------------------------------- #
@@ -237,3 +239,32 @@ def test_a_different_seed_produces_a_different_drive() -> None:
     other = drive_closed_loop(policy=LearnedPolicy.load(POLICY), ticks=60, seed=12)
 
     assert first.mean_absolute_deviation_m != pytest.approx(other.mean_absolute_deviation_m)
+
+
+# --------------------------------------------------------------------------- #
+# FB4 -- the executed command reaches the plant
+# --------------------------------------------------------------------------- #
+
+
+def test_the_no_command_fallback_decodes_to_no_throttle_and_full_brake() -> None:
+    # FB4's emergency branch, which runs when the pipeline issued nothing at
+    # all. It is written in the plant's *normalised* action space, and that is
+    # exactly where it went wrong: the mapping is
+    # `v = lower + (action + 1) / 2 * (upper - lower)`, so on a channel bounded
+    # [0, 1] an action of 0.0 is half throttle, not zero.
+    #
+    # It read `[0.0, 1.0, 0.0]` until 2 August 2026 -- half throttle and full
+    # brake together, in the one situation the branch exists for. Unreachable in
+    # every run measured, which is why nothing caught it, and no less wrong.
+    spec = EnvironmentSpec()
+    lower = np.asarray(spec.channel_lower, dtype=np.float64)
+    upper = np.asarray(spec.channel_upper, dtype=np.float64)
+    action = np.array([-1.0, 1.0, 0.0])
+
+    decoded = lower + (action + 1.0) / 2.0 * (upper - lower)
+
+    assert decoded[THROTTLE] == pytest.approx(0.0), (
+        "the emergency branch must not open the throttle"
+    )
+    assert decoded[BRAKE] == pytest.approx(1.0)
+    assert decoded[STEER] == pytest.approx(0.0)
