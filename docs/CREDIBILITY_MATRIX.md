@@ -3,10 +3,10 @@
 **Purpose** One row per claim this project makes. Each row states the evidence behind it,
 the provenance of that evidence, and what the claim does *not* license.
 
-**Baseline commit** `30d40c2`
+**Baseline commit** `08582f2`
 **Status** Working document. Rows are promoted as evidence lands; nothing is written in the
 future tense to make it read as finished.
-**Last reconciled** 2 August 2026, against the P0–P3.1 work.
+**Last reconciled** 9 August 2026, against the P0–P3.4 work.
 
 ### This document and `EVIDENCE.md`
 
@@ -67,14 +67,14 @@ the plant is, which makes them the only claims in this document that are fully s
 
 ---
 
-## What moved on 2 August 2026
+## What moved between 5 and 9 August 2026
 
 The scoreboard is a snapshot, and a snapshot cannot show the one thing a reviewer most needs
-to know: **whether a project finds its own defects.** One working day, stated in numbers.
+to know: **whether a project finds its own defects.** Four working days, stated in numbers.
 
-**Five of the six defects the register held that morning are closed**, each fixed *and*
-re-measured, none reported by anyone outside the project. Two more were opened the same day —
-OD-7 and OD-8 — which is why the register now shows eight rows rather than six:
+**Five of the six defects the register held on the 5th are closed**, each fixed *and*
+re-measured, none reported by anyone outside the project. Two more were opened during the same
+run — OD-7 and OD-8 — which is why the register now shows eight rows rather than six:
 
 | | was | now |
 |---|---|---|
@@ -151,7 +151,7 @@ what the vehicle was doing.
 
 ## C · Control quality
 
-> ### C-0 · ~~Confound~~ — cleared 2 August 2026
+> ### C-0 · ~~Confound~~ — cleared 5 August 2026
 >
 > The confound was real: the trained policy stopped the vehicle within about five seconds, and
 > every number in this section had been measured through it. **Fixed.** The action-rate penalty
@@ -181,7 +181,7 @@ what the vehicle was doing.
 > false-positive or false-negative rate cannot be computed from it — not with more runs, not
 > with more ticks.
 >
-> A-7 is the cautionary note, and 2 August 2026 sharpened it rather than softening it. A
+> A-7 is the cautionary note, and the 5–9 August run sharpened it rather than softening it. A
 > suite at 97.97% coverage with `mypy --strict` and 12 import contracts did **not** catch a
 > fail-safe speed cap that reached no actuator (OD-2), a lateral position measured by nothing
 > (OD-4), or a consolidation penalty set to a value that did nothing (E-28). All three were
@@ -203,7 +203,7 @@ what the vehicle was doing.
 
 ## CV · Calibration validity
 
-> Renumbered from **E-n** to **CV-n** on 2 August 2026. `EVIDENCE.md` numbers its rows `E-n`
+> Renumbered from **E-n** to **CV-n** on 5 August 2026. `EVIDENCE.md` numbers its rows `E-n`
 > too, and once this document began citing them, "E-1" meant two different things in the same
 > sentence. Renaming three rows was cheaper than living with that.
 
@@ -220,7 +220,7 @@ what the vehicle was doing.
 Carried here deliberately. A credibility document that omits its own known defects is a
 brochure. Every item below is from this project's own measurement, not external review.
 
-**Five of the original six are closed as of 2 August 2026**, each fixed *and re-measured* as
+**Five of the original six are closed as of 9 August 2026**, each fixed *and re-measured* as
 maintenance rule 3 requires. They are struck through rather than deleted, per rule 2: a
 register that shows only what is currently broken hides how much of it was found by the
 project itself, which is the thing a reviewer most wants to know.

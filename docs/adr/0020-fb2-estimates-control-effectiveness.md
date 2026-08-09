@@ -1,7 +1,7 @@
 # ADR-0020 — FB2 estimates the control effectiveness, rather than regressing on commands
 
 **Status:** Accepted, not yet implemented
-**Date:** 2 August 2026
+**Date:** 9 August 2026
 **Follows:** [ADR-0019](0019-one-twin-head-per-context.md), which fixed *where* FB2
 writes. This fixes *what it learns from*.
 

@@ -1,6 +1,6 @@
 # ASTRA — Pending work, by priority
 
-**Prepared** 2 August 2026
+**Prepared** 5 August 2026 · **last revised** 9 August 2026
 **Baseline** `833ce4d` plus the uncommitted soak work
 **Companion documents** [`SOAK_REPORT.md`](SOAK_REPORT.md) for the evidence behind
 every finding cited here; [`WORK_PLAN.md`](WORK_PLAN.md) for the phase structure
@@ -27,7 +27,7 @@ are 2–3× what the same change would cost in an ordinary codebase, deliberatel
 | **P4** | Independent. Parallelisable across people |
 | **P5** | Hardware-gated. Highest single value in the project |
 
-**Current state, 2 August 2026 (evening):** ten layers built, 12 import contracts
+**Current state, 5 August 2026 (evening):** ten layers built, 12 import contracts
 kept, **2,618 tests**, 97.89% coverage, gate green. One of four feedback loops
 wired. **The closed loop is stable over 100,000 ticks on all ten soak criteria**,
 at a timestep that now matches the control period — lane deviation 0.0331 m, veto
@@ -46,7 +46,7 @@ false-positive or false-negative rate exists and none can before Phase 7.
 
 # P0 — Blocking
 
-## P0.0 — Lateral position must be observed — DONE, 2 Aug 2026
+## P0.0 — Lateral position must be observed — DONE, 5 Aug 2026
 
 **The finding that subsumes P0.2 and P0.3.** `position_y` was measured by
 nothing. The extractor published speed and lateral acceleration only, so the UKF
@@ -82,7 +82,7 @@ earns its place — it handles the startup transient, 21 ticks of it — and
 ADR-0016 stands on its own merits. **Neither should be re-opened without first
 re-establishing that the departure has returned.**
 
-## ~~P0.4 — The fail-safe machine latches on a startup transient~~ — DONE, 2 Aug 2026
+## ~~P0.4 — The fail-safe machine latches on a startup transient~~ — DONE, 5 Aug 2026
 
 **The OOD thresholds were durations wearing counts, and nobody had converted
 them.** At 20 Hz, 5 / 12 / 20 is 0.25 s / 0.6 s / **1.0 s** — so the system
@@ -139,7 +139,7 @@ that reached no actuator.
 
 </details>
 
-## ~~P0.1 — Decide whether bounded safe exploration out-ranks a VETO~~ — DONE, 2 Aug 2026
+## ~~P0.1 — Decide whether bounded safe exploration out-ranks a VETO~~ — DONE, 5 Aug 2026
 
 **Resolved by [ADR-0016](adr/0016-exploration-may-not-override-a-deterministic-veto.md).**
 A gate with no basis to judge now returns `Verdict.ABSTAIN`; `Verdict.merge`
@@ -205,7 +205,7 @@ a test asserting whichever property was chosen.
 
 </details>
 
-## P0.2 — Break the veto latch — PARTLY DONE, 2 Aug 2026
+## P0.2 — Break the veto latch — PARTLY DONE, 5 Aug 2026
 
 **The jerk latch is broken by [ADR-0017](adr/0017-rate-limited-approach-to-a-jerk-vetoed-proposal.md).**
 A proposal refused solely because it changed lateral acceleration too fast now
@@ -302,7 +302,7 @@ proposer's — a transition the vehicle would never actually make.
 
 # P1 — Cheap now, expensive later
 
-## ~~P1.1 — Match the training step to the tick period~~ — DONE, 2 Aug 2026
+## ~~P1.1 — Match the training step to the tick period~~ — DONE, 5 Aug 2026
 
 Corrected to 0.05. **The cascade was smaller than feared:** the twin is
 self-labelling from kinematics and takes no timestep, and the corpus generator
@@ -365,7 +365,7 @@ policy regenerated; the soak matrix re-run; per-class coverage back in the
 
 </details>
 
-## ~~P1.2 — Correct the three docstrings that claim speed-cap enforcement~~ — DONE, 2 Aug 2026
+## ~~P1.2 — Correct the three docstrings that claim speed-cap enforcement~~ — DONE, 5 Aug 2026
 
 `CommandOrigin.SPEED_CAPPED`, `FailSafeState.LIMP` and `FailSafeState.HALT` now
 say what the code does, with `FailSafeSnapshot.speed_cap` marked *reported, not
@@ -405,7 +405,7 @@ the enforcement question.
 
 </details>
 
-## ~~P1.3 — Evidence pack~~ — DONE, 2 Aug 2026
+## ~~P1.3 — Evidence pack~~ — DONE, 5 Aug 2026
 
 [`EVIDENCE.md`](EVIDENCE.md): 17 measured rows, 3 controlled comparisons, 12
 things explicitly not demonstrated. Every row carries the command that
@@ -429,7 +429,7 @@ long and well-evidenced list.
 
 </details>
 
-## ~~P1.4 — Documentation sync~~ — DONE, 2 Aug 2026
+## ~~P1.4 — Documentation sync~~ — DONE, 5 Aug 2026
 
 README's test count, the "1.98 ms full ten-layer tick" figure and the 400-tick
 closed-loop numbers all corrected. `PROJECT_STATE_AND_ROADMAP.md` summary row
@@ -450,7 +450,7 @@ reality.
 
 </details>
 
-## ~~P1.5 — Close assumption A-8~~ — DONE, 2 Aug 2026
+## ~~P1.5 — Close assumption A-8~~ — DONE, 5 Aug 2026
 
 `carla==0.9.16` installs and imports on **CPython 3.12.13**/Linux, as a single
 package with no dependency tree, exposing every symbol the adapter design needs.
@@ -511,7 +511,7 @@ decision with a cost, and the cost accrues on a calendar rather than a backlog.
 
 # P2 — Required for the safety argument
 
-## ~~P2.1 — The `CommandProjector` seam~~ — DONE, 2 Aug 2026
+## ~~P2.1 — The `CommandProjector` seam~~ — DONE, 6 Aug 2026
 
 Both halves closed. Finding F2 — *the fail-safe speed cap is recorded and never
 enforced* — is fixed, and the exit criterion the original entry named, *"a test
@@ -630,7 +630,7 @@ command issued in HALT decelerates the vehicle.
 
 </details>
 
-## ~~P2.2 — Test-quality gaps~~ (work plan §2.3) — DONE, 2 Aug 2026
+## ~~P2.2 — Test-quality gaps~~ (work plan §2.3) — DONE, 6 Aug 2026
 
 ### The frozen-install half — done
 
@@ -719,7 +719,7 @@ runs about one time in nine.
 
 **Estimate:** 1.5–2 days.
 
-## ~~P2.3 — Clamp the OOD counter~~ — DONE, 2 Aug 2026
+## ~~P2.3 — Clamp the OOD counter~~ — DONE, 6 Aug 2026
 
 Finding F5. The counter now lives in `[0, ood_threshold_halt]`.
 
@@ -764,7 +764,7 @@ Deleting the `min` fails exactly the two tests that name the ceiling and no
 others — the mutation check, because a test that would pass without the fix is
 not evidence of the fix. Gate green: 2,643 passed, 97.95 %.
 
-## ~~P2.4 — Decide what to do about the unobserved lateral position~~ — DONE, 2 Aug 2026
+## ~~P2.4 — Decide what to do about the unobserved lateral position~~ — DONE, 5 Aug 2026
 
 Resolved by P0.0: lateral position is now measured at sigma = 0.1 m and the
 estimator error fell from 2.9e6 m to 0.0000. This entry originally offered
@@ -793,7 +793,7 @@ reads it.
 
 </details>
 
-## ~~P2.5 — Understand the saturated Trust Index~~ — DONE, 2 Aug 2026
+## ~~P2.5 — Understand the saturated Trust Index~~ — DONE, 5 Aug 2026
 
 **Root cause: the Trust Index measured one statistic and was calibrated against
 another.** L3 scores the filter's innovation magnitude — it must, because it runs
@@ -834,7 +834,7 @@ than a symptom.
 saturated at 1.0 for ~99.9% of nominal ticks** — for a new and defensible reason,
 which is the next item.
 
-## ~~P2.6 — The closed loop runs with perfect sensors~~ — DONE, 2 Aug 2026
+## ~~P2.6 — The closed loop runs with perfect sensors~~ — DONE, 5 Aug 2026
 
 Two mismatches, both fixed:
 
@@ -923,7 +923,7 @@ before FB3 wires online requantilisation into it.
 
 # P3 — Unblocked only after P0
 
-## P3.1 — FB2, PINN online adaptation (work plan §3.1) — PART DONE, 2 Aug 2026
+## P3.1 — FB2, PINN online adaptation (work plan §3.1) — PART DONE, 6 Aug 2026
 
 **Done:** the catastrophic-forgetting test, and the anchoring defect it found.
 **Still open:** wiring FB2 into the tick loop, and P3.1a below.
@@ -1009,7 +1009,7 @@ against, so the collapse is FB2's doing and nothing else's.
 The acceptance region is a quantile calibrated offline, and the scores slide down
 beneath it, so an anomaly must be correspondingly larger to cross.
 
-**Corrected on re-measurement, 2 Aug.** This entry first cited a quantile of
+**Corrected on re-measurement, 6 Aug.** This entry first cited a quantile of
 **2.43**, taken from E-20. That is not what the shipped corpus holds: reading
 `var/calibration/synthetic.json` directly gives HIGHWAY_CLEAR p95 = **1.179**
 over 1,000 samples, spanning only 1.158–1.189. So the true figures are headroom
@@ -1161,7 +1161,7 @@ about what it does to the system it is connected to; that is what the shadow
 harness is for, and it should be the default for FB3 and FB4 exactly as it was
 for FB2.
 
-### Measured, 2 August 2026 (`var/soak/p32-fb3`)
+### Measured, 6 August 2026 (`var/soak/p32-fb3`)
 
 Fixed as above — each layer requantilises its own statistic — then run in shadow
 over 100,000 ticks, thresholded against by nothing.
@@ -1223,7 +1223,7 @@ be until finding 2 is settled — the veto rate it produces is a direct conseque
 of ε, so choosing ε is choosing FB3's behaviour.
 **Estimate:** the ε decision, then 1 day to wire and re-soak.
 
-## ~~P3.3 — FB4, plant synchronisation~~ — ALREADY WIRED, 2 Aug 2026
+## ~~P3.3 — FB4, plant synchronisation~~ — ALREADY WIRED, 8 Aug 2026
 
 **My prediction was wrong and it is worth recording as such.** After FB2 and FB3
 both turned out to be broken, I said FB4 should be assumed to carry a latent
@@ -1271,7 +1271,7 @@ gate's own inputs were both broken; the two that feed state estimation and the
 plant were not.** That is a sharper claim and a more useful one, because it says
 where to look next rather than merely that something will be wrong.
 
-## P3.4 — Ablation study (work plan §4.1) — SCOPED, 2 Aug 2026
+## P3.4 — Ablation study (work plan §4.1) — SCOPED, 9 Aug 2026
 
 **The entry's premise does not hold, and that is the first finding.** It said
 *"the `None` paths were preserved deliberately for this"*. Checked against the

@@ -1,7 +1,7 @@
 # ADR-0017: A jerk veto yields the largest admissible step, not zero steering
 
 - **Status:** Accepted
-- **Date:** 2026-08-02
+- **Date:** 2026-08-05
 - **Phase:** Validation (post-Phase 4)
 - **Finding:** F1a in [`../SOAK_REPORT.md`](../SOAK_REPORT.md); item P0.2 in [`../PENDING.md`](../PENDING.md)
 - **Reads with:** [ADR-0016](0016-exploration-may-not-override-a-deterministic-veto.md), which closed the accidental escape this record replaces with a designed one.

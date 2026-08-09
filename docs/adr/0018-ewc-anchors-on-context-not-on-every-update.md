@@ -1,7 +1,7 @@
 # ADR-0018 — The EWC anchor moves on a context change, not on every update
 
 **Status:** Accepted
-**Date:** 2 August 2026
+**Date:** 6 August 2026
 **Supersedes:** nothing. Amends the anchoring rule described in
 `PhysicsInformedTwin._consolidate`.
 

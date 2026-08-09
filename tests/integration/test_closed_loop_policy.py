@@ -253,7 +253,7 @@ def test_the_no_command_fallback_decodes_to_no_throttle_and_full_brake() -> None
     # `v = lower + (action + 1) / 2 * (upper - lower)`, so on a channel bounded
     # [0, 1] an action of 0.0 is half throttle, not zero.
     #
-    # It read `[0.0, 1.0, 0.0]` until 2 August 2026 -- half throttle and full
+    # It read `[0.0, 1.0, 0.0]` until 8 August 2026 -- half throttle and full
     # brake together, in the one situation the branch exists for. Unreachable in
     # every run measured, which is why nothing caught it, and no less wrong.
     spec = EnvironmentSpec()

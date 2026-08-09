@@ -75,7 +75,7 @@ class TwinNetwork(nn.Module):
     *Forgetting becomes impossible rather than penalised.* FB2 adapts one head,
     so a rainstorm cannot write to the parameters the highway is read from.
     Before ADR-0019 this was the job of an elastic-weight-consolidation penalty,
-    which was measured on 2 August 2026 and found to be a brake rather than a
+    which was measured on 6 August 2026 and found to be a brake rather than a
     consolidator: across every value of its strength, the ratio of forgetting to
     learning was constant to three significant figures. It could not be
     otherwise -- adaptation touched a single 16x2 readout that both contexts used
@@ -137,7 +137,7 @@ class TwinNetwork(nn.Module):
         worse than admitting there is none. Without this call the other heads
         keep their random initialisation, and a twin loaded from that checkpoint
         would predict noise in every context but one. That defect shipped for
-        about an hour on 2 August 2026 and was caught by
+        about an hour on 6 August 2026 and was caught by
         ``test_l5_forgetting.py`` refusing to agree that the offline twin knew
         the highway.
 

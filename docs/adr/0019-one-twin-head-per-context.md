@@ -1,7 +1,7 @@
 # ADR-0019 — One twin output head per context, instead of a consolidation penalty
 
 **Status:** Accepted
-**Date:** 2 August 2026
+**Date:** 6 August 2026
 **Supersedes:** [ADR-0018](0018-ewc-anchors-on-context-not-on-every-update.md),
 whose anchoring rule this removes the need for. ADR-0018's *findings* stand and
 are the reason this decision exists; its *mechanism* is deleted.

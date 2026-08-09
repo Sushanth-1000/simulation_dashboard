@@ -637,7 +637,7 @@ def assemble_pipeline[PayloadT](
         initial_slow_covariance=SymmetricMatrix.from_diagonal([0.01, 0.01, 0.01]),
     )
 
-    # L3 and L6 held ONE calibration until 2 August 2026, on the reasoning that
+    # L3 and L6 held ONE calibration until 5 August 2026, on the reasoning that
     # "the Trust Index and the ICP gate are two readings of the same
     # non-conformity distribution, and two independently-maintained copies would
     # drift apart". The reasoning is sound and the premise was false: they read

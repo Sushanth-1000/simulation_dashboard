@@ -328,7 +328,7 @@ def generate(
                     payload={
                         # Injected at exactly the sigma declared to the filter.
                         # These were 0.08 and 0.12 against declared 0.01 and
-                        # 0.04 until 2 August 2026 -- an eightfold and threefold
+                        # 0.04 until 5 August 2026 -- an eightfold and threefold
                         # underestimate, which makes the UKF over-trust its
                         # measurements and inflates every normalised innovation
                         # the Trust Index then reads.
@@ -381,7 +381,7 @@ def generate(
             # The Trust Index's calibration, harvested alongside and kept apart.
             # It scores the filter's innovation, not the proposal: L3 runs
             # before L4 in the tick, so no proposal exists for it to score. One
-            # distribution served both until 2 August 2026, and the Trust Index
+            # distribution served both until 5 August 2026, and the Trust Index
             # -- querying a CDF of proposal-vs-twin scores with an innovation
             # magnitude -- returned two distinct values across 4,001 ticks.
             if innovation is not None:

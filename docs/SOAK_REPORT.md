@@ -232,7 +232,7 @@ is why it is recorded here rather than done.
 
 ### F2 — HALT does not halt, because the fail-safe speed cap is never applied
 
-**Resolved 2 August 2026 by P2.1.** The cap is now projected onto the issued
+**Resolved 6 August 2026 by P2.1.** The cap is now projected onto the issued
 command across the `CommandProjector` seam, applied last and after whatever
 governed the tick, so it binds on the blocked path too. Above the cap, throttle
 goes to zero and the brake goes full on; `SPEED_CAPPED` is recorded only when the
@@ -324,7 +324,7 @@ the record that it was.
 
 ### F5 — The OOD counter is unbounded
 
-**Resolved 2 August 2026 by P2.3**, with one correction to the finding. The
+**Resolved 6 August 2026 by P2.3**, with one correction to the finding. The
 counter is now clamped to `[0, ood_threshold_halt]`, the only non-arbitrary
 ceiling available: no value above it can change any decision, because reaching it
 is what enters HALT and HALT does not consult the counter again.

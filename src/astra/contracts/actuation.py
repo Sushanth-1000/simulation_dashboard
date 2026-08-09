@@ -81,7 +81,7 @@ class CommandOrigin(StrEnum):
     actually changed the vector**, so the label distinguishes a capped command
     from one merely issued while a cap was in force.
 
-    It did not, until 2 August 2026. The cap was one branch among four,
+    It did not, until 6 August 2026. The cap was one branch among four,
     reachable only on a tick that was neither blocked nor exploring, and that
     branch clamped to the actuation space exactly as the uncapped branch did --
     so a ``SPEED_CAPPED`` record described a vector bit-identical to a

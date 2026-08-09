@@ -406,7 +406,7 @@ class ShieldSettings(_Section):
             corridor just as a car has a lane, and the bound is the same
             quantity in both. The adapter decides what the corridor is.
 
-            Added 2 August 2026, after a 100,000-tick run in which the vehicle
+            Added 5 August 2026, after a 100,000-tick run in which the vehicle
             travelled 2.9 km outside a corridor 1.75 m wide with a **0.00% veto
             rate and a Trust Index of exactly 1.00**. No gate in Core-B measured
             where the vehicle was: this one bounded speed, lateral acceleration

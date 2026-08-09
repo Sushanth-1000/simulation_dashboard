@@ -43,7 +43,7 @@ permission change every tick.
 Bounds
 ------
 The counter lives in ``[0, ood_threshold_halt]``. The ceiling was added on
-2 August 2026 after a soak recorded 1,508 by tick 2,000 and climbing; nothing
+6 August 2026 after a soak recorded 1,508 by tick 2,000 and climbing; nothing
 consulted the excess, because the machine had been in HALT since 100 and HALT
 does not look at the counter.
 

@@ -31,7 +31,7 @@ belief.
 | [A-5](#a-5--a-single-random-runid-is-sufficient-for-byte-comparable-replay) | One random `RunId` suffices for byte-comparable replay | HOLDING (partial) |
 | [A-6](#a-6--python-312-is-supported-by-the-ml-stack-at-phase-4) | Python 3.12 is supported by the ML stack at Phase 4 | OPEN — early warning active |
 | [A-7](#a-7--the-repository-stays-private-until-the-filing-is-confirmed) | The repository stays private until the filing is confirmed | EXTERNAL |
-| [A-8](#a-8--the-carlainterpreter-incompatibility-is-resolvable-without-changing-the-core) | CARLA/interpreter incompatibility is resolvable without core changes | **RESOLVED** — install verified on CPython 3.12, 2 Aug 2026 |
+| [A-8](#a-8--the-carlainterpreter-incompatibility-is-resolvable-without-changing-the-core) | CARLA/interpreter incompatibility is resolvable without core changes | **RESOLVED** — install verified on CPython 3.12, 5 Aug 2026 |
 | [A-9](#a-9--mpc-candidate-scoring-fits-behind-the-statisticalgate-port) | MPC candidate scoring fits behind the `StatisticalGate` port | EXTERNAL |
 | [A-10](#a-10--explainability-means-decision-provenance-not-model-internal-attribution) | Explainability means decision provenance, not model-internal attribution | EXTERNAL |
 
@@ -333,7 +333,7 @@ official `cp310`/`cp311`/`cp312` wheels to PyPI. Verified against
 10 ms budget is untouched. Recorded in
 [`adr/0015-carla-interpreter-strategy.md`](adr/0015-carla-interpreter-strategy.md).
 
-**Update, 2 August 2026 — the install half is now verified.** Run on WSL2 Ubuntu into a throwaway
+**Update, 5 August 2026 — the install half is now verified.** Run on WSL2 Ubuntu into a throwaway
 CPython 3.12.13 environment, deliberately isolated so nothing reaches the project venv or the
 lockfile:
 

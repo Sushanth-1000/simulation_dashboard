@@ -296,7 +296,7 @@ def test_adaptation_writes_only_to_its_own_context_head(
     actuation_space: ActuationSpace, twin_component: ComponentId
 ) -> None:
     # ADR-0019, stated as directly as it can be. This replaced an elastic-weight
-    # penalty that was measured on 2 August 2026 and found to slow all learning
+    # penalty that was measured on 6 August 2026 and found to slow all learning
     # equally rather than protect anything: forgetting divided by learning was
     # constant across every lambda from 0 to 1e5. Structure does what the loss
     # term could not.

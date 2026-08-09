@@ -6,7 +6,7 @@ lateral acceleration a unit of steering produces. The layers are kept ignorant
 of all four so that NFR5's domain-independence claim survives, and the cost of
 that is that everything platform-specific concentrates *here*.
 
-It went untested until 2 August 2026. Added with ADR-0017 and exercised only
+It went untested until 6 August 2026. Added with ADR-0017 and exercised only
 through a stub in the arbiter's tests, so the arithmetic that turns a target
 lateral acceleration into a steering command, and a speed cap into a braking
 command, ran in production and nowhere else.

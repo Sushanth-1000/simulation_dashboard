@@ -45,7 +45,7 @@ for unrelated reasons.
 
 **4. Lateral corridor.** ``|position_y| <= corridor_half_width``
 
-Added 2 August 2026. The other three bound how the vehicle is *moving*; this one
+Added 5 August 2026. The other three bound how the vehicle is *moving*; this one
 bounds where it *is*, and its absence was a hole in the whole three-gate
 argument rather than in this gate alone. In a 100,000-tick run the vehicle
 travelled 2.9 km outside a corridor 1.75 m wide with a **0.00% veto rate and a

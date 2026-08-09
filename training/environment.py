@@ -87,7 +87,7 @@ class EnvironmentSpec:
         step_seconds: Integration step. Matched to the pipeline's fast rate --
             ``1 / estimation.fast_rate_hz``, which is 20 Hz, so 0.05 s.
 
-            It said that and was 0.02 until 2 August 2026, so the plant
+            It said that and was 0.02 until 5 August 2026, so the plant
             integrated 2.5x faster than the controller driving it assumed. Every
             "simulated time" figure taken through
             :func:`~training.closed_loop.drive_closed_loop` before that date is

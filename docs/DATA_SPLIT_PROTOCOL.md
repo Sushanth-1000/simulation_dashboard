@@ -87,7 +87,7 @@ The only source with real commands, so it carries TRAIN, CALIBRATE and TEST.
 It has no commands, so it cannot fit the twin and cannot produce a veto rate. Its role is to
 be the ground truth you measure *against*:
 
-- Validate the UKF's lateral position estimate against < 10 cm reference. **OD-4 was closed on 2 Aug 2026** by publishing a lateral-position measurement at σ = 0.1 m, so highD now *confirms that fix against real ground truth* rather than closing anything — which is the more valuable role of the two
+- Validate the UKF's lateral position estimate against < 10 cm reference. **OD-4 was closed on 5 Aug 2026** by publishing a lateral-position measurement at σ = 0.1 m, so highD now *confirms that fix against real ground truth* rather than closing anything — which is the more valuable role of the two
 - Check that Mondrian context classes derived from real lane-change behaviour are meaningful — supports **D-4**
 - Provide a real distribution of human lane-keeping to sanity-check L7b bounds
 
@@ -136,7 +136,7 @@ and the third is the one to remember.
 2. Regenerating the corpus from the *deployed* proposer rather than a placeholder moved the
    HIGHWAY_CLEAR quantile from **1.18 to 2.43** — the shipped threshold had been less than
    half what the running system routinely produced (E-20).
-3. **Nothing had to change at all.** As of 2 Aug 2026 the live scores sit at 1.156, *below the
+3. **Nothing had to change at all.** As of 6 Aug 2026 the live scores sit at 1.156, *below the
    1.158 minimum* of the corpus they are judged against (E-41, OD-8). No wiring moved; the
    corpus simply stopped describing the system. This is RK-2 materialising on synthetic data,
    in-house, with no external dataset anywhere near it.

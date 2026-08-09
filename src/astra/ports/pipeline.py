@@ -265,7 +265,7 @@ class DynamicsPredictor(Protocol):
     quantile, so a context-blind prediction would leave its two operands
     conditioned on different partitions; and adaptation that could not tell one
     context from another would have to protect an old one with a penalty rather
-    than with structure, which was measured on 2 August 2026 and does not work
+    than with structure, which was measured on 6 August 2026 and does not work
     (ADR-0019).
     """
 

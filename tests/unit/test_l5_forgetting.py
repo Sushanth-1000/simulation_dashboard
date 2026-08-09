@@ -9,7 +9,7 @@ gates then reason carefully about a number that means nothing.
 
 What this file measured, and what changed because of it
 -------------------------------------------------------
-It was written on 2 August 2026 against an elastic-weight-consolidation penalty,
+It was written on 6 August 2026 against an elastic-weight-consolidation penalty,
 and it found three things in order.
 
 1. The configured ``ewc_lambda`` was not weak, it was **bit-for-bit inert** --

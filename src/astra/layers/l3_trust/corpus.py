@@ -70,7 +70,7 @@ __all__ = [
 CORPUS_SCHEMA_VERSION = 2
 """Schema version of the persisted corpus. A corpus from another version is refused.
 
-Version 2 (2 August 2026) adds ``innovations``: a second score set, over the
+Version 2 (5 August 2026) adds ``innovations``: a second score set, over the
 filter's innovation magnitude, for the Trust Index. Version 1 carried only the
 gate's non-conformity scores, and the Trust Index was being scored against
 *those* -- a CDF of one statistic queried with another. It read exactly two

@@ -298,7 +298,7 @@ class PhysicsInformedTwin:
         every head, which is the semantically right migration and not merely a
         convenient one: the offline-trained twin *is* the common starting point
         that every context then adapts away from. Every twin trained by
-        ``training/train_twin.py`` before 2 August 2026 loads unchanged and
+        ``training/train_twin.py`` before 6 August 2026 loads unchanged and
         predicts identically until FB2 first runs.
 
         Args:

@@ -173,7 +173,7 @@ def _publish_state(
     ground truth and no per-sensor models; what differs between modalities in a
     real adapter is latency as well as noise, and latency is not simulated.
 
-    **Readings are noisy, and were not until 2 August 2026.** Before that this
+    **Readings are noisy, and were not until 5 August 2026.** Before that this
     published the plant's exact state while declaring non-zero sigmas to the
     filter, so the UKF was told its measurements were uncertain and handed
     perfect ones. Its innovations sat near zero -- a filter with nothing to do.
@@ -431,7 +431,7 @@ def drive_closed_loop(
             # *normalised* action space the plant takes, which is why the first
             # entry is -1.0 and not 0.0.
             #
-            # It read `[0.0, 1.0, 0.0]` until 2 August 2026. The mapping is
+            # It read `[0.0, 1.0, 0.0]` until 8 August 2026. The mapping is
             # `v = lower + (action + 1) / 2 * (upper - lower)`, so on channels
             # bounded [0, 1] an action of 0.0 is **half throttle**: the branch
             # that runs when the pipeline issued nothing was commanding half

@@ -1,7 +1,7 @@
 # ADR-0016: A gate that cannot judge abstains; no path overrides a veto
 
 - **Status:** Accepted
-- **Date:** 2026-08-02
+- **Date:** 2026-08-05
 - **Phase:** Validation (post-Phase 4)
 - **Finding:** F6b in [`../SOAK_REPORT.md`](../SOAK_REPORT.md); item P0.1 in [`../PENDING.md`](../PENDING.md)
 - **Supersedes nothing.** Extends SI-3 and reworks SI-4's wording.
