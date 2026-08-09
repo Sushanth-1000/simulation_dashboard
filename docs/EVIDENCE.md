@@ -5,7 +5,7 @@ it, the command that reproduces it, and the date. A number that is not in this
 table has not been measured, and a number here that cannot be reproduced by its
 command is a defect in this table.
 
-**Last verified** 9 August 2026, commit `08582f2`, on WSL2 Ubuntu / CPython
+**Last verified** 9 August 2026, commit `2cd0d35`, on WSL2 Ubuntu / CPython
 3.12.13 / CPU only.
 
 > ### What a date in this table means, and the correction of 9 August 2026
@@ -25,16 +25,35 @@ command is a defect in this table.
 > This is recorded rather than quietly fixed because it is the same defect class
 > as OD-2 and OD-7 — a document asserting something no code checks — and because
 > the rows after E-23 were not merely unverified but *provably impossible*: E-24
-> measures the fail-safe speed cap fixed in `b40d51d` on the 6th, and E-33
-> measures the per-context twin heads added in `9dcc4fa` on the 6th. Neither
+> measures the fail-safe speed cap fixed in `17a85c3` on the 6th, and E-33
+> measures the per-context twin heads added in `a0aee5c` on the 6th. Neither
 > could have been measured on the 2nd, because neither existed. The header
-> compounded it: it cited `a5a707d` as the verification commit while dating the
+> compounded it: it cited `5a539d0` as the verification commit while dating the
 > verification three days before that commit was authored.
 >
 > **What remains uncertain, stated rather than papered over.** For E-1 – E-23 the
 > repository cannot distinguish *"run on the 2nd, committed on the 5th"* from
 > *"the stamp was already wrong."* Both are consistent with the history. The
 > landing date is used because it is the one of the two that is checkable.
+
+> ### Commit hashes moved on 9 August 2026
+>
+> Thirty-five unpushed commits were re-authored from `Your Tanay S` — a
+> half-overwritten `git config user.name`, never a second person — to
+> `Sushanth C`, so every hash after the branch point changed. Every citation in
+> this document, the matrix and the 9 August handover was remapped by commit
+> subject and is correct as it stands.
+>
+> Two things are deliberately **not** remapped, and are noted here rather than
+> left to be discovered:
+>
+> - **Hashes quoted inside commit messages are stale.** A message cannot cite a
+>   hash that depends on that message. `backup-before-reauthor-20260809` tags the
+>   pre-rewrite tip, so any of them can still be resolved.
+> - **Eight commits before `d99150f` keep the wrong author.** They are already
+>   published on the shared remote, and rewriting them would mean force-pushing
+>   over a branch this repository does not own. Left as a decision for whoever
+>   owns that call, not taken quietly.
 
 > **The caveat that governs every row in the first table.** The plant, the digital
 > twin and the calibration corpus all descend from the same kinematic bicycle
