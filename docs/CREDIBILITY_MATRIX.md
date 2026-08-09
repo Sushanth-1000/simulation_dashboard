@@ -54,7 +54,7 @@ the plant is, which makes them the only claims in this document that are fully s
 |---|:--:|:--:|
 | A · Structural assurance | 7 | **[M-code]** — fully supported |
 | B · Runtime performance and stability | 6 | **[M-syn]** — mechanism shown |
-| C · Control quality | 4 | **[M-syn]** — and confounded, see C-0 |
+| C · Control quality | 4 | **[M-syn]** — re-measured after C-0 was cleared |
 | D · **Gate efficacy — the central claims** | 6 | **[NOT DONE]** for the five that matter |
 | CV · Calibration validity | 3 | **[M-syn]** |
 
@@ -64,6 +64,51 @@ the plant is, which makes them the only claims in this document that are fully s
 > the entire purpose of the plan in §7. No false-positive or false-negative rate appears
 > anywhere in this document, because none has been measured and none can be until a row
 > reaches [M-ext].
+
+---
+
+## What moved on 2 August 2026
+
+The scoreboard is a snapshot, and a snapshot cannot show the one thing a reviewer most needs
+to know: **whether a project finds its own defects.** One working day, stated in numbers.
+
+**Five of the six open defects closed**, each fixed *and* re-measured, none reported by anyone
+outside the project:
+
+| | was | now |
+|---|---|---|
+| OD-1 lane departure | 2,883 m at tick 100,000, every tick vetoed, FSM latched in HALT | 0.0290 m, 0.1% veto rate, never leaves NOMINAL |
+| OD-2 fail-safe speed cap | recorded on every capped tick, applied to no actuator; 17.2 m/s held *in HALT* | throttle 0.0, brake 1.0, pinned by a test through the assembled pipeline |
+| OD-4 lateral position | dead-reckoned from an unobserved heading; estimator error reached 2.9 × 10⁶ m | measured at σ = 0.1 m; error 0.049 m and flat |
+| OD-5 OOD counter | unbounded, 1,508 by tick 2,000 | bounded to `[0, θ_halt]`, and recovery now has a stated worst case of 91 ticks |
+| OD-6 exploration vs VETO | 99,808 commands per 100,000 issued under a blocking verdict | **0** |
+
+**Two dormant feedback loops were measured before being wired, and both would have broken the
+gate they feed.** Neither was ever connected; neither affected a run.
+
+- **FB2** regresses the twin onto the proposer's own commands. Run against a twin nothing
+  reads, the non-conformity score falls **40%** in a context where nothing changed, while the
+  live score stays flat to four decimal places (E-39). The twin's own module docstring names
+  this as the way to disarm the statistical gate.
+- **FB3** requantilises on scores the system generates itself. Its veto rate converges to
+  **5.02%** — which is `significance_epsilon` exactly, because ε of any distribution lies
+  above its own 1−ε quantile (E-40). The gate stops being a detector and becomes a fixed-rate
+  sampler.
+
+**One assumption was found already violated** — OD-8. The running system's scores sit *below
+the minimum* of the corpus it is judged against, so the exchangeability the conformal guarantee
+depends on does not hold, on synthetic data, today.
+
+### The part that generalises
+
+Not one of these was caught by the 2,675-test suite, `mypy --strict`, or the 12 import
+contracts. Every one was caught by running the system for a long time and reading the numbers,
+or by running a mechanism in shadow and comparing it against the live one. Section A states
+what mechanical gates buy; D-0 states what they do not, and this is the evidence for D-0.
+
+Two of the defects were **inversions** — OD-2 and FB2 — where the evidence log confidently
+recorded something that had not happened. Those are invisible to testing by construction,
+because the system reports success. They are the reason this document exists.
 
 ---
 
@@ -79,7 +124,7 @@ The strongest column. These hold regardless of plant, dataset, or policy.
 | A-4 | Only L9 may construct an `IssuedCommand` (SI-7) | **[M-code]** | Runtime enforcement + import contract | Actuator-level authority; this is a software boundary |
 | A-5 | Architecture contracts hold | **[M-code]** | `lint-imports` — 12 contracts kept, 0 broken | — |
 | A-6 | Full static typing | **[M-code]** | `mypy --strict` clean over **143** source files | Runtime correctness |
-| A-7 | Test suite and coverage | **[M-code]** | **2,672** tests, **98.10%** line coverage against a 95% gate — E-1 | **Correctness.** See D-0 — a fail-safe that did not fail safe survived all of this for the project's whole life |
+| A-7 | Test suite and coverage | **[M-code]** | **2,675** tests, **97.99%** line coverage against a 95% gate — E-1 | **Correctness.** See D-0 — a fail-safe that did not fail safe survived all of this for the project's whole life |
 
 > **Reproduce:** `make check` on a Linux/WSL2 host. The gate does not run on Windows —
 > Smart App Control blocks the unsigned native extensions in `torch`, `mypy` and `grimp`.
@@ -187,6 +232,7 @@ project itself, which is the thing a reviewer most wants to know.
 | ~~**OD-4**~~ | Lateral position dead-reckoned from an unobserved heading; `mean_estimator_error_m` reached **2.9 × 10⁶ m**. **The most consequential defect the project has found** — every other failure the first soak reported was downstream of it | **Closed.** A lateral-position measurement is published at σ = 0.1 m, where a real vehicle gets it from lane detection. Estimator error now **0.049 m** and flat | — |
 | ~~**OD-5**~~ | The OOD counter is unbounded — 1,508 by tick 2,000, still climbing | **Closed**, and the finding was narrower than stated. Recovery was always bounded, because outside HALT the counter could never exceed the HALT threshold. What was unbounded was a number in every audit row that meant nothing above it. Clamped to `[0, θ_halt]`, which also lets the recovery bound be *stated*: ≤ 91 clean ticks, 4.6 s | — |
 | ~~**OD-6**~~ | **Exploration out-ranks a VETO** — 99.8% of ticks issued a proposal under a blocking verdict | **Closed** by [ADR-0016](adr/0016-exploration-may-not-override-a-deterministic-veto.md). A gate with no basis to judge now ABSTAINs instead of vetoing, so there was no veto left to work around, and `issue()` tests the verdict before the envelope. **99,808 per 100,000 → 0** — E-11 | — |
+| **OD-8** | **The live loop is not exchangeable with its own calibration corpus.** Running non-conformity scores sit at **1.156**, below the corpus **minimum** of 1.158; the whole HIGHWAY_CLEAR distribution spans 1.158–1.189 over 1,000 samples. Exchangeability is the assumption the conformal guarantee rests on, and it is violated *in-house, on synthetic data*, before any external dataset is involved | Open, **property of the artefacts** rather than of any trajectory | **CV-1 and every D-row.** Today's 0.089% veto rate is this mismatch, not evidence the gate discriminates. It is also the strongest argument for [`DATA_SPLIT_PROTOCOL.md`](DATA_SPLIT_PROTOCOL.md): the risk that document was written to prevent has already materialised once |
 | **OD-7** | **FB2 would disarm the statistical gate.** Its only training labels are the proposer's commands, so the twin regresses onto the thing it exists to be independent of. Measured in shadow: scores fall 40% in one unchanging context and are still falling | Open, **property of the code**. Not wired, so it harms nothing today | D-6, and any plan that wires FB2 as specified. P3.1c proposes estimating the control effectiveness instead |
 
 **The pattern worth reading off this register:** every closed row was found by running the
@@ -203,7 +249,9 @@ Carried forward from the Prototype & Demo Plan, because these constrain what may
 1. The **1.25 µs Core-B intercept latency is an analytical hardware bound**, not a measurement.
    Software latency is reported against the < 5 ms software target, never against that figure.
 2. False positive/negative targets are **< 1%, not zero**. The argument is defence in depth
-   through structurally independent gates, never "eliminates hallucination".
+   through structurally independent gates, never "eliminates hallucination". **The < 1% is
+   currently unreachable by construction:** `significance_epsilon` is 0.05, so a correctly
+   functioning conformal gate vetoes 5% of exchangeable nominal traffic. See D-1.
 3. The **shared UKF state is an acknowledged residual common-cause channel** across all three
    gates — mitigated by the innovation monitor and FB1, not eliminated.
 4. Conformal coverage **assumes exchangeability**, which adversarial perturbation violates by
