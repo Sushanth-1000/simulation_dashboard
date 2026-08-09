@@ -103,7 +103,7 @@ depends on does not hold, on synthetic data, today.
 
 ### The part that generalises
 
-Not one of these was caught by the 2,675-test suite, `mypy --strict`, or the 12 import
+Not one of these was caught by the test suite, `mypy --strict`, or the 12 import
 contracts. Every one was caught by running the system for a long time and reading the numbers,
 or by running a mechanism in shadow and comparing it against the live one. Section A states
 what mechanical gates buy; D-0 states what they do not, and this is the evidence for D-0.
@@ -126,7 +126,7 @@ The strongest column. These hold regardless of plant, dataset, or policy.
 | A-4 | Only L9 may construct an `IssuedCommand` (SI-7) | **[M-code]** | Runtime enforcement + import contract | Actuator-level authority; this is a software boundary |
 | A-5 | Architecture contracts hold | **[M-code]** | `lint-imports` — 12 contracts kept, 0 broken | — |
 | A-6 | Full static typing | **[M-code]** | `mypy --strict` clean over **143** source files | Runtime correctness |
-| A-7 | Test suite and coverage | **[M-code]** | **2,675** tests, **97.99%** line coverage against a 95% gate — E-1 | **Correctness.** See D-0 — a fail-safe that did not fail safe survived all of this for the project's whole life |
+| A-7 | Test suite and coverage | **[M-code]** | **2,729** tests, **97.99%** line coverage against a 95% gate — E-1 | **Correctness.** See D-0 — a fail-safe that did not fail safe survived all of this for the project's whole life |
 
 > **Reproduce:** `make check` on a Linux/WSL2 host. The gate does not run on Windows —
 > Smart App Control blocks the unsigned native extensions in `torch`, `mypy` and `grimp`.

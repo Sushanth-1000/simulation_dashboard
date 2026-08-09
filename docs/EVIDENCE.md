@@ -164,11 +164,12 @@ Feeding [`PENDING.md`](PENDING.md) P1.4, documentation sync.
 
 | Where | Claim | Status |
 |---|---|---|
-| `README.md` | "2 513 tests, 97.97% coverage" | **Corrected 2 Aug** to 2,675 / 97.99% (E-1) |
+| `README.md` | "2 513 tests, 97.97% coverage" | **Corrected 5 Aug** to 2,675 / 97.99%, and again **9 Aug** to 2,729 / 97.99% over 146 files (E-1) |
 | `README.md` | "Full ten-layer tick p99 **1.98 ms**" | **Corrected 2 Aug.** The soak measures **9.3 ms** p99 for the full tick; `benchmarks/latency.py` measures a *subset* (L1+L2+L7a+L8) at 0.811 ms (E-10). Neither was "the full ten-layer tick" at 1.98 ms, and the two must not be compared |
 | `README.md` | "Closed-loop over 400 ticks: trained policy 41.0% veto rate and 0.383 m mean lane deviation vs 59.8% / 0.836 m" | **Corrected 2 Aug.** Measured with a policy that stopped the vehicle, an unobservable lateral position, a corpus harvested from a different proposer, and a plant integrating 2.5× fast. Superseded by E-4, E-5, E-13 |
 | `docs/PROJECT_STATE_AND_ROADMAP.md` | Contract, certification-field and layer-status counts | **Open.** Not re-verified since 31 July |
 | `docs/1144_2026-07-31_Sushanth_status.md` | Superseded by the 20:30 ledger | **Open.** Should be marked as such |
+| `docs/COMMERCIAL_ASSESSMENT.md` | "2,513 tests at 98% coverage" (twice) | **Not a defect, and listed so nobody files it as one.** The document is a dated assessment — 31 July 2026 — and the figure was correct on that date. A dated snapshot that is silently refreshed stops being a snapshot. It should be re-issued rather than edited, and until it is, its date is the caveat |
 
 ---
 

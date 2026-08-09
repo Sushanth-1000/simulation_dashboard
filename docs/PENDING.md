@@ -1532,7 +1532,7 @@ false-positive or false-negative rate exists and none can.
 |---|---|---|
 | P0 | 2–10 | Range driven entirely by which option P0.2 takes |
 | P1 | 5–8 | |
-| P2 | 7–12 | |
+| P2 | 9–15 | Includes P2.7, added 9 August after the fault study found OD-9 |
 | P3 | 13–21 | Strictly sequential; does not compress |
 | P4 | 22–35 | Genuinely parallel across 2–3 people |
 | P5 | 12–20 | Plus unknown findings cost |
