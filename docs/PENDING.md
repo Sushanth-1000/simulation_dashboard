@@ -1271,25 +1271,61 @@ gate's own inputs were both broken; the two that feed state estimation and the
 plant were not.** That is a sharper claim and a more useful one, because it says
 where to look next rather than merely that something will be wrong.
 
-## P3.4 — Ablation study (work plan §4.1)
+## P3.4 — Ablation study (work plan §4.1) — SCOPED, 2 Aug 2026
 
-Disable each layer in turn and measure. The `None` paths were preserved
-deliberately for this.
+**The entry's premise does not hold, and that is the first finding.** It said
+*"the `None` paths were preserved deliberately for this"*. Checked against the
+code: **one of the six ablations has a `None` path.**
 
-| Ablation | Question it answers |
-|---|---|
-| FB1 off | How fast does the state estimate drift under veto? |
-| FB2 off | How far does the twin drift as conditions change? |
-| FB3 off | How stale do the quantiles get? |
-| L6 off | What does the statistical gate catch that the others do not? |
-| L7a off | What does the deterministic shield catch alone? |
-| L9 exploration disabled | Confirm the system halts — the behaviour ASTRA exists to avoid |
+| Ablation | Disable path today | Status |
+|---|---|---|
+| **FB1 off** | `control_effectiveness: Sequence[float] \| None` on the pipeline | **Ready.** The only one |
+| L6 off | `statistical_gate: IcpStatisticalGate` — **required parameter** | Needs building |
+| L7a off | `shield: HardSafetyShield` — **required parameter** | Needs building |
+| L9 exploration off | Driven by `ArbitrationOutcome.SAFE_EXPLORATION`, not by a switch | Needs building |
+| FB2 off | — | **Vacuous.** See below |
+| FB3 off | — | **Vacuous.** See below |
 
-**Exit:** a table quantifying each layer's contribution. Converts *"we built nine
-layers"* into *"here is what each layer is worth"*.
-**Estimate:** 3–5 days.
-**Note:** meaningless before P0.2. An ablation of a latched system measures the
-latch.
+### Two of the six are already answered, and better than an ablation could
+
+FB2 and FB3 have never been wired. "FB2 off" *is* the shipped configuration, so
+ablating it measures nothing — the comparison it wants is against FB2 **on**,
+which is the direction that was never available.
+
+That comparison exists, and it is stronger than an ablation because it changed no
+verdict: both loops were run **in shadow**, adapting real state, read by nothing.
+
+- **FB2 on** would collapse the non-conformity score **40%** in a context where
+  nothing changed, while the live score stayed flat to four decimal places
+  (E-39). Its labels are the proposer's own commands (E-38).
+- **FB3 on** would drive the veto rate to **5.02%** — ε exactly, because ε of any
+  distribution lies above its own 1−ε quantile (E-40).
+
+Those rows belong in the ablation table as measured results. They should not be
+re-derived by switching off something that was never on.
+
+### What building the remaining three actually costs
+
+Each is a change to the safety spine, not a flag. `statistical_gate` and `shield`
+are required constructor parameters because a pipeline that silently ran without
+a gate would be the single most dangerous defect this codebase could carry — the
+requirement is load-bearing, and removing it needs care that "make it optional"
+does not convey.
+
+The shape that keeps the guarantee: an explicit `AblationProfile` naming which
+layers are disabled, refused outright by any environment other than
+`development`, and stamped into every `DecisionRecord` so a run measured under an
+ablation can never be mistaken for a governed one. That is more work than the
+entry implies and it is the right amount, because the failure mode of getting it
+wrong is a certification artefact describing a system that was not running.
+
+**Exit unchanged:** a table quantifying each layer's contribution. Two rows of it
+are already measured.
+**Estimate:** 4–6 days, revised up from 3–5 — the entry costed six ablations
+against `None` paths that mostly do not exist.
+**Unblocked:** the note *"meaningless before P0.2"* no longer applies. P0.2 was
+dissolved by P0.0, the loop runs at a 0.1% veto rate, and an ablation now
+measures the layer rather than the latch.
 
 ## P3.5 — Comparison harness (work plan §4.2)
 
