@@ -163,7 +163,7 @@ class EnvironmentSpec:
             the limit costs **5% of the maximum per-step reward**, which is
             ``0.05 / 3.265e-5``.
 
-            That this was only discovered on 2 August is itself the finding: the
+            That this was only discovered on 5 August is itself the finding: the
             plant integrated at 0.02 s while the gate computed jerk over 0.05 s,
             so L7b was 2.5x more permissive than configured and the policy's
             steering fitted inside the slack. Correcting the timestep removed

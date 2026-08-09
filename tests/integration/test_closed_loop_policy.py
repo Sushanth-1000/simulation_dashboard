@@ -36,7 +36,7 @@ POLICY = Path("var/policy/synthetic.pt")
 TICKS = 1000
 """Long enough to contain the startup transient *and* some steady state.
 
-At 300 -- the value used until 2 August -- the run was entirely transient. The
+At 300 -- the value used until 5 August -- the run was entirely transient. The
 plant resets up to 1 m off the lane centre, the policy corrects, and the
 correction exceeds L7b's jerk bound until the rate limiter of ADR-0017 walks the
 achieved lateral acceleration in over about twenty ticks. Measuring a veto *rate*
@@ -199,7 +199,7 @@ def test_the_learned_policy_holds_the_lane(learned: object) -> None:
 
 
 def test_the_vehicle_converges_on_the_lane_centre_and_stays_there(learned: object) -> None:
-    # The assertion that would have caught the finding of 2 August, and the one
+    # The assertion that would have caught the finding of 5 August, and the one
     # nothing in this file previously made. Lateral position was not measured by
     # any sensor, so the filter dead-reckoned it, the estimate sat at zero while
     # the plant drifted 2 m off a lane 1.75 m wide, and **no gate objected** --

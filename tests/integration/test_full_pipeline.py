@@ -286,7 +286,7 @@ def test_the_same_manoeuvre_fires_a_gate_only_once_the_road_is_ice(
 # The fail-safe posture reaches an actuator
 # --------------------------------------------------------------------------- #
 #
-# Finding F2 of the 2 August soak review: every layer below was correct and the
+# Finding F2 of the 6 August soak review: every layer below was correct and the
 # composition was not. L8 computed a speed cap, recorded it in the evidence and
 # reported it to L9; L9 wrote SPEED_CAPPED into the origin. No one ever changed
 # a number in the command vector. A run could sit in HALT -- a commanded stop --

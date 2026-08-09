@@ -53,16 +53,20 @@ from astra.layers.l3_trust.corpus import CalibrationCorpus
 from astra.observability.audit import JsonlAuditSink
 from astra.runtime.assembly import AssembledPipeline, assemble_pipeline
 from training.environment import EnvironmentSpec, SyntheticDrivingEnv
+from training.faults import FaultChannel
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from numpy.typing import NDArray
+
     from astra.contracts.audit import DecisionRecord
     from astra.layers.l2_estimation.measurement import Measurement
     from astra.layers.l4_proposer.proposer import Policy
-    from astra.runtime.pipeline import ColdPathContext
+    from astra.runtime.pipeline import ColdPathContext, TickOutcome
+    from training.faults import FaultEpisode, FaultInjector
 
-__all__ = ["ClosedLoopResult", "TickSample", "drive_closed_loop"]
+__all__ = ["CHANNEL_SIGMAS", "ClosedLoopResult", "TickSample", "drive_closed_loop"]
 
 ENVIRONMENT = "simulation"
 """The configuration every closed-loop run resolves.
@@ -100,7 +104,7 @@ Representative of lane detection from a forward camera, which is where a real
 vehicle gets this quantity. The number matters less than the fact that the
 quantity is observed at all.
 
-**Why this exists, and what its absence cost.** Until 2 August this extractor
+**Why this exists, and what its absence cost.** Until 5 August this extractor
 published speed and lateral acceleration and nothing else, so ``position_y`` was
 never measured -- the UKF propagated it from a heading that is also unobserved,
 which is dead reckoning with no correction term. In a 2,000-tick run the estimate
@@ -121,6 +125,20 @@ begins here. See ``docs/SOAK_REPORT.md``.
 """
 _FRICTION_SIGMA = 4e-4
 _FRICTION = 0.85
+
+CHANNEL_SIGMAS = {
+    FaultChannel.POSITION_Y: POSITION_SIGMA,
+    FaultChannel.SPEED: SPEED_SIGMA,
+    FaultChannel.LATERAL_ACCELERATION: LATERAL_SIGMA,
+}
+"""The declared sigma per channel, for anything building a fault injector.
+
+Exported so a ``NOISE_BURST`` is scaled against the number the filter was
+actually told, rather than against a second copy of the sensor model. The three
+sigmas above already have to be true of two things at once -- the noise injected
+into a reading and the sigma declared alongside it -- and a third copy would be
+a third thing to drift.
+"""
 
 
 class _Extractor:
@@ -166,6 +184,8 @@ def _publish_state(
     plant: SyntheticDrivingEnv,
     at: Instant,
     noise: random.Random,
+    tick: int = 0,
+    fault: FaultInjector | None = None,
 ) -> None:
     """Publish the plant's observable state to every sensor modality.
 
@@ -185,11 +205,28 @@ def _publish_state(
     reproducible from its seed -- which ``test_a_closed_loop_run_is_reproducible``
     pins.
 
+    **Where an injected fault enters, and why here.** The corruption is applied
+    to the payload after the nominal noise and before the publish, so from the
+    pipeline's side a faulted reading is indistinguishable from a genuinely
+    faulty sensor -- it *is* the same event. Nothing in ``src/astra/`` knows the
+    injector exists. See ADR-0022 and :mod:`training.faults`.
+
+    A dropout suppresses **IMU only**. That is the modality
+    :meth:`_Extractor.extract_fast` reads, so the fast measurement goes missing
+    while the other four streams stay healthy, which exercises L1's
+    *per-modality* health machinery rather than blanking the frame. Blanking
+    everything would be a cheaper fault and a less interesting one.
+
     Args:
         bus: The shared sensor bus.
         plant: The synthetic plant, read directly as the test fixture it is.
         at: The observation instant, from the injected clock.
         noise: The seeded source for measurement noise.
+        tick: The control tick, which is what a fault's window is expressed in.
+        fault: The injector, or ``None`` for a clean run. ``None`` and an
+            injector with nothing active on this tick are the same thing to the
+            byte -- the injector draws no randomness when it is not injecting,
+            so the sensor stream is unperturbed either way.
     """
     state = plant._state  # noqa: SLF001 - the plant is the test fixture
     payload = {
@@ -197,7 +234,14 @@ def _publish_state(
         "v": float(state[2]) + noise.gauss(0.0, SPEED_SIGMA),
         "a": float(state[4]) + noise.gauss(0.0, LATERAL_SIGMA),
     }
+    dropped = False
+    if fault is not None:
+        corrupted = fault.corrupt(payload, tick=tick)
+        dropped = corrupted is None
+        payload = payload if corrupted is None else corrupted
     for modality in SensorModality:
+        if dropped and modality is SensorModality.IMU:
+            continue
         bus.publish(
             SensorSample(
                 modality=modality,
@@ -252,6 +296,12 @@ class TickSample:
         live_score: The non-conformity score L6 computed, or ``None``.
         shadow_score: The score L6 would have computed against the shadow twin,
             or ``None``. The pair is what says whether FB2 would disarm the gate.
+        fault_active: Whether an injected fault was applied on this tick.
+            **The ground-truth label**, and the field that makes a detection
+            measurement possible at all: paired with the tick's verdict it gives
+            the four cells a miss rate needs. Every veto rate measured before
+            this field existed had no denominator, because nothing recorded
+            whether anything was actually wrong.
     """
 
     tick: int
@@ -269,6 +319,7 @@ class TickSample:
     shadow_quantile: float | None = None
     shadow_would_veto: bool | None = None
     shadow_failsafe: str | None = None
+    fault_active: bool = False
 
 
 @dataclass(slots=True)
@@ -297,6 +348,13 @@ class ClosedLoopResult:
             evidence has a gap cannot be reported as complete. Invisible at
             four hundred ticks and the first thing a long run can lose.
         audit_path: Where the evidence for this run was written.
+        faulted_ticks: How many ticks carried an injected fault. Zero on a clean
+            run, and the denominator every detection rate is taken over.
+        fault_episodes: What each injected fault **achieved**, read back from
+            the injector after the run. Reported rather than assumed: an
+            episode with a zero peak error means the injector ran and changed
+            nothing, and a table of "faults the gates missed" built on that
+            would be a table of faults never injected.
     """
 
     ticks: int = 0
@@ -309,6 +367,8 @@ class ClosedLoopResult:
     final_absolute_deviation_m: float = 0.0
     dropped_records: int = 0
     audit_path: Path | None = None
+    faulted_ticks: int = 0
+    fault_episodes: tuple[FaultEpisode, ...] = ()
 
     @property
     def veto_rate(self) -> float:
@@ -321,6 +381,108 @@ class ClosedLoopResult:
         return self.vetoed / self.ticks if self.ticks else 0.0
 
 
+def _action_for(
+    record: DecisionRecord,
+    *,
+    lower: NDArray[np.float64],
+    upper: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """Return the normalised action the plant should apply this tick.
+
+    Closing the loop: whatever L9 actually issued is what the plant applies, so
+    a veto changes the vehicle's trajectory. That is the whole point, and it is
+    what an open-loop harness cannot show.
+
+    Args:
+        record: The tick's decision record.
+        lower: Per-channel lower bounds of the plant's command space.
+        upper: Per-channel upper bounds.
+
+    Returns:
+        The action, in the normalised ``[-1, 1]`` space the plant takes.
+    """
+    if record.issued is not None:
+        values = np.asarray(record.issued.command.values, dtype=np.float64)
+        return 2.0 * (values - lower) / (upper - lower) - 1.0
+    # Throttle shut, brake full, wheel straight -- expressed in the
+    # *normalised* action space the plant takes, which is why the first
+    # entry is -1.0 and not 0.0.
+    #
+    # It read `[0.0, 1.0, 0.0]` until 8 August 2026. The mapping is
+    # `v = lower + (action + 1) / 2 * (upper - lower)`, so on channels
+    # bounded [0, 1] an action of 0.0 is **half throttle**: the branch
+    # that runs when the pipeline issued nothing was commanding half
+    # throttle and full brake together. Unreachable in every run
+    # measured -- 0 ticks of 100,000 issued nothing (E-3) -- and wrong in
+    # the one situation it exists for.
+    return np.array([-1.0, 1.0, 0.0])
+
+
+def _account_for_verdict(result: ClosedLoopResult, record: DecisionRecord) -> None:
+    """Fold one tick's verdict into the run's veto tallies.
+
+    Args:
+        result: The run's accumulating result, mutated in place.
+        record: The tick's decision record.
+    """
+    verdict = record.safety_verdict
+    if verdict is None:
+        return
+    if verdict.is_blocking:
+        result.vetoed += 1
+    for gate_verdict in verdict.gate_verdicts:
+        if gate_verdict.verdict.is_blocking:
+            result.reasons[f"{gate_verdict.gate.value}:{gate_verdict.reason_code}"] += 1
+
+
+def _sample(
+    outcome: TickOutcome,
+    *,
+    tick: int,
+    plant: SyntheticDrivingEnv,
+    lateral_acceleration: float,
+    duration_ns: int,
+    faulted: bool,
+) -> TickSample:
+    """Assemble one observer sample from a tick's outcome and the plant's truth.
+
+    Extracted from :func:`drive_closed_loop` because the shadow fields are
+    thirteen conditional expressions that say nothing about the loop they sat
+    in, and the loop is the part worth reading.
+
+    Args:
+        outcome: What ``pipeline.tick`` returned.
+        tick: The tick index.
+        plant: The plant, read after it has applied the issued command.
+        lateral_acceleration: The plant's lateral acceleration after the step.
+        duration_ns: Wall-clock cost of ``pipeline.tick`` alone.
+        faulted: Whether an injected fault applied to this tick.
+
+    Returns:
+        The sample.
+    """
+    shadow = outcome.shadow
+    state = plant._state  # noqa: SLF001 - the plant is the test fixture
+    return TickSample(
+        tick=tick,
+        record=outcome.record,
+        was_issued=outcome.was_issued,
+        lane_deviation_m=float(state[1]),
+        speed_mps=float(state[2]),
+        lateral_acceleration_mps2=lateral_acceleration,
+        pipeline_duration_ns=duration_ns,
+        shadow_divergence_m_s2=None if shadow is None else shadow.divergence,
+        shadow_digest=None if shadow is None else shadow.digest,
+        live_score=None if shadow is None else shadow.live_score,
+        shadow_score=None if shadow is None else shadow.shadow_score,
+        quantile=None if shadow is None else shadow.quantile,
+        shadow_quantile=None if shadow is None else shadow.shadow_quantile,
+        shadow_would_veto=None if shadow is None else shadow.shadow_would_veto,
+        shadow_failsafe=None if shadow is None else shadow.shadow_failsafe,
+        fault_active=faulted,
+    )
+
+
 def drive_closed_loop(
     *,
     policy: Policy | None,
@@ -331,6 +493,7 @@ def drive_closed_loop(
     observer: Callable[[TickSample], None] | None = None,
     cold_path: ColdPathContext | None = None,
     shadow_fb2: bool = False,
+    fault: FaultInjector | None = None,
 ) -> ClosedLoopResult:
     """Run the pipeline against the plant, feeding issued commands back in.
 
@@ -350,6 +513,12 @@ def drive_closed_loop(
             leaves the loop as it was.
         shadow_fb2: Run FB2 against a twin nothing reads, so the run can report
             what online adaptation would have done. Off by default.
+        fault: Sensor faults to inject, with their ground truth. ``None`` -- the
+            default -- is a clean run, and is **bit-identical** to a run given
+            an injector whose windows fall outside it, because the injector
+            draws no randomness when nothing is active. That equality is what
+            makes the fault the only difference between two arms of a
+            comparison, and it is pinned by a test rather than assumed.
         cold_path: What RCM needs to evaluate the knowledge base. ``None`` --
             the default, and what every run before the first soak used --
             leaves the cold path dormant: the arbitrator keeps its initial
@@ -397,7 +566,16 @@ def drive_closed_loop(
     deviation_total = 0.0
 
     for index in range(ticks):
-        _publish_state(built.sensor_bus, plant=plant, at=clock.now(), noise=noise)
+        faulted = fault is not None and fault.is_active(index)
+        result.faulted_ticks += int(faulted)
+        _publish_state(
+            built.sensor_bus,
+            plant=plant,
+            at=clock.now(),
+            noise=noise,
+            tick=index,
+            fault=fault,
+        )
 
         started_at = time.perf_counter_ns()
         outcome = built.pipeline.tick(TickId(index))
@@ -413,65 +591,27 @@ def drive_closed_loop(
                 result.peak_lateral_jerk_mps3,
                 abs(demanded - previous_lateral) / float(period),
             )
-        verdict = record.safety_verdict
-        if verdict is not None and verdict.is_blocking:
-            result.vetoed += 1
-        for gate_verdict in verdict.gate_verdicts if verdict else ():
-            if gate_verdict.verdict.is_blocking:
-                result.reasons[f"{gate_verdict.gate.value}:{gate_verdict.reason_code}"] += 1
+        _account_for_verdict(result, record)
 
-        # Close the loop: whatever L9 actually issued is what the plant applies.
-        # A veto therefore changes the vehicle's trajectory, which is the whole
-        # point and what an open-loop harness cannot show.
-        if record.issued is not None:
-            values = np.asarray(record.issued.command.values, dtype=np.float64)
-            action = 2.0 * (values - lower) / (upper - lower) - 1.0
-        else:
-            # Throttle shut, brake full, wheel straight -- expressed in the
-            # *normalised* action space the plant takes, which is why the first
-            # entry is -1.0 and not 0.0.
-            #
-            # It read `[0.0, 1.0, 0.0]` until 8 August 2026. The mapping is
-            # `v = lower + (action + 1) / 2 * (upper - lower)`, so on channels
-            # bounded [0, 1] an action of 0.0 is **half throttle**: the branch
-            # that runs when the pipeline issued nothing was commanding half
-            # throttle and full brake together. Unreachable in every run
-            # measured -- 0 ticks of 100,000 issued nothing (E-3) -- and wrong in
-            # the one situation it exists for.
-            action = np.array([-1.0, 1.0, 0.0])
+        action = _action_for(record, lower=lower, upper=upper)
         plant.step(action.astype(np.float32))
         previous_lateral = float(plant._state[4])  # noqa: SLF001
         deviation_total += abs(float(plant._state[1]))  # noqa: SLF001
         if observer is not None:
             observer(
-                TickSample(
+                _sample(
+                    outcome,
                     tick=index,
-                    record=record,
-                    was_issued=outcome.was_issued,
-                    lane_deviation_m=float(plant._state[1]),  # noqa: SLF001
-                    speed_mps=float(plant._state[2]),  # noqa: SLF001
-                    lateral_acceleration_mps2=previous_lateral,
-                    pipeline_duration_ns=duration_ns,
-                    shadow_divergence_m_s2=(
-                        None if outcome.shadow is None else outcome.shadow.divergence
-                    ),
-                    shadow_digest=None if outcome.shadow is None else outcome.shadow.digest,
-                    live_score=None if outcome.shadow is None else outcome.shadow.live_score,
-                    shadow_score=(None if outcome.shadow is None else outcome.shadow.shadow_score),
-                    quantile=None if outcome.shadow is None else outcome.shadow.quantile,
-                    shadow_quantile=(
-                        None if outcome.shadow is None else outcome.shadow.shadow_quantile
-                    ),
-                    shadow_would_veto=(
-                        None if outcome.shadow is None else outcome.shadow.shadow_would_veto
-                    ),
-                    shadow_failsafe=(
-                        None if outcome.shadow is None else outcome.shadow.shadow_failsafe
-                    ),
+                    plant=plant,
+                    lateral_acceleration=previous_lateral,
+                    duration_ns=duration_ns,
+                    faulted=faulted,
                 )
             )
         clock.advance(period)
 
+    if fault is not None:
+        result.fault_episodes = fault.episodes
     sink.flush()
     sink.close()
     result.mean_absolute_deviation_m = deviation_total / ticks

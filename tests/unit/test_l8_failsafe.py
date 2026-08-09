@@ -312,7 +312,7 @@ def test_a_reset_machine_escalates_again_from_scratch() -> None:
 # --------------------------------------------------------------------------- #
 # The counter is bounded at both ends
 # --------------------------------------------------------------------------- #
-# Finding F5 of the 2 August soak review: the counter reached 1,508 by tick 2,000
+# Finding F5 of the 6 August soak review: the counter reached 1,508 by tick 2,000
 # and kept climbing, in a field written into every snapshot and every audit row.
 # Nothing consulted the excess -- the machine had been in HALT since 10 and HALT
 # does not look at the counter -- so it was 1,498 ticks of pure noise.

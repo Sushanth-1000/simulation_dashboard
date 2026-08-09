@@ -265,7 +265,7 @@ class FailSafeState(StrEnum):
     is the only exit, because leaving a pull-over is an engineering or operator
     decision rather than something a run of clean ticks should accomplish.
 
-    The speed caps these states report *are* enforced, as of P2.1 on 2 August
+    The speed caps these states report *are* enforced, as of P2.1 on 6 August
     2026. :attr:`~astra.contracts.assurance.FailSafeSnapshot.speed_cap` is
     projected onto the actuation vector by
     :meth:`~astra.layers.l9_rcm.arbiter.RuntimeCalibrationManager.issue`, last

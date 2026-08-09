@@ -437,7 +437,7 @@ def test_the_aggregate_does_not_depend_on_verdict_order() -> None:
 
 
 def test_a_vehicle_outside_its_corridor_is_vetoed() -> None:
-    # THE test this gate existed without. On 2 August a 100,000-tick run put the
+    # THE test this gate existed without. On 5 August a 100,000-tick run put the
     # vehicle 2.9 km outside a corridor 1.75 m wide with a 0.00% veto rate and a
     # Trust Index of exactly 1.00. Nothing in Core-B measured where the vehicle
     # was: this gate bounded speed, lateral acceleration and stopping distance;
@@ -499,7 +499,7 @@ def test_the_corridor_breach_is_reported_in_the_evidence() -> None:
 
 def test_the_corridor_bound_reads_the_estimate_and_is_blind_to_a_wrong_one() -> None:
     # An honest limitation, pinned so it cannot be forgotten in the safety case.
-    # The bound refuses a departure the *filter* knows about. On 2 August the
+    # The bound refuses a departure the *filter* knows about. On 5 August the
     # filter did not: lateral position was measured by nothing, so the estimate
     # sat at zero while the vehicle left the corridor entirely. Had this bound
     # existed then it would have passed every tick.
