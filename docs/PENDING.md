@@ -1025,7 +1025,28 @@ doing — see P3.2.
 **Conclusion: do not wire FB2 as it stands.** That needs no action to implement — it is the status quo — and it
 now rests on measurement rather than on reading the code.
 
-**6. P3.1c — what FB2 should do instead. OPEN, wants an ADR.**
+**6. P3.1c — what FB2 should do instead. DECIDED, [ADR-0020](adr/0020-fb2-estimates-control-effectiveness.md), not yet implemented.**
+
+FB2 estimates the control effectiveness `B` from measured response rather than
+regressing a network onto proposer commands. The target becomes measured physics,
+so drift toward the proposer is impossible rather than penalised — the ADR-0019
+move, one level up — and the twin's weights stop changing during a run at all.
+
+Evidence, and it carries a hard condition: `a_lat / steer` recovers the configured
+B = 140.0 to **0.000%** with σ = 0, **provided saturated samples are excluded**.
+Admitting them reads 116.0, **17.1% low**, and low is the dangerous direction —
+an underestimated B shrinks the departure the score is computed from (E-43). The
+first probe made exactly that mistake by driving ±0.05 steer into a plant that
+saturates at 0.0214, and it is recorded because the same error in production
+would be silent.
+
+Open, and named in the ADR rather than glossed: sample starvation (only 387 of
+4,000 wide-steer samples survived the filter), noise on a real platform where σ
+will not be zero, and the port change to let L5 read a live estimate without
+reaching into the adapter. **To be measured in shadow before wiring**, which is
+now the standing rule and has caught two defects already.
+
+**6-original. P3.1c — what FB2 should do instead.**
 
 Working the candidates through turned up a better answer than any of them.
 
