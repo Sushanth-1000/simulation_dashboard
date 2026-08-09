@@ -1040,7 +1040,7 @@ first probe made exactly that mistake by driving ±0.05 steer into a plant that
 saturates at 0.0214, and it is recorded because the same error in production
 would be silent.
 
-**The estimator itself is now built and tested** — 
+**The estimator itself is now built and tested** — `ControlEffectivenessEstimator`
 in the adapter, 18 tests, including the saturation control that computes what a
 naive estimator *would* have returned from exactly the samples the real one
 rejects. Still to do: shadow it over a soak, then the port change so L5 reads the
