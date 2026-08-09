@@ -181,13 +181,22 @@ Scoped to what is genuinely transferable, not to ASTRA itself.
 
 Case 1 should not be opened before row **D-1** in the credibility matrix reaches **[M-ext]**.
 
-> **D-1 currently has a second blocker, and it is not about data.** The matrix marks it
-> *internally inconsistent*: `significance_epsilon` is 0.05, and a correctly functioning
-> conformal gate vetoes ε of exchangeable nominal traffic **by construction** — measured at
-> 5.02% when the requantilisation loop was run in shadow. A "< 1% false-positive rate" and
-> ε = 0.05 cannot both hold, so **no false-positive figure should be promised to anyone until
-> that is resolved**, whichever way it goes. Reporting whatever the measurement says (D5)
-> remains safe; committing to a threshold in advance does not.
+> **What may and may not be said about the false-positive rate.** These are two different
+> numbers and conflating them is the easiest way to lose a technical audience.
+>
+> *Per tick*, the gate vetoes **ε** — 5% at the shipped significance level — and always will,
+> because ε of any distribution lies above its own 1−ε quantile. That is the conformal
+> guarantee working, not a defect, and it is not the number a fleet operator cares about.
+>
+> *Per intervention* is what they care about, because a veto runs the fallback controller for
+> one tick and the posture does not degrade until the OOD counter crosses θ₁. Measured at the
+> design point over 100,000 ticks: **0.008% of ticks outside NOMINAL** — two episodes in 83
+> minutes of driving, 2 and 6 ticks, both self-recovering, LIMP and HALT never reached (E-42).
+>
+> **Both figures are quotable together and neither is quotable alone.** And both are
+> **[M-syn]**: the plant, twin and corpus share one set of equations, so this shows the two
+> rates are compatible, *not* that either holds on a real vehicle. That still needs comma2k19,
+> and D-1 stays [NOT DONE] until it has it.
 
 Before that point the conversation is *"lend us data so we can find out whether our gates
 work."* After it, the conversation is *"here is a measured false-positive rate on 33 hours of

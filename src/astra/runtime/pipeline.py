@@ -180,7 +180,17 @@ class ShadowLoops:
             requantilising online on realised scores. **The FB3 counterfactual.**
         shadow_would_veto: Whether this tick's score exceeds that shadow
             quantile. Summed over a run it gives the veto rate FB3 would have
-            produced, which is the number that decides whether it is safe.
+            produced.
+        shadow_failsafe: The state a *second* fail-safe machine reaches when fed
+            those counterfactual vetoes and nothing else.
+
+            This is what answers D-1. A veto is not an intervention: it runs the
+            fallback for one tick and nothing degrades until the OOD counter
+            crosses theta-1. So "false-positive rate" has two readings -- per
+            tick, which is epsilon by construction and not a defect, and per
+            *intervention*, which is what a fleet operator actually pays for.
+            They are not the same number and the target of < 1% never said
+            which it meant.
         live_score: The non-conformity score L6 computed this tick, against the
             twin the gates actually read.
         shadow_score: The score L6 *would* have computed had it read the shadow
@@ -205,6 +215,7 @@ class ShadowLoops:
     quantile: float
     shadow_quantile: float
     shadow_would_veto: bool
+    shadow_failsafe: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -275,6 +286,7 @@ class GovernancePipeline[PayloadT]:
         "_run",
         "_sensor_bus",
         "_shadow_calibration",
+        "_shadow_failsafe",
         "_shadow_twin",
         "_shield",
         "_slow_period_ticks",
@@ -309,6 +321,7 @@ class GovernancePipeline[PayloadT]:
         control_effectiveness: Sequence[float] | None = None,
         shadow_twin: PhysicsInformedTwin | None = None,
         shadow_calibration: MondrianCalibration | None = None,
+        shadow_failsafe: FailSafeStateMachine | None = None,
     ) -> None:
         """Assemble the pipeline from already-constructed layers.
 
@@ -357,6 +370,12 @@ class GovernancePipeline[PayloadT]:
                 The idiom is L9's, not a new one -- :class:`ShadowExecution`
                 stages a candidate calibration profile and measures its
                 divergence before committing to it, for the same reason.
+            shadow_failsafe: A second fail-safe machine, driven only by the
+                counterfactual verdicts FB3's quantile would have produced. It
+                governs nothing. It exists to answer D-1's real question: a veto
+                runs the fallback for one tick, and nothing degrades until the
+                OOD counter crosses theta-1, so the per-tick veto rate and the
+                per-*intervention* rate are different numbers.
             shadow_calibration: A second Mondrian calibration, seeded from the
                 same corpus as L6's, which **is** fed realised scores. Nothing
                 thresholds against it. It answers FB3's question -- what would
@@ -374,6 +393,7 @@ class GovernancePipeline[PayloadT]:
         self._twin = twin
         self._shadow_twin = shadow_twin
         self._shadow_calibration = shadow_calibration
+        self._shadow_failsafe = shadow_failsafe
         self._statistical_gate = statistical_gate
         self._physical_gate = physical_gate
         self._shield = shield
@@ -449,6 +469,7 @@ class GovernancePipeline[PayloadT]:
             proposal=proposal,
             prediction=prediction,
             trust=trust,
+            failsafe=failsafe,
         )
         self._maybe_arbitrate(tick=tick, frame=frame, frame_health=frame_health, state=state)
 
@@ -665,6 +686,7 @@ class GovernancePipeline[PayloadT]:
         proposal: ProposedCommand,
         prediction: PredictedCommand,
         trust: TrustAssessment,
+        failsafe: FailSafeSnapshot,
     ) -> ShadowLoops | None:
         """Run FB2 against a twin nothing reads, and report what it would do.
 
@@ -688,6 +710,8 @@ class GovernancePipeline[PayloadT]:
             proposal: The untrusted proposal, the score's left operand.
             prediction: What the live twin predicted, to difference against.
             trust: Supplies the context the shadow adapts in.
+            failsafe: The live posture, reported back unchanged when no shadow
+                machine is running so the field is never empty.
 
         Returns:
             The counterfactual, or ``None`` if no shadow twin was supplied.
@@ -738,6 +762,28 @@ class GovernancePipeline[PayloadT]:
         adapted = issued is not None
         if issued is not None:
             self._shadow_twin.adapt(applied=issued.command, measured=state, context=context)
+        # Feed the counterfactual verdict to a fail-safe machine of its own, so
+        # the escalation this veto rate would have caused is measured rather
+        # than reasoned about. Independent instance: it must not perturb the one
+        # the vehicle is actually governed by.
+        would_veto = math.isfinite(shadow_quantile) and live_score > shadow_quantile
+        shadow_state = failsafe.state.value
+        if self._shadow_failsafe is not None:
+            shadow_state = self._shadow_failsafe.observe(
+                tick=tick,
+                verdict=SafetyVerdict(
+                    tick=tick,
+                    gate_verdicts=(
+                        GateVerdict(
+                            tick=tick,
+                            gate=GateId.STATISTICAL,
+                            verdict=Verdict.VETO if would_veto else Verdict.PASS,
+                            reason_code="SHADOW_REQUANTILISED",
+                        ),
+                    ),
+                ),
+            ).state.value
+
         return ShadowLoops(
             divergence=divergence,
             digest=self._shadow_twin.weights_digest,
@@ -746,7 +792,8 @@ class GovernancePipeline[PayloadT]:
             shadow_score=shadow_score,
             quantile=quantile,
             shadow_quantile=shadow_quantile,
-            shadow_would_veto=math.isfinite(shadow_quantile) and live_score > shadow_quantile,
+            shadow_would_veto=would_veto,
+            shadow_failsafe=shadow_state,
         )
 
     def _reanchor(self, issued: IssuedCommand | None) -> None:

@@ -192,7 +192,7 @@ what the vehicle was doing.
 
 | # | Claim | Marker | What would establish it |
 |:--:|---|:--:|---|
-| D-1 | **False-positive rate < 1%** | **[NOT DONE]**, and **internally inconsistent** | `significance_epsilon` is 0.05, and a correctly functioning conformal gate vetoes ε of exchangeable nominal traffic *by construction* — measured at **5.02%** when FB3 was run in shadow (E-40). This target and that ε cannot both hold. Establishing it needs comma2k19 **and** a decision about which of the two moves |
+| D-1 | **False-positive rate < 1%** | **[NOT DONE]** — but no longer inconsistent | The apparent contradiction with ε = 0.05 was a **units error in this row**, not a defect in the system. A veto runs the fallback for *one tick*; the posture does not degrade until the OOD counter crosses θ₁ = 10. Measured at the design point over 100,000 ticks: **4.97% of ticks vetoed, 0.008% outside NOMINAL** — two episodes in 83 minutes, both self-recovering, LIMP and HALT never reached (E-42). Per-tick is ε by construction and always will be; per-intervention is the number a fleet pays for. **[M-syn]**, so comma2k19 is still what promotes this row |
 | D-2 | **False-negative rate < 1%** | **[NOT DONE]** | Miss rate against ground-truth labelled faults — ALFA; or injected faults with known ground truth |
 | D-3 | The three gates fail for structurally unrelated reasons | **[NOT DONE]** | Correlation of gate firings across a real corpus. Currently an argument from construction, not a measurement |
 | D-4 | The statistical gate detects covariate shift | **[NOT DONE]** | MMD detector response across genuinely distinct real operating contexts |

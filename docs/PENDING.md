@@ -1172,7 +1172,17 @@ assumption conformal prediction rests on, already violated. E-12's 94.9–95.1%
 coverage is real but was measured on shuffled splits *of the corpus*, which are
 exchangeable by construction; it does not transfer to the live loop.
 
-**2. `significance_epsilon = 0.05` contradicts D-1's "false-positive rate < 1%".**
+**2. ~~`significance_epsilon = 0.05` contradicts D-1's "false-positive rate < 1%".~~
+RESOLVED — it was a units error in D-1, not a defect.** Measured at the design point over
+100,000 ticks: **4.97% of ticks vetoed, 0.008% outside NOMINAL** — two episodes in 83 minutes,
+2 and 6 ticks, both self-recovering, LIMP and HALT never reached (E-42). A veto runs the
+fallback for one tick; θ₁ = 10 sustained refusals are needed to degrade the posture, and
+independent 5% events do not cluster that way. Per-tick is ε by construction; per-intervention
+is what a fleet pays for; they differ by ~600×. **ε stays at 0.05** — lowering it would have
+raised the threshold, bought D-1 with D-2, and made the rare context classes uncertifiable at
+n ≥ 99. Original text follows.
+
+**2-original. `significance_epsilon = 0.05` contradicts D-1's "false-positive rate < 1%".**
 A correctly functioning conformal gate at ε = 0.05 vetoes 5% of nominal
 exchangeable traffic. The two cannot both be true, and FB3's shadow is what made
 it unavoidable: it is the first time the gate has been asked to run at its own

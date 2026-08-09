@@ -550,6 +550,7 @@ def assemble_pipeline[PayloadT](
     # exactly the construction the real one did -- a shadow assembled by a
     # different route would be measuring the route as much as the loop.
     shadow_calibration: MondrianCalibration | None = None
+    shadow_failsafe: FailSafeStateMachine | None = None
     shadow_twin: PhysicsInformedTwin | None = None
     if shadow_fb2:
         shadow_twin = PhysicsInformedTwin(
@@ -563,6 +564,9 @@ def assemble_pipeline[PayloadT](
         # Seeded from the same corpus as L6's, below, so the two start identical
         # and every later difference is FB3's doing.
         shadow_calibration = MondrianCalibration(window=settings.trust.calibration_window)
+        # Same thresholds as the real machine, so the escalation it reports is
+        # the one the vehicle would actually have suffered.
+        shadow_failsafe = FailSafeStateMachine(settings.failsafe)
 
     statistical_gate = IcpStatisticalGate(
         calibration=calibration,
@@ -650,6 +654,7 @@ def assemble_pipeline[PayloadT](
         context=cold_path,
         shadow_twin=shadow_twin,
         shadow_calibration=shadow_calibration,
+        shadow_failsafe=shadow_failsafe,
     )
     return AssembledPipeline(
         pipeline=pipeline,

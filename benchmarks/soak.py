@@ -308,8 +308,13 @@ class WindowSummary:
         mean_shadow_quantile: Mean quantile FB3 would have moved it to. The pair
             is FB3's counterfactual, as `mean_live_score`/`mean_shadow_score` is
             FB2's.
-        shadow_veto_rate: The veto rate FB3's quantile would have produced.
-            Never gated -- it describes a loop that is switched off.
+        shadow_veto_rate: The per-tick veto rate FB3's quantile would have
+            produced. Never gated -- it describes a loop that is switched off.
+        shadow_failsafe_states: Tick counts per state for a fail-safe machine
+            driven by those counterfactual vetoes. **This is the D-1 number.** A
+            veto runs the fallback for one tick; nothing degrades until the OOD
+            counter crosses theta-1. Ticks outside NOMINAL are interventions; the
+            per-tick veto rate is not.
         mean_shadow_score: Mean score against the shadow twin, or ``None``. The
             twin's own docstring says training it on the proposer's output would
             "make every score small and quietly disarm the statistical gate";
@@ -345,6 +350,7 @@ class WindowSummary:
     mean_quantile: float | None = None
     mean_shadow_quantile: float | None = None
     shadow_veto_rate: float | None = None
+    shadow_failsafe_states: tuple[tuple[str, int], ...] = ()
 
     @property
     def veto_rate(self) -> float:
@@ -388,6 +394,7 @@ class WindowSummary:
             "mean_quantile": self.mean_quantile,
             "mean_shadow_quantile": self.mean_shadow_quantile,
             "shadow_veto_rate": self.shadow_veto_rate,
+            "shadow_failsafe_states": dict(self.shadow_failsafe_states),
         }
 
 
@@ -429,6 +436,7 @@ class _WindowAccumulator:
     quantile_total: float = 0.0
     shadow_quantile_total: float = 0.0
     shadow_vetoes: int = 0
+    shadow_failsafe: Counter[str] = field(default_factory=Counter)
 
     def observe(self, sample: TickSample) -> None:
         """Fold one tick into the window.
@@ -475,16 +483,31 @@ class _WindowAccumulator:
             if gate_verdict.verdict.is_blocking:
                 self.reasons[f"{gate_verdict.gate.value}:{gate_verdict.reason_code}"] += 1
 
-        if sample.shadow_divergence_m_s2 is not None:
-            self.shadow_total += sample.shadow_divergence_m_s2
-            self.shadow_peak = max(self.shadow_peak, sample.shadow_divergence_m_s2)
-            self.shadow_samples += 1
-            self.shadow_digest = sample.shadow_digest
-            self.live_score_total += sample.live_score or 0.0
-            self.shadow_score_total += sample.shadow_score or 0.0
-            self.quantile_total += sample.quantile or 0.0
-            self.shadow_quantile_total += sample.shadow_quantile or 0.0
-            self.shadow_vetoes += int(bool(sample.shadow_would_veto))
+        self._observe_shadow(sample)
+
+    def _observe_shadow(self, sample: TickSample) -> None:
+        """Fold one tick's dormant-loop counterfactuals into the window.
+
+        Split out of :meth:`observe` when that method outgrew its branch budget.
+        Everything here is about loops that are switched off, so keeping it
+        separate also keeps the live accounting readable.
+
+        Args:
+            sample: The tick, as the closed-loop driver saw it.
+        """
+        if sample.shadow_divergence_m_s2 is None:
+            return
+        self.shadow_total += sample.shadow_divergence_m_s2
+        self.shadow_peak = max(self.shadow_peak, sample.shadow_divergence_m_s2)
+        self.shadow_samples += 1
+        self.shadow_digest = sample.shadow_digest
+        self.live_score_total += sample.live_score or 0.0
+        self.shadow_score_total += sample.shadow_score or 0.0
+        self.quantile_total += sample.quantile or 0.0
+        self.shadow_quantile_total += sample.shadow_quantile or 0.0
+        self.shadow_vetoes += int(bool(sample.shadow_would_veto))
+        if sample.shadow_failsafe is not None:
+            self.shadow_failsafe[sample.shadow_failsafe] += 1
 
     def close(self) -> WindowSummary:
         """Summarise the window and reset for the next one.
@@ -538,6 +561,7 @@ class _WindowAccumulator:
             shadow_veto_rate=(
                 self.shadow_vetoes / self.shadow_samples if self.shadow_samples else None
             ),
+            shadow_failsafe_states=tuple(sorted(self.shadow_failsafe.items())),
         )
         self.index += 1
         self.first_tick += self.ticks
@@ -565,6 +589,7 @@ class _WindowAccumulator:
         self.quantile_total = 0.0
         self.shadow_quantile_total = 0.0
         self.shadow_vetoes = 0
+        self.shadow_failsafe.clear()
         return summary
 
 
@@ -1160,6 +1185,23 @@ def _render_shadow(report: SoakReport) -> Iterable[str]:
             yield (
                 f"  {'veto rate FB3 would have given':<34}"
                 f"{first.shadow_veto_rate or 0.0:>12.1%} -> {last.shadow_veto_rate or 0.0:.1%}"
+            )
+        escalation: Counter[str] = Counter()
+        for window in shadowed:
+            escalation.update(dict(window.shadow_failsafe_states))
+        if escalation:
+            total = sum(escalation.values())
+            degraded = total - escalation.get("NOMINAL", 0)
+            yield ""
+            yield "  what those vetoes would have cost -- the D-1 number"
+            for name, count in sorted(escalation.items()):
+                yield f"  {name:<34}{count:>12}{count / max(1, total):>13.3%}"
+            yield (
+                f"  {'ticks outside NOMINAL':<34}{degraded:>12}{degraded / max(1, total):>13.3%}"
+            )
+            yield (
+                "  a veto runs the fallback for one tick; only sustained refusal "
+                "degrades the posture"
             )
 
 

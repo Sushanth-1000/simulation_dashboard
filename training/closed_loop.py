@@ -246,6 +246,9 @@ class TickSample:
         quantile: The static conformal quantile L6 used, or ``None``.
         shadow_quantile: The quantile FB3 would have moved it to, or ``None``.
         shadow_would_veto: Whether FB3's quantile would have vetoed this tick.
+        shadow_failsafe: The state a fail-safe machine driven by those
+            counterfactual vetoes reaches. Per-tick vetoes and per-intervention
+            escalations are different rates; this is the second one.
         live_score: The non-conformity score L6 computed, or ``None``.
         shadow_score: The score L6 would have computed against the shadow twin,
             or ``None``. The pair is what says whether FB2 would disarm the gate.
@@ -265,6 +268,7 @@ class TickSample:
     quantile: float | None = None
     shadow_quantile: float | None = None
     shadow_would_veto: bool | None = None
+    shadow_failsafe: str | None = None
 
 
 @dataclass(slots=True)
@@ -460,6 +464,9 @@ def drive_closed_loop(
                     ),
                     shadow_would_veto=(
                         None if outcome.shadow is None else outcome.shadow.shadow_would_veto
+                    ),
+                    shadow_failsafe=(
+                        None if outcome.shadow is None else outcome.shadow.shadow_failsafe
                     ),
                 )
             )
