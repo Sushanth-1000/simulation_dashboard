@@ -72,8 +72,9 @@ the plant is, which makes them the only claims in this document that are fully s
 The scoreboard is a snapshot, and a snapshot cannot show the one thing a reviewer most needs
 to know: **whether a project finds its own defects.** One working day, stated in numbers.
 
-**Five of the six open defects closed**, each fixed *and* re-measured, none reported by anyone
-outside the project:
+**Five of the six defects the register held that morning are closed**, each fixed *and*
+re-measured, none reported by anyone outside the project. Two more were opened the same day —
+OD-7 and OD-8 — which is why the register now shows eight rows rather than six:
 
 | | was | now |
 |---|---|---|
