@@ -36,7 +36,9 @@ error a demo does not surface.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+import statistics
+from collections import defaultdict, deque
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Final
 
 from astra.contracts.actuation import ActuationChannel, ActuationSpace
@@ -98,6 +100,9 @@ __all__ = [
 # Channel positions within the automotive space. Named rather than written as
 # literals at each use, because a reordering that missed one call site would
 # route the throttle command into the steering channel and still type-check.
+_MINIMUM_STEER_FOR_ESTIMATE: Final = 1e-3
+"""Below this the ratio `a_lat / steer` is noise divided by a small number."""
+
 THROTTLE_INDEX = 0
 BRAKE_INDEX = 1
 STEER_INDEX = 2
@@ -150,6 +155,145 @@ def automotive_actuation_space() -> ActuationSpace:
             ActuationChannel(name="steer", lower=-0.5, upper=0.5, unit="rad"),
         )
     )
+
+
+@dataclass
+class ControlEffectivenessEstimator:
+    """Tracks the platform's steering effectiveness from measured response.
+
+    Feedback loop FB2, as redefined by
+    :doc:`ADR-0020 </adr/0020-fb2-estimates-control-effectiveness>`. It replaces
+    an online network update whose only training labels were the proposer's own
+    commands -- measured to collapse the non-conformity score 40% in a context
+    where nothing changed, which is the statistical gate disarming itself.
+
+    The relation is the one the twin, L7b and the projector already share:
+    ``B . pi = a_lat``. Command a steering value, observe the lateral
+    acceleration it produced, and the ratio is the effective ``B``. The target is
+    therefore *measured physics* rather than the proposer's output, so no amount
+    of adaptation can pull the reference toward the thing it judges. That is the
+    property the network form could not have, at any penalty strength.
+
+    It lives here rather than in L5 because ``B`` is a platform fact -- it is
+    configuration precisely because NFR5 keeps vehicle knowledge out of the
+    layers -- so the thing that estimates it belongs on the adapter's side of
+    that boundary.
+
+    Saturated samples are discarded, and that is not a refinement
+    ------------------------------------------------------------
+    A sample whose lateral acceleration is pinned at the platform's limit
+    carries no information about ``B``: the response stopped tracking the
+    command. Averaging it in reads the effectiveness *low*, and low is the
+    dangerous direction -- an underestimated ``B`` makes the twin expect more
+    steering than the vehicle needs, which shrinks the departure the
+    non-conformity score is computed from.
+
+    Measured on the synthetic plant, configured ``B`` 140.0, saturating beyond
+    ``|steer| = 0.0214``: excluding saturated samples recovers **140.000** with
+    zero spread; admitting them reads **116.0**, 17.1% low.
+
+    Attributes:
+        steering_index: Which actuation channel steers.
+        configured: The configured effectiveness, returned until enough samples
+            have accumulated to improve on it. A configured value is a
+            characterisation someone signed off; an estimate from four samples
+            is not, and preferring the latter would be a downgrade.
+        saturation_limit: Magnitude of lateral acceleration at which the platform
+            stops responding. A platform fact, supplied for the same reason
+            ``configured`` is.
+        window: Samples retained per context.
+        minimum_samples: Samples required before the estimate is used at all.
+    """
+
+    steering_index: int
+    configured: float
+    saturation_limit: float
+    window: int = 200
+    minimum_samples: int = 20
+    _samples: defaultdict[ContextClass, deque[float]] = field(
+        default_factory=lambda: defaultdict(deque), init=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        """Validate the platform facts.
+
+        Raises:
+            ConfigurationError: If the configured effectiveness is not finite and
+                non-zero, or the saturation limit is not positive. Both would
+                make every estimate meaningless rather than merely wrong.
+        """
+        if not math.isfinite(self.configured) or self.configured == 0.0:
+            message = f"control effectiveness must be finite and non-zero, got {self.configured}"
+            raise ConfigurationError(message, layer=LayerId.L5_PINN_TWIN)
+        if not math.isfinite(self.saturation_limit) or self.saturation_limit <= 0.0:
+            message = (
+                f"the saturation limit must be finite and positive, got "
+                f"{self.saturation_limit}; without it every sample looks unsaturated"
+            )
+            raise ConfigurationError(message, layer=LayerId.L5_PINN_TWIN)
+
+    def observe(
+        self,
+        *,
+        command: Sequence[float],
+        lateral_acceleration: float,
+        context: ContextClass,
+    ) -> None:
+        """Record one executed outcome, if it says anything about ``B``.
+
+        Args:
+            command: The command actually applied.
+            lateral_acceleration: The lateral acceleration measured after it.
+            context: The Mondrian class it was observed in. Estimates are kept
+                per context for the same reason the twin's heads are: a wet road
+                and a dry one are different platforms as far as ``B`` goes.
+        """
+        steer = float(command[self.steering_index])
+        if not math.isfinite(steer) or not math.isfinite(lateral_acceleration):
+            return
+        if abs(steer) < _MINIMUM_STEER_FOR_ESTIMATE:
+            # Near zero the ratio is dominated by whatever noise is on the
+            # acceleration, so the sample is noise amplified rather than signal.
+            return
+        if abs(lateral_acceleration) >= self.saturation_limit:
+            return
+        samples = self._samples[context]
+        samples.append(lateral_acceleration / steer)
+        while len(samples) > self.window:
+            samples.popleft()
+
+    def estimate(self, context: ContextClass) -> float:
+        """Return the effectiveness to use for a context.
+
+        Args:
+            context: The Mondrian class.
+
+        Returns:
+            The median of the retained samples, or :attr:`configured` when too
+            few have accumulated. Median rather than mean: one saturated sample
+            that slipped through, or one outlier from a transient, should not
+            move a number two gates depend on.
+        """
+        samples = self._samples.get(context)
+        if samples is None or len(samples) < self.minimum_samples:
+            return self.configured
+        return statistics.median(samples)
+
+    def sample_count(self, context: ContextClass) -> int:
+        """Return how many usable samples a context has accumulated.
+
+        Reported so a run can show whether an estimate is starved rather than
+        merely stable -- a vehicle that corners hard spends its time saturated,
+        which is exactly when the estimate is wanted.
+
+        Args:
+            context: The Mondrian class.
+
+        Returns:
+            The retained sample count.
+        """
+        samples = self._samples.get(context)
+        return 0 if samples is None else len(samples)
 
 
 @dataclass(frozen=True, slots=True)

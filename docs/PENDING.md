@@ -1040,6 +1040,12 @@ first probe made exactly that mistake by driving ±0.05 steer into a plant that
 saturates at 0.0214, and it is recorded because the same error in production
 would be silent.
 
+**The estimator itself is now built and tested** — 
+in the adapter, 18 tests, including the saturation control that computes what a
+naive estimator *would* have returned from exactly the samples the real one
+rejects. Still to do: shadow it over a soak, then the port change so L5 reads the
+estimate.
+
 Open, and named in the ADR rather than glossed: sample starvation (only 387 of
 4,000 wide-steer samples survived the filter), noise on a real platform where σ
 will not be zero, and the port change to let L5 read a live estimate without
