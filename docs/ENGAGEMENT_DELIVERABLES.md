@@ -33,8 +33,8 @@ open defect listed.
 
 **This is the door-opener and it costs them nothing.** It also demonstrates the one thing that
 matters in a safety conversation: that we report what we found. The register currently holds
-**eight defects, five of them closed and re-measured**, every one found by this project rather
-than reported to it — and two of the eight are cases where the evidence log confidently
+**nine defects, five of them closed and re-measured**, every one found by this project rather
+than reported to it — and two of the nine are cases where the evidence log confidently
 recorded something that had not happened.
 
 > **Prerequisite:** row D-1 must be at **[M-ext]**. Until the comma2k19 evidence run is
@@ -114,15 +114,16 @@ safety-critical system, rather than four who need to be taught what one is.
 
 | Capability | Evidence in the repository |
 |---|---|
-| Safety-critical architecture under enforced constraints | `mypy --strict` clean over **143** files, **2,675** tests at **97.99%** coverage, 12 import-linter contracts kept, 10/10 separation invariants mechanically enforced with zero left to code review |
+| Safety-critical architecture under enforced constraints | `mypy --strict` clean over **146** files, **2,729** tests at **97.99%** coverage, 12 import-linter contracts kept, 10/10 separation invariants mechanically enforced with zero left to code review |
 | Architectural properties as **compile-time** guarantees | SI-5 enforced as a capability pair — the one-way core channel is a type error, not a convention |
 | Applied statistical ML, done correctly | Inductive conformal prediction with the ⌈(n+1)(1−ε)⌉ index and an honest `math.inf` rather than a clamp; Mondrian class-conditional calibration; MMD covariate-shift detection |
 | Estimation and control | Dual-rate UKF with van der Merwe sigma points and fail-closed numerics; PPO under PID-Lagrangian constraints |
-| Measurement discipline | 100,000-tick soaks that found eight defects; **three published numbers retracted** after they proved to be artefacts rather than results; a quantile Monte-Carlo'd rather than tuned when coverage looked wrong |
+| Measurement discipline | 100,000-tick soaks that found eight defects; **three published numbers retracted** after they proved to be artefacts rather than results; a quantile Monte-Carlo'd rather than tuned when coverage looked wrong; every date in the evidence pack re-derived from `git log` after the stamps were found to have frozen |
 | Counterfactual measurement of unwired mechanisms | Two dormant feedback loops run **in shadow** — adapting real state, read by nothing, changing no verdict — and both were found to break the gate they feed *before* either was connected. One collapses the non-conformity score 40%; the other pins the veto rate to ε by construction |
 | Reproducibility engineering | Byte-identical replay spine; SHA-256 provenance on every calibration artefact; injected clock, no wall-clock reads anywhere |
+| Fault injection with recorded ground truth | Five sensor-fault kinds at the adapter boundary, each against a clean control at the same seed. A specification that *could not inject* is refused at construction, and each episode reports the error it **measured** rather than the one it was configured with — so an injector that had silently become a no-op fails a named test instead of reporting that the gates are fine |
 
-The two rows that matter most are the last two, and they say the same thing from opposite
+The three rows that matter most are the last three, and they say the same thing from three
 directions.
 
 A fail-safe speed cap that reached no actuator survived 2,513 tests, 97.97% coverage, strict
@@ -142,6 +143,21 @@ That is the method rather than the anecdote: a mechanism that fails by making th
 better is invisible to testing, and the way to catch it is to run it with no authority and
 measure it against the thing it would have replaced.
 
+The third is the one we would most want to be asked about, because it is the least flattering.
+On 9 August we built a fault injector, ran its first fault, and it found a defect in our own
+architecture within the hour. Ten seconds of frozen IMU put the vehicle **4.199 m off a 1.75 m
+lane** — two and a half lane widths — and Core-B's verdict trace was **identical to the clean
+run's**: same three vetoes, same reason codes, the fail-safe machine NOMINAL on all 400 ticks.
+The cause is not a missing check. A lateral corridor bound exists and was added for exactly this
+hazard. It reads the position estimate, the proposer closes the loop on that same estimate, and
+so the controller drives the corrupted number to the value the monitor considers safe: over that
+run the bound read **0.023 m** while the vehicle was 4.199 m out.
+
+That is a common-cause failure between a monitor and the thing it monitors, it is written
+down as OD-9 with the run that produced it, and it is the kind of finding a runtime-assurance
+argument has to survive rather than avoid. We would rather bring it to a first meeting than
+have it found in one.
+
 ## What we deliver during an internship
 
 Scoped to what is genuinely transferable, not to ASTRA itself.
@@ -157,10 +173,11 @@ Scoped to what is genuinely transferable, not to ASTRA itself.
 
 5. **Architecture fitness tests** — import contracts and type-level enforcement that turn design rules into build failures rather than review comments
 6. **A soak and stability harness** — long-duration runs with bounded-memory verification and latency-drift detection
+7. **A fault-injection study** — faults injected at your adapter boundary with ground truth recorded per tick, each against a control run, answering *what do your existing checks actually catch* rather than *do they run*
 
 ### Always
 
-7. **An honest defect register.** Whatever we find, written down, including what we cannot fix in the time available
+8. **An honest defect register.** Whatever we find, written down, including what we cannot fix in the time available
 
 ## What we are not
 

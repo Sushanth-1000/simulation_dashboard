@@ -55,10 +55,10 @@ the plant is, which makes them the only claims in this document that are fully s
 | A · Structural assurance | 7 | **[M-code]** — fully supported |
 | B · Runtime performance and stability | 6 | **[M-syn]** — mechanism shown |
 | C · Control quality | 4 | **[M-syn]** — re-measured after C-0 was cleared |
-| D · **Gate efficacy — the central claims** | 6 | **[NOT DONE]** for the five that matter |
+| D · **Gate efficacy — the central claims** | 8 | **[M-syn]** on three; **[NOT DONE]** for the five that matter |
 | CV · Calibration validity | 3 | **[M-syn]** |
 
-> **Rows at [M-ext]: 0 of 26.**
+> **Rows at [M-ext]: 0 of 28.**
 >
 > That number is the honest summary of this project's external validation, and moving it is
 > the entire purpose of the plan in §7. No false-positive or false-negative rate appears
@@ -74,7 +74,8 @@ to know: **whether a project finds its own defects.** Four working days, stated 
 
 **Five of the six defects the register held on the 5th are closed**, each fixed *and*
 re-measured, none reported by anyone outside the project. Two more were opened during the same
-run — OD-7 and OD-8 — which is why the register now shows eight rows rather than six:
+run — OD-7 and OD-8 — which is why the register showed eight rows rather than six. **OD-9 was
+added on the 9th** by the first fault the new injector ever ran, taking it to nine:
 
 | | was | now |
 |---|---|---|
@@ -188,16 +189,25 @@ what the vehicle was doing.
 > found by *running the system for a long time and reading the numbers*, not by the gate.
 > Mechanical gates are cheap to satisfy and therefore weak as evidence.
 >
-> D-6 below is the first row this section has ever had. It arrived the same way.
+> D-6 below was the first row this section ever had. It arrived the same way.
+>
+> **D-7 and D-8, added 9 August 2026, are the first rows produced by a fault rather than by a
+> mechanism review** — and they do not soften the paragraph above. A miss rate still cannot be
+> computed here, because six hand-chosen faults are not a population drawn from anything. What
+> they establish is narrower and, as it turns out, more useful: *these particular faults, of
+> the kind every real fleet sees, are not caught by any of the three gates*. The section is no
+> longer empty. It is not yet a rate, and it will not be one before Phase 7.
 
 | # | Claim | Marker | What would establish it |
 |:--:|---|:--:|---|
 | D-1 | **False-positive rate < 1%** | **[NOT DONE]** — but no longer inconsistent | The apparent contradiction with ε = 0.05 was a **units error in this row**, not a defect in the system. A veto runs the fallback for *one tick*; the posture does not degrade until the OOD counter crosses θ₁ = 10. Measured at the design point over 100,000 ticks: **4.97% of ticks vetoed, 0.008% outside NOMINAL** — two episodes in 83 minutes, both self-recovering, LIMP and HALT never reached (E-42). Per-tick is ε by construction and always will be; per-intervention is the number a fleet pays for. **[M-syn]**, so comma2k19 is still what promotes this row |
 | D-2 | **False-negative rate < 1%** | **[NOT DONE]** | Miss rate against ground-truth labelled faults — ALFA; or injected faults with known ground truth |
-| D-3 | The three gates fail for structurally unrelated reasons | **[NOT DONE]** | Correlation of gate firings across a real corpus. Currently an argument from construction, not a measurement |
+| D-3 | The three gates fail for structurally unrelated reasons | **[NOT DONE]**, and now **partly contradicted** | Correlation of gate firings across a real corpus is still what would settle it. But the claim no longer stands unopposed: **OD-9** shows a common cause upstream of all three — every Core-B gate reads L2's fast estimate, so a fault the estimator absorbs is invisible to the whole of Core-B at once (E-48). The construction argument was about the gates' *logic* being unrelated, and it is; their *inputs* are not |
 | D-4 | The statistical gate detects covariate shift | **[NOT DONE]** | MMD detector response across genuinely distinct real operating contexts |
 | D-5 | Bounded safe exploration keeps the vehicle moving where a classical RTA halts | **[NOT DONE]** | ~~Contradicted by OD-6~~ — that contradiction is closed ([ADR-0016](adr/0016-exploration-may-not-override-a-deterministic-veto.md), E-11). Now genuinely untested rather than contradicted, and needs step 5 |
 | D-6 | **Online adaptation would disarm the statistical gate** | **[M-syn]** + **[M-code]** | Over 100,000 ticks in one unchanging context, the score against the live twin is flat (1.1564 → 1.1560) while the score against a shadow twin FB2 adapted falls **40%** (1.1534 → 0.6962), monotonically — E-39. The mechanism is `[M-code]`: FB2's only labels are the proposer's commands, so `\|π_prop − π̂\|` shrinks by construction — E-38 | That FB2 *cannot* be made safe. It says the loop as specified must not be wired, and P3.1c proposes what replaces it |
+| D-7 | **The gates do not detect a sensor fault that the estimator absorbs** | **[M-syn]** — the first row in this section produced by a *fault* rather than by a mechanism review | Six injected faults, each against a clean control at the same seed. Two put the vehicle outside its corridor — 4.199 m under a 200-tick IMU dropout, 2.025 m under a 2 m drift — with veto counts and reason codes **identical to the control's** and the fail-safe machine NOMINAL throughout (E-46, E-47). One, a 1 m position bias, moved the count 3 → 12 and produced the only statistical veto of the study (E-48) | A miss *rate*. Six hand-chosen faults are not a population, and two of the six did not stress what they named (E-50). It licenses the qualitative claim — *these faults are not caught* — and no number derived from it |
+| D-8 | Availability survives a sensor fault | **[M-syn]** | **400 of 400** ticks issued a command in every scenario and in the control (E-49) | Anything about safety. It is quotable only next to D-7, and quoting it alone would be reporting the flattering half of one measurement — the same rule the false-positive rate is under |
 
 ---
 
@@ -220,7 +230,7 @@ what the vehicle was doing.
 Carried here deliberately. A credibility document that omits its own known defects is a
 brochure. Every item below is from this project's own measurement, not external review.
 
-**Five of the original six are closed as of 9 August 2026**, each fixed *and re-measured* as
+**Five of the original six are closed as of 9 August 2026**, and the register now holds **nine rows**, each fixed *and re-measured* as
 maintenance rule 3 requires. They are struck through rather than deleted, per rule 2: a
 register that shows only what is currently broken hides how much of it was found by the
 project itself, which is the thing a reviewer most wants to know.
@@ -235,11 +245,19 @@ project itself, which is the thing a reviewer most wants to know.
 | ~~**OD-6**~~ | **Exploration out-ranks a VETO** — 99.8% of ticks issued a proposal under a blocking verdict | **Closed** by [ADR-0016](adr/0016-exploration-may-not-override-a-deterministic-veto.md). A gate with no basis to judge now ABSTAINs instead of vetoing, so there was no veto left to work around, and `issue()` tests the verdict before the envelope. **99,808 per 100,000 → 0** — E-11 | — |
 | **OD-8** | **The live loop is not exchangeable with its own calibration corpus.** Running non-conformity scores sit at **1.156**, below the corpus **minimum** of 1.158; the whole HIGHWAY_CLEAR distribution spans 1.158–1.189 over 1,000 samples. Exchangeability is the assumption the conformal guarantee rests on, and it is violated *in-house, on synthetic data*, before any external dataset is involved | Open, **property of the artefacts** rather than of any trajectory | **CV-1 and every D-row.** Today's 0.089% veto rate is this mismatch, not evidence the gate discriminates. It is also the strongest argument for [`DATA_SPLIT_PROTOCOL.md`](DATA_SPLIT_PROTOCOL.md): the risk that document was written to prevent has already materialised once |
 | **OD-7** | **FB2 would disarm the statistical gate.** Its only training labels are the proposer's commands, so the twin regresses onto the thing it exists to be independent of. Measured in shadow: scores fall 40% in one unchanging context and are still falling | Open, **property of the code**. Not wired, so it harms nothing today | D-6, and any plan that wires FB2 as specified. P3.1c proposes estimating the control effectiveness instead |
+| **OD-9** | **A sensor fault blinds Core-B and the proposer at once.** Every Core-B gate reads L2's fast estimate, and the proposer closes the loop on that same estimate — so it actively drives the corrupted number to the value the gates consider safe. Under an injected IMU dropout the vehicle spent 73 ticks outside its ±1.75 m corridor while the corridor bound read **0.023 m**; under a slow drift, 34 ticks against **0.235 m**. Verdict trace identical to the control in both | **Open**, found 9 August 2026 by the first fault the new injector ever ran (E-46, E-47, E-48). Not a coding error: the composition is correct at every layer and wrong as a whole, which is the third time this register has recorded that shape. `shield.py` states the hazard in its own docstring — *"this bound is only as good as the position estimate, and that is not a quibble"* — where it was written as a caveat and is now a measurement | **D-3** directly: the gates do not fail for structurally unrelated reasons when the reason is upstream of all of them. Also the corridor bound P2.1a added, which cannot fire on a fault-caused departure |
 
 **The pattern worth reading off this register:** every closed row was found by running the
 system for a long time and reading the numbers, and none was found by the quality gate. Two of
 them — OD-2 and OD-7 — were *inversions*, where the evidence log confidently recorded something
 that had not happened. That is the failure mode this whole document exists to make visible.
+
+**OD-9 sharpens the pattern rather than extending it.** It was not found by running longer; a
+hundred thousand nominal ticks would never have produced it, because nothing goes wrong in
+them. It was found by making something go wrong *on purpose* and holding a control run beside
+it. That is the third distinct instrument this project has needed — a long soak, a shadow
+harness, and now an injected fault with recorded ground truth — and each found a class of
+defect the previous two could not see.
 
 ---
 

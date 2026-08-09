@@ -921,6 +921,61 @@ before FB3 wires online requantilisation into it.
 
 </details>
 
+## P2.7 — Close OD-9: no Core-B gate can see a fault the estimator absorbs — NEW, 9 Aug 2026
+
+**The highest-value open defect in the project, and the first one produced by a
+fault rather than by a soak or a mechanism review.**
+
+Measured (E-46 – E-48): a 200-tick IMU dropout puts the vehicle **4.199 m off a
+1.75 m lane**, 73 ticks outside the corridor, with a veto count and reason codes
+**identical to the clean control's** and the fail-safe machine NOMINAL on all
+400 ticks. A 2 m slow drift does the same at 2.025 m.
+
+**The cause is not a missing check.** L7a's lateral corridor bound exists and was
+added by P2.1a for exactly this hazard. It reads `state.position_y`; the proposer
+closes the loop on the same `state.position_y`; so the controller drives the
+corrupted estimate to zero and the bound reads **0.023 m** while the vehicle is
+4.199 m out. Every Core-B gate reads L2's fast estimate, so this is one common
+cause upstream of all three, and it bears directly on D-3.
+
+`shield.py` predicted it in its own docstring — *"this bound is only as good as
+the position estimate, and that is not a quibble"* — as a caveat. It is now a
+measurement.
+
+### The candidate answers, and why none is chosen yet
+
+| | Idea | For | Against |
+|---|---|---|---|
+| **A** | **Gate on `StreamHealth`.** L1 already detects the dropout correctly — IMU `DEGRADED` from the second tick. Nothing in Core-B reads it; only L9's context signature weights it | The signal exists, is already computed, already recorded, and costs nothing. Cheapest real improvement available | Catches `DROPOUT` and nothing else. `BIAS`, `DRIFT` and `STUCK_AT` all keep the stream perfectly *fresh* — that is why they were chosen |
+| **B** | **Gate on the innovation sequence.** The UKF computes normalised innovations and L3 already reads them for the Trust Index | The principled answer: it is the one quantity that can disagree with the estimate, and it is what a lying stream perturbs | Under a *slow* drift the filter absorbs the fault a little at a time and the innovations may never leave their band. Whether it catches E-47 is **unknown and must be measured** |
+| **C** | **Gate on estimate uncertainty**, `trace(P_f)` | Free; already on the record | Almost certainly useless here, and worth writing down so nobody tries it twice: a frozen or biased reading is *self-consistent*, so the filter grows more confident, not less. `P_f` shrinks under exactly the faults that matter |
+| **D** | **Require sensor redundancy and cross-check it** | What a real vehicle actually does, and the only one that addresses the general case rather than a fault list | The reference plant publishes one ground truth to all five modalities, so it **cannot express redundancy** and cannot be used to measure this. Belongs in the deployment requirements, and in Phase 7 |
+
+### The decision that *is* taken
+
+**Measure A and B in shadow against `benchmarks/fault_study.py` before either is
+given authority over a verdict.** That is the standing convention this project
+adopted after FB2 and FB3 — *no mechanism gets authority until it has run with
+none* — and it is exactly the situation the convention was written for: two
+plausible detectors, a strong intuition about which one works, and a cheap way
+to find out that costs no verdict.
+
+The shadow harness already exists. The fault study already produces the ground
+truth. What is missing is a shadow detector and the four-cell table it fills in.
+
+**Also record D in [`ENGAGEMENT_DELIVERABLES.md`](ENGAGEMENT_DELIVERABLES.md)'s
+integration assessment** — *what would have to be true before any of this is
+deployable* — because it is a genuine precondition on the integrator and not a
+thing this repository can close.
+
+**Exit:** a detection table over the six scenarios for whichever of A and B
+survives shadow, or a written statement that neither does and D is the only
+answer. Both are publishable; the second is more so.
+**Estimate:** 2–3 days for the shadow measurement. The wiring depends on what it
+says.
+
+---
+
 # P3 — Unblocked only after P0
 
 ## P3.1 — FB2, PINN online adaptation (work plan §3.1) — PART DONE, 6 Aug 2026
@@ -1334,12 +1389,26 @@ synchronised instances — full ASTRA and raw Core-A — driven from the same se
 against the same injected fault, side by side. One keeps moving; one does not.
 
 `drive_closed_loop` is the substrate and `benchmarks/soak.py` already supplies
-the instrumentation, the window aggregation and the criteria. What is missing is
-fault injection (IMU corruption, sensor dropout, an unseen distribution shift)
-and lockstep execution of two instances.
+the instrumentation, the window aggregation and the criteria. ~~What is missing
+is fault injection~~ — **fault injection landed 9 August** (P4.2, ADR-0022), and
+`benchmarks/fault_study.py` is already half of this: same seed, same policy, one
+injected fault, a clean control beside it.
 
-**Exit:** a reproducible script producing a two-column result and a recorded run.
-**Estimate:** 3–5 days.
+What is still missing is the **other instance** — raw Core-A driven in lockstep
+against the same fault, with no gates at all. The fault study compares ASTRA
+against ASTRA; this compares ASTRA against no ASTRA.
+
+**The exit criterion needs restating in light of E-46, and this is not a
+softening.** The planned result was *"one keeps moving; one does not."* Under an
+injected sensor fault the measured result is that **both** keep moving and both
+leave the corridor, because the gates read the estimate the fault corrupted
+(OD-9). A comparison harness that only reported the flattering scenario would be
+a demo rather than a measurement. Build it to report whichever way each fault
+falls, and expect a mixed table.
+
+**Exit:** a reproducible script producing a two-column result per fault, and a
+recorded run.
+**Estimate:** 2–4 days, down from 3–5. **Unblocked.**
 
 ---
 
@@ -1359,12 +1428,28 @@ scripted, nothing interpolated.
 
 **Estimate:** 10–15 days. This is a front-end project, not a task.
 
-## P4.2 — Interactive fault injection (work plan §5.2)
+## P4.2 — Interactive fault injection (work plan §5.2) — HALF DONE, 9 Aug 2026
 
-Let an audience press the button — a demo where the observer chooses the fault
-cannot be staged. **Capture a pre-recorded fallback run before any live
-demonstration.**
-**Estimate:** 2–4 days. **Depends on:** P3.5 for the injection machinery.
+**The injection machinery exists.** [`training/faults.py`](../training/faults.py)
+provides five sensor-fault kinds with recorded ground truth, verified by 27 unit
+tests and 9 integration tests including a mutation test that fails on a no-op
+injector; [`benchmarks/fault_study.py`](../benchmarks/fault_study.py) runs each
+one against a clean control. Placement and the reasoning behind it are
+[ADR-0022](adr/0022-faults-are-injected-at-the-sensor-boundary.md).
+
+What remains is the front end: let an audience press the button — a demo where
+the observer chooses the fault cannot be staged. **Capture a pre-recorded
+fallback run before any live demonstration.**
+
+**A note for whoever builds the demo.** As of 9 August the honest demonstration
+is not *"watch the gates catch it."* It is E-46: watch a sensor fault put the
+vehicle two and a half lane widths out of its corridor while every gate reports
+NOMINAL, then watch the same run with the fault closed. That is a better
+demonstration than the one originally planned, and it is the one the evidence
+supports. **Do not build a demo that requires OD-9 to be fixed first** — build
+the one that shows it, and show the fix when there is one.
+
+**Estimate:** 2–3 days, down from 2–4. **No longer depends on P3.5.**
 
 ## P4.3 — Replace FilterPy (work plan §6.1)
 
