@@ -71,6 +71,13 @@ from astra.layers.l8_failsafe.machine import FailSafeStateMachine
 from astra.layers.l9_rcm.arbiter import RuntimeCalibrationManager
 from astra.layers.l9_rcm.fallback import ProportionalFallbackController
 from astra.layers.l9_rcm.knowledge_base import SearchWeights
+from astra.runtime.ablation import (
+    AblationProfile,
+    TransparentPhysicalGate,
+    TransparentShield,
+    TransparentStatisticalGate,
+    require_ablation_is_permitted,
+)
 from astra.runtime.channels import open_proposal_channel
 from astra.runtime.pipeline import ColdPathContext, GovernancePipeline
 
@@ -574,6 +581,8 @@ def assemble_pipeline[PayloadT](
     corpus: CalibrationCorpus | None = None,
     cold_path: ColdPathContext | None = None,
     policy: Policy | None = None,
+    ablation: AblationProfile | None = None,
+    environment: str = "unknown",
 ) -> AssembledPipeline[PayloadT]:
     """Construct all ten layers and wire them into a pipeline.
 
@@ -603,6 +612,14 @@ def assemble_pipeline[PayloadT](
             supplies every profile's quantile table. Without it the conformal
             quantiles are infinite and L6 vetoes every tick as
             ``CONTEXT_NOT_CALIBRATED`` -- correct, and unobservable.
+        ablation: Which layers to disarm for a study. ``None`` -- the default
+            -- is a governed run. A disarmed gate is still constructed,
+            still evaluated and still writes a verdict; it simply cannot
+            block, and every decision record says so. The gate parameters
+            are never made optional (ADR-0021).
+        environment: The resolved configuration environment, used only to
+            refuse a non-empty ablation outside ``development``. Defence in
+            depth behind the structural guarantee, not instead of it.
         cold_path: What RCM needs to evaluate the knowledge base. ``None``
             leaves the cold path dormant, so the arbitrator keeps its initial
             profile and bounded safe exploration can never engage.
@@ -712,7 +729,14 @@ def assemble_pipeline[PayloadT](
         # the one the vehicle would actually have suffered.
         shadow_failsafe = FailSafeStateMachine(settings.failsafe)
 
-    statistical_gate = IcpStatisticalGate(
+    profile = ablation or AblationProfile.NONE
+    require_ablation_is_permitted(profile, environment=environment)
+    # A disarmed gate is a *subtype*, so these names keep their declared types
+    # and the pipeline's required parameters are never widened -- ADR-0021.
+    statistical_type = (
+        TransparentStatisticalGate if profile.statistical_gate else IcpStatisticalGate
+    )
+    statistical_gate = statistical_type(
         calibration=calibration,
         classifier=classifier,
         detector=MmdShiftDetector(
@@ -721,12 +745,14 @@ def assemble_pipeline[PayloadT](
         significance_epsilon=settings.gate.significance_epsilon,
         shift_epsilon_multiplier=settings.gate.shift_epsilon_multiplier,
     )
-    physical_gate = PhysicalAdmissibilityGate(
+    physical_type = TransparentPhysicalGate if profile.physical_gate else PhysicalAdmissibilityGate
+    physical_gate = physical_type(
         settings=settings.physical,
         control_effectiveness=settings.twin.control_effectiveness,
         tick_period=tick_period,
     )
-    shield = HardSafetyShield(settings.shield)
+    shield_type = TransparentShield if profile.shield else HardSafetyShield
+    shield = shield_type(settings.shield)
     failsafe = FailSafeStateMachine(settings.failsafe)
 
     fallback = ProportionalFallbackController(
@@ -799,6 +825,7 @@ def assemble_pipeline[PayloadT](
         shadow_twin=shadow_twin,
         shadow_calibration=shadow_calibration,
         shadow_failsafe=shadow_failsafe,
+        ablation=profile.render(),
     )
     return AssembledPipeline(
         pipeline=pipeline,

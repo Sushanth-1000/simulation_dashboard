@@ -297,6 +297,18 @@ class DecisionRecord:
         failsafe: The fail-safe FSM snapshot.
         arbitration: RCM's arbitration decision.
         issued: The command actually issued, if one was.
+        ablation: Which layers were disarmed for this run, as
+            :meth:`~astra.runtime.ablation.AblationProfile.render` produces
+            them, or ``"NONE"`` for a governed run.
+
+            **Stamped on every tick, and that is the point.** An ablation study
+            produces evidence that looks exactly like a governed run's --
+            verdicts, reason codes, a fail-safe trace -- and the difference is
+            invisible unless the record carries it. A configuration file
+            elsewhere is not enough: evidence outlives the configuration that
+            produced it, and a certification artefact describing a system that
+            was not running is the failure this field exists to prevent
+            (ADR-0021).
     """
 
     run: RunId
@@ -314,6 +326,7 @@ class DecisionRecord:
     failsafe: FailSafeSnapshot | None = None
     arbitration: ArbitrationDecision | None = None
     issued: IssuedCommand | None = None
+    ablation: str = "NONE"
 
     def __post_init__(self) -> None:
         """Validate the configuration hash and the frame-health keys.
@@ -367,6 +380,7 @@ class DecisionRecord:
                 None if self.arbitration is None else _render_arbitration(self.arbitration)
             ),
             "issued": None if self.issued is None else _render_issued(self.issued),
+            "ablation": self.ablation,
         }
 
     def to_json(self) -> str:

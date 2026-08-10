@@ -136,7 +136,7 @@ RCS_DIMENSION: Final = len(RCS_FIELDS)
 # after the schema has moved on. A version field is the cheapest possible
 # insurance against an unreadable evidence archive.
 
-AUDIT_SCHEMA_VERSION: Final = 3
+AUDIT_SCHEMA_VERSION: Final = 4
 """Schema version stamped on every audit record. Increment on any field change.
 
 Version 2 (ADR-0016) widened the verdict vocabulary: a gate verdict may now read
@@ -155,7 +155,16 @@ in Core-B have seen this fault?" turned out to be unanswerable from the archive.
 
 A version-2 reader parses a version-3 record structurally and will not see the
 new key. That is the benign direction: it loses a signal rather than
-misinterpreting one, unlike the version-1/2 boundary above."""
+misinterpreting one, unlike the version-1/2 boundary above.
+
+Version 4 (9 August 2026) adds ``ablation``, naming which layers were disarmed
+for the run. Unlike version 3 this boundary is **not** benign in the reading
+direction: a version-3 reader sees an ablated run's records as a governed
+run's, because every other field is identical by construction -- that is what
+an ablation *is*. The version field is the only thing standing between an
+ablation study and a certification artefact describing a system that was not
+running, which is why ADR-0021 stamps the profile per tick rather than once
+per run."""
 
 CONFIG_SCHEMA_VERSION: Final = 1
 """Schema version required in every configuration file. Rejected if mismatched."""

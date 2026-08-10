@@ -55,10 +55,10 @@ the plant is, which makes them the only claims in this document that are fully s
 | A · Structural assurance | 7 | **[M-code]** — fully supported |
 | B · Runtime performance and stability | 6 | **[M-syn]** — mechanism shown |
 | C · Control quality | 4 | **[M-syn]** — re-measured after C-0 was cleared |
-| D · **Gate efficacy — the central claims** | 9 | **[M-syn]** on three; **[NOT DONE]** for the five that matter |
+| D · **Gate efficacy — the central claims** | 10 | **[M-syn]** on three; **[NOT DONE]** for the five that matter |
 | CV · Calibration validity | 3 | **[M-syn]** |
 
-> **Rows at [M-ext]: 0 of 29.**
+> **Rows at [M-ext]: 0 of 30.**
 >
 > That number is the honest summary of this project's external validation, and moving it is
 > the entire purpose of the plan in §7. No false-positive or false-negative rate appears
@@ -126,7 +126,7 @@ The strongest column. These hold regardless of plant, dataset, or policy.
 | A-4 | Only L9 may construct an `IssuedCommand` (SI-7) | **[M-code]** | Runtime enforcement + import contract | Actuator-level authority; this is a software boundary |
 | A-5 | Architecture contracts hold | **[M-code]** | `lint-imports` — 12 contracts kept, 0 broken | — |
 | A-6 | Full static typing | **[M-code]** | `mypy --strict` clean over **143** source files | Runtime correctness |
-| A-7 | Test suite and coverage | **[M-code]** | **2,746** tests, **97.99%** line coverage against a 95% gate — E-1 | **Correctness.** See D-0 — a fail-safe that did not fail safe survived all of this for the project's whole life |
+| A-7 | Test suite and coverage | **[M-code]** | **2,783** tests, **97.90%** line coverage against a 95% gate — E-1 | **Correctness.** See D-0 — a fail-safe that did not fail safe survived all of this for the project's whole life |
 
 > **Reproduce:** `make check` on a Linux/WSL2 host. The gate does not run on Windows —
 > Smart App Control blocks the unsigned native extensions in `torch`, `mypy` and `grimp`.
@@ -209,6 +209,7 @@ what the vehicle was doing.
 | D-7 | **The gates do not detect a sensor fault that the estimator absorbs** | **[M-syn]** — the first row in this section produced by a *fault* rather than by a mechanism review | Six injected faults, each against a clean control at the same seed. Two put the vehicle outside its corridor — 4.199 m under a 200-tick IMU dropout, 2.025 m under a 2 m drift — with veto counts and reason codes **identical to the control's** and the fail-safe machine NOMINAL throughout (E-46, E-47). One, a 1 m position bias, moved the count 3 → 12 and produced the only statistical veto of the study (E-48) | A miss *rate*. Six hand-chosen faults are not a population, and two of the six did not stress what they named (E-50). It licenses the qualitative claim — *these faults are not caught* — and no number derived from it |
 | D-8 | Availability survives a sensor fault | **[M-syn]** | **400 of 400** ticks issued a command in every scenario and in the control (E-49) | Anything about safety. It is quotable only next to D-7, and quoting it alone would be reporting the flattering half of one measurement — the same rule the false-positive rate is under |
 | D-9 | **A stream-health gate would catch the worst measured fault; nothing catches the slow one** | **[M-syn]** | Three detectors run in shadow over the fault study, each a pure function of a `DecisionRecord`. Health fires on the IMU dropout at **+5 ticks** against a departure at **+73**; the innovation sequence fires only on the noise burst, at +84; the Trust Index catches both of those and nothing else. **Zero false alarms on the control.** The 2.025 m slow drift is silent on all three (E-51 – E-53) | That wiring any of them would be safe. None has authority over a verdict and none may acquire it before it has run in shadow against a *population* of faults rather than six chosen by hand — the rule FB2 and FB3 established, and the reason this row exists at all |
+| D-10 | **The observable behaviour of the three-gate architecture is produced almost entirely by one gate** | **[M-syn]** | Ablation over four profiles x seven scenarios, 2,800 ticks each. Disarming **L7b** takes the veto count to **zero on six of seven scenarios**; **L6** contributes **one veto in 2,800 ticks**; **L7a contributes zero, everywhere**. Disarming any single gate moves the vehicle by at most **5 mm** (E-59, E-60) | That any gate is worthless. A gate that did not fire on the traffic it was shown has been shown to be *untested by that traffic*, not useless: L7a vetoed once in roughly 500,000 nominal ticks (N-9), and a 2,800-tick study finding zero is consistent with that rate rather than evidence against it. It also licenses nothing about compute — a disarmed gate still runs, by design |
 
 ---
 

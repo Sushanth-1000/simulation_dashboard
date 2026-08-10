@@ -1378,7 +1378,7 @@ gate's own inputs were both broken; the two that feed state estimation and the
 plant were not.** That is a sharper claim and a more useful one, because it says
 where to look next rather than merely that something will be wrong.
 
-## P3.4 — Ablation study (work plan §4.1) — SCOPED, 9 Aug 2026
+## ~~P3.4 — Ablation study (work plan §4.1)~~ — DONE, 9 Aug 2026
 
 **The entry's premise does not hold, and that is the first finding.** It said
 *"the `None` paths were preserved deliberately for this"*. Checked against the
@@ -1426,8 +1426,43 @@ ablation can never be mistaken for a governed one. That is more work than the
 entry implies and it is the right amount, because the failure mode of getting it
 wrong is a certification artefact describing a system that was not running.
 
-**Exit unchanged:** a table quantifying each layer's contribution. Two rows of it
-are already measured.
+### Measured, 9 August 2026
+
+ADR-0021 implemented and the study run: four profiles x seven scenarios, 2,800
+ticks each, same seed. Vetoes per run:
+
+| profile | control | `imu_dropout` | `position_bias` | others |
+|---|---|---|---|---|
+| governed | 3 | 3 | 12 | 3–4 |
+| L6 off | 3 | 3 | **11** | 3–4 |
+| **L7b off** | **0** | **0** | **1** | **0** |
+| L7a off | 3 | 3 | 12 | 3–4 |
+
+**L7b produces essentially every veto in this system.** Disarming it takes the
+count to zero on six of seven scenarios. **L6 contributes one veto in 2,800
+ticks. L7a contributes zero, everywhere.** Disarming any single gate moves the
+vehicle by at most **5 mm** (E-59, E-60).
+
+**The reading to refuse:** *"L7a is worthless."* It vetoed once in roughly
+500,000 nominal ticks (N-9), so a 2,800-tick study finding zero is consistent
+with its known rate rather than evidence against it. What this measures is each
+gate's contribution **on these seven scenarios**, and that is the whole claim.
+
+**The positive control matters as much as the table.** Disarmed gates still run
+and still write a verdict: `ablated_passes` is **0 of 2,800 in every governed
+row and 2,800 of 2,800 in every disarmed row** (E-61). A study that silently
+failed to ablate would report zeroes everywhere and look otherwise identical.
+
+**One correction to ADR-0021, made on first contact.** The environment guard
+originally admitted `development` alone. That would have measured every ablated
+run at that environment's deliberately twitchy operating point — OOD thresholds
+of 3/6/10 against simulation's 10/30/100 — so each run would have differed from
+its control in the disarmed gate *and* in a tenfold tighter escalation. Two
+variables, one measurement. The guard now admits `development` and `simulation`,
+and still refuses `certification`, which is the environment the rule exists for.
+
+**Exit met:** a table quantifying each layer's contribution, with FB2 and FB3
+supplied from the shadow measurements rather than re-derived.
 **Estimate:** 4–6 days, revised up from 3–5 — the entry costed six ablations
 against `None` paths that mostly do not exist.
 **Unblocked:** the note *"meaningless before P0.2"* no longer applies. P0.2 was

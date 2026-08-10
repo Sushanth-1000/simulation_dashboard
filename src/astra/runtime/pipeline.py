@@ -269,6 +269,7 @@ class GovernancePipeline[PayloadT]:
     """
 
     __slots__ = (
+        "_ablation",
         "_arbiter",
         "_arbitration",
         "_audit_sink",
@@ -322,6 +323,7 @@ class GovernancePipeline[PayloadT]:
         shadow_twin: PhysicsInformedTwin | None = None,
         shadow_calibration: MondrianCalibration | None = None,
         shadow_failsafe: FailSafeStateMachine | None = None,
+        ablation: str = "NONE",
     ) -> None:
         """Assemble the pipeline from already-constructed layers.
 
@@ -370,6 +372,13 @@ class GovernancePipeline[PayloadT]:
                 The idiom is L9's, not a new one -- :class:`ShadowExecution`
                 stages a candidate calibration profile and measures its
                 divergence before committing to it, for the same reason.
+            ablation: Which layers were disarmed for this run, rendered by
+                :meth:`~astra.runtime.ablation.AblationProfile.render`.
+                ``"NONE"`` -- the default -- is a governed run. Carried here
+                only so that every decision record can be stamped with it: an
+                ablated run's evidence is otherwise indistinguishable from a
+                governed run's, which is precisely what an ablation is
+                (ADR-0021).
             shadow_failsafe: A second fail-safe machine, driven only by the
                 counterfactual verdicts FB3's quantile would have produced. It
                 governs nothing. It exists to answer D-1's real question: a veto
@@ -394,6 +403,7 @@ class GovernancePipeline[PayloadT]:
         self._shadow_twin = shadow_twin
         self._shadow_calibration = shadow_calibration
         self._shadow_failsafe = shadow_failsafe
+        self._ablation = ablation
         self._statistical_gate = statistical_gate
         self._physical_gate = physical_gate
         self._shield = shield
@@ -493,6 +503,7 @@ class GovernancePipeline[PayloadT]:
             failsafe=failsafe,
             arbitration=self._arbitration,
             issued=issued,
+            ablation=self._ablation,
         )
         self._audit_sink.record_decision(record)
         return TickOutcome(record=record, issued=issued, shadow=shadow)
@@ -1026,6 +1037,7 @@ class GovernancePipeline[PayloadT]:
             twin_weights_digest=self._twin.weights_digest,
             safety_verdict=verdict,
             failsafe=failsafe,
+            ablation=self._ablation,
         )
         self._audit_sink.record_decision(record)
         return TickOutcome(record=record, issued=None, failed_stage=stage)

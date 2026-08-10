@@ -51,6 +51,7 @@ from astra.layers.l1_sensing.bus import SharedSensorBus
 from astra.layers.l2_estimation.measurement import fast_measurement, slow_measurement
 from astra.layers.l3_trust.corpus import CalibrationCorpus
 from astra.observability.audit import JsonlAuditSink
+from astra.runtime.ablation import AblationProfile
 from astra.runtime.assembly import AssembledPipeline, assemble_pipeline
 from training.environment import EnvironmentSpec, SyntheticDrivingEnv
 from training.faults import FaultChannel
@@ -494,6 +495,7 @@ def drive_closed_loop(
     cold_path: ColdPathContext | None = None,
     shadow_fb2: bool = False,
     fault: FaultInjector | None = None,
+    ablation: AblationProfile | None = None,
 ) -> ClosedLoopResult:
     """Run the pipeline against the plant, feeding issued commands back in.
 
@@ -513,6 +515,10 @@ def drive_closed_loop(
             leaves the loop as it was.
         shadow_fb2: Run FB2 against a twin nothing reads, so the run can report
             what online adaptation would have done. Off by default.
+        ablation: Which layers to disarm, or ``None`` for a governed run.
+            A disarmed gate is still constructed and still writes a verdict;
+            it simply cannot block, and every decision record says which
+            layers were disarmed (ADR-0021).
         fault: Sensor faults to inject, with their ground truth. ``None`` -- the
             default -- is a clean run, and is **bit-identical** to a run given
             an injector whose windows fall outside it, because the injector
@@ -556,6 +562,8 @@ def drive_closed_loop(
         cold_path=cold_path,
         shadow_fb2=shadow_fb2,
         policy=policy,
+        ablation=ablation,
+        environment=ENVIRONMENT,
     )
 
     period = Seconds(1.0 / settings.estimation.fast_rate_hz)

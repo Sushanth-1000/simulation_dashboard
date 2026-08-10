@@ -59,6 +59,7 @@ DECISION_RECORD_KEYS = (
     "failsafe",
     "arbitration",
     "issued",
+    "ablation",
 )
 
 

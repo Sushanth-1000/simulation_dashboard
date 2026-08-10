@@ -176,10 +176,15 @@ def test_the_fast_state_supplies_the_lateral_acceleration_the_shield_bounds() ->
         # quantity in it that can disagree with the state estimate. It was
         # always computed and never archived, which is how OD-9 came to be
         # unanswerable from the evidence log.
+        # Audit v4: the record carries `ablation`, naming which layers were
+        # disarmed. The one boundary where an old reader is *dangerously*
+        # wrong rather than merely poorer: a v3 reader sees an ablated run's
+        # records as a governed run's, because every other field is identical
+        # by construction -- that is what an ablation is.
         # Pinned rather than merely bounded, so that a schema change has to be a
         # decision someone made here as well as there. This pin has now fired
-        # once for that reason and did its job.
-        (AUDIT_SCHEMA_VERSION, 3),
+        # twice for that reason and did its job both times.
+        (AUDIT_SCHEMA_VERSION, 4),
         (CONFIG_SCHEMA_VERSION, 1),
     ],
 )
