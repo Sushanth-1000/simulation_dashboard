@@ -1132,7 +1132,7 @@ doing — see P3.2.
 **Conclusion: do not wire FB2 as it stands.** That needs no action to implement — it is the status quo — and it
 now rests on measurement rather than on reading the code.
 
-**6. P3.1c — what FB2 should do instead. DECIDED, [ADR-0020](adr/0020-fb2-estimates-control-effectiveness.md), not yet implemented.**
+**6. P3.1c — what FB2 should do instead. DECIDED, [ADR-0020](adr/0020-fb2-estimates-control-effectiveness.md); estimator built, shadowed 9 Aug, and NOT wired — the specified placement is blind (E-63).**
 
 FB2 estimates the control effectiveness `B` from measured response rather than
 regressing a network onto proposer commands. The target becomes measured physics,
@@ -1150,14 +1150,47 @@ would be silent.
 **The estimator itself is now built and tested** — `ControlEffectivenessEstimator`
 in the adapter, 18 tests, including the saturation control that computes what a
 naive estimator *would* have returned from exactly the samples the real one
-rejects. Still to do: shadow it over a soak, then the port change so L5 reads the
-estimate.
+rejects.
 
-Open, and named in the ADR rather than glossed: sample starvation (only 387 of
-4,000 wide-steer samples survived the filter), noise on a real platform where σ
-will not be zero, and the port change to let L5 read a live estimate without
-reaching into the adapter. **To be measured in shadow before wiring**, which is
-now the standing rule and has caught two defects already.
+### Shadowed 9 August 2026, and the placement was wrong
+
+| scenario | true `B` | from the **estimate** | from the **raw reading** |
+|---|--:|--:|--:|
+| control | 140.0 | **140.000** | 137.843 |
+| `lateral_noise` | 140.0 | 140.000 | 140.000 |
+| **platform `B`=112** | **112.0** | **140.000** | **111.341** |
+| **platform `B`=168** | **168.0** | **140.000** | **165.140** |
+
+**Fed the filtered estimate — where the ADR places it — the estimator returns
+the configured value on every platform it is shown**, exactly, on vehicles whose
+true `B` is 20% away in either direction (E-63). The UKF's process model already
+assumes `B`, so its lateral-acceleration estimate is that assumption propagated;
+an estimator reading it measures the configuration and calls it a measurement.
+Wired that way the loop would report *"the platform has not changed"* for any
+platform — the fifth mechanism in this register that fails by looking fine.
+
+Fed the **raw measured response** it tracks: 111.3 against 112, 165.1 against 168
+(E-64). And the risk the shadow run was written to look for did not appear —
+**no injected fault moves it materially**, the widest deviation being 0.4% and
+the 25×-sigma noise burst leaving it exactly at 140.000, because the estimate is
+a median (E-65).
+
+**Still open, and this is why it is still not wired:**
+
+- the **~1.5% low bias** on the raw reading is unexplained, small, consistent,
+  and in the direction the ADR itself names as dangerous;
+- six hand-chosen faults are not a population;
+- **`B` is constant within every run measured so far.** A platform whose
+  effectiveness changes *mid-run* is the case this loop exists for, and nothing
+  has tested it.
+
+Also still open, unchanged: sample starvation (only 387 of 4,000 wide-steer
+samples survived the filter), noise on a real platform where σ will not be zero,
+and the port change to let L5 read a live estimate without reaching into the
+adapter.
+
+**Estimate:** 2–3 days — explain the bias, build a plant whose `B` moves
+mid-run, re-shadow, then the port change.
 
 **6-original. P3.1c — what FB2 should do instead.**
 

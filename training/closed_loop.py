@@ -187,7 +187,7 @@ def _publish_state(
     noise: random.Random,
     tick: int = 0,
     fault: FaultInjector | None = None,
-) -> None:
+) -> dict[str, float] | None:
     """Publish the plant's observable state to every sensor modality.
 
     Every modality carries the same payload because the synthetic plant has one
@@ -228,6 +228,11 @@ def _publish_state(
             injector with nothing active on this tick are the same thing to the
             byte -- the injector draws no randomness when it is not injecting,
             so the sensor stream is unperturbed either way.
+
+    Returns:
+        The payload as published, or ``None`` if the reading was suppressed.
+        Returned so a caller can record what the *sensors* said, which is
+        neither the plant's truth nor what the filter later concluded.
     """
     state = plant._state  # noqa: SLF001 - the plant is the test fixture
     payload = {
@@ -251,6 +256,7 @@ def _publish_state(
                 payload=payload,
             )
         )
+    return None if dropped else payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -297,6 +303,12 @@ class TickSample:
         live_score: The non-conformity score L6 computed, or ``None``.
         shadow_score: The score L6 would have computed against the shadow twin,
             or ``None``. The pair is what says whether FB2 would disarm the gate.
+        measured_lateral_acceleration_mps2: The lateral acceleration as the
+            **sensors reported it** this tick -- after noise, after any injected
+            fault, and before the filter. Distinct from
+            ``lateral_acceleration_mps2`` (the plant's truth) and from
+            ``record.fast_state`` (what the filter concluded), and all three are
+            needed because a measurement can disagree with both.
         fault_active: Whether an injected fault was applied on this tick.
             **The ground-truth label**, and the field that makes a detection
             measurement possible at all: paired with the tick's verdict it gives
@@ -321,6 +333,7 @@ class TickSample:
     shadow_would_veto: bool | None = None
     shadow_failsafe: str | None = None
     fault_active: bool = False
+    measured_lateral_acceleration_mps2: float | None = None
 
 
 @dataclass(slots=True)
@@ -444,6 +457,7 @@ def _sample(
     lateral_acceleration: float,
     duration_ns: int,
     faulted: bool,
+    measured_lateral: float | None,
 ) -> TickSample:
     """Assemble one observer sample from a tick's outcome and the plant's truth.
 
@@ -458,6 +472,7 @@ def _sample(
         lateral_acceleration: The plant's lateral acceleration after the step.
         duration_ns: Wall-clock cost of ``pipeline.tick`` alone.
         faulted: Whether an injected fault applied to this tick.
+        measured_lateral: The lateral acceleration the sensors reported.
 
     Returns:
         The sample.
@@ -481,6 +496,7 @@ def _sample(
         shadow_would_veto=None if shadow is None else shadow.shadow_would_veto,
         shadow_failsafe=None if shadow is None else shadow.shadow_failsafe,
         fault_active=faulted,
+        measured_lateral_acceleration_mps2=measured_lateral,
     )
 
 
@@ -576,7 +592,7 @@ def drive_closed_loop(
     for index in range(ticks):
         faulted = fault is not None and fault.is_active(index)
         result.faulted_ticks += int(faulted)
-        _publish_state(
+        published = _publish_state(
             built.sensor_bus,
             plant=plant,
             at=clock.now(),
@@ -614,6 +630,7 @@ def drive_closed_loop(
                     lateral_acceleration=previous_lateral,
                     duration_ns=duration_ns,
                     faulted=faulted,
+                    measured_lateral=None if published is None else published["a"],
                 )
             )
         clock.advance(period)

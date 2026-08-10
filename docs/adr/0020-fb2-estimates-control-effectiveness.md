@@ -1,6 +1,6 @@
 # ADR-0020 — FB2 estimates the control effectiveness, rather than regressing on commands
 
-**Status:** Accepted, not yet implemented
+**Status:** Accepted; **amended 9 August 2026 after the shadow run — do not wire as originally specified**
 **Date:** 9 August 2026
 **Follows:** [ADR-0019](0019-one-twin-head-per-context.md), which fixed *where* FB2
 writes. This fixes *what it learns from*.
@@ -133,3 +133,77 @@ defects that no test would have.
   estimate refines it at runtime; it does not replace the requirement to state it.
 - **RK-5** (catastrophic forgetting): retired for FB2. There is no longer an
   online network update to forget anything.
+
+
+---
+
+## Measured in shadow, 9 August 2026 — and the placement was wrong
+
+The estimator was built and tested in isolation, where E-43 recovered the
+configured `B = 140.0` to **0.000%** error. This decision said it should live in
+the adapter and observe executed outcomes, and the standing convention says no
+loop gets authority until it has run with none. So it was run with none, across
+the control, six injected faults, and two plants whose true `B` differs from the
+configured value by ±20%.
+
+| scenario | true `B` | from the **estimate** | from the **raw reading** |
+|---|--:|--:|--:|
+| control | 140.0 | **140.000** | 137.843 |
+| `imu_dropout` | 140.0 | 140.000 | 139.278 |
+| `position_drift` | 140.0 | 140.000 | 137.463 |
+| `lateral_noise` | 140.0 | 140.000 | 140.000 |
+| **platform `B`=112** | **112.0** | **140.000** | **111.341** |
+| **platform `B`=168** | **168.0** | **140.000** | **165.140** |
+
+**Fed the filtered estimate, the estimator returns the configured value on every
+platform it is ever shown.** Not approximately — exactly, to three decimals, on
+a vehicle whose true effectiveness is 20% away in either direction. The reason is
+structural rather than a tuning problem: the UKF's process model already assumes
+`B`, so its estimate of lateral acceleration is that assumption propagated. An
+estimator reading it measures the configuration and calls the result a
+measurement.
+
+Wired that way the loop would be perfectly stable, perfectly uninformative, and
+would report *"the platform has not changed"* for any platform. That is the
+failure mode this register has now recorded five times — a mechanism that fails
+by making the evidence look fine — and it is precisely what the shadow rule
+exists to catch.
+
+**Fed the raw measured response it works**, tracking 112 to 111.3 and 168 to
+165.1, within 1.7%. And the risk this shadow run was written to look for did not
+materialise: **no injected fault moves it materially.** The widest deviation
+under any fault is 0.4% from the control, and the 25×-sigma noise burst leaves it
+at 140.000 exactly, because the estimate is a median.
+
+### The amendment
+
+**The input is the raw measured lateral acceleration, not the filtered estimate
+and not the plant's truth.** The original text — *"observe the lateral
+acceleration it produced"* — is ambiguous between the three, and the ambiguity is
+the whole defect.
+
+### What is still not done, and why
+
+**The loop is still not wired**, and this run is not sufficient to wire it:
+
+- The ~1.5% low bias on the raw reading is unexplained. Small, consistent, and
+  in the direction ADR-0020 already names as the dangerous one — an
+  underestimated `B` shrinks the departure the non-conformity score is computed
+  from. It should be understood before it is trusted, not after.
+- Six hand-chosen faults are not a population. The estimator survived these;
+  that is not the same as being robust.
+- `B` is constant within every run measured here. A platform whose effectiveness
+  *changes mid-run* is the case the loop exists for and the one nothing has yet
+  tested.
+
+### A note on how this was measured, because it went wrong four times
+
+Every source of lateral acceleration sits at a different point in the tick, and
+mis-pairing them reads the effectiveness 12–18% low while looking entirely
+plausible. That is trap 5 in the 9 August handover — where an earlier probe read
+17% low and it turned out to be a property of the probe — and it recurred three
+more times here: first reading the plant's truth (which no adapter has, and which
+made every sensor fault invisible), then over-correcting to a one-tick lag the
+plant does not have, then applying the correct offset to the wrong source. The
+timeline is now written down in `benchmarks/effectiveness.py` so the next person
+does not rediscover it.
