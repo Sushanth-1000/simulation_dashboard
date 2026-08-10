@@ -79,17 +79,23 @@ dependencies = [
 # [dashboard] fastapi + uvicorn.
 [project.optional-dependencies]
 estimation = [
-    # Phase 2. The dual-rate UKF is built on FilterPy's `UnscentedKalmanFilter`
-    # and `MerweScaledSigmaPoints`; NumPy is its array substrate and is imported
-    # directly by the process models.
+    # Phase 2. The dual-rate UKF is `astra.layers.l2_estimation.unscented`, in
+    # this repository; NumPy is its array substrate and is imported directly by
+    # the process models.
     #
-    # FilterPy is pinned to a floor rather than a range because 1.4.5 (2018) is
-    # the final release -- the project is unmaintained. That is recorded as
-    # technical debt item 3: it sits inside a safety path and ISO 26262 §8-12
-    # will require a qualification argument for it. `stubs/filterpy/` enumerates
-    # the exact surface depended on, which is where that argument starts.
+    # FilterPy was removed on 10 August 2026 (P4.3). It was pinned to a floor
+    # rather than a range because 1.4.5 (2018) is the final release -- the
+    # project is unmaintained -- and it sat inside a safety path, so ISO 26262
+    # §8-12 would have required a qualification argument for it *and* for the
+    # scipy/matplotlib/pillow tree it pulled in behind it. Nothing in `src/`
+    # ever imported any of those three. The surface actually used was two
+    # classes, which `stubs/filterpy/` had already enumerated for strict
+    # typing; reimplementing it cost less than arguing for it.
+    #
+    # The replacement matches FilterPy's algorithm rather than improving it, so
+    # that the swap could be measured: E-68 records that every number in the
+    # fault study and the comparison harness reproduces exactly.
     "numpy>=2.0",
-    "filterpy>=1.4.5",
 ]
 learning = [
     # Phase 4. The L5 digital twin is a small PyTorch network; the L4 proposer
@@ -130,9 +136,23 @@ test = [
     "pytest-cov>=6.0",
     "hypothesis>=6.115",
 ]
+benchmark = [
+    # `benchmarks/soak.py` draws the window series. It imported matplotlib and
+    # never declared it, which went unnoticed for as long as FilterPy was a
+    # runtime dependency: FilterPy pulled scipy, scipy pulled matplotlib, and
+    # the import resolved by accident. Removing FilterPy (P4.3) made it a
+    # missing import, which is the undeclared dependency becoming visible
+    # rather than a new one appearing.
+    #
+    # It is in a *group* rather than in `estimation`, because nothing in
+    # `src/astra/` imports it and nothing should: the runtime tree is NumPy and
+    # pydantic, and a plotting library has no business in a safety path.
+    "matplotlib>=3.9",
+]
 dev = [
     { include-group = "lint" },
     { include-group = "test" },
+    { include-group = "benchmark" },
     "pre-commit>=4.0",
 ]
 
@@ -237,10 +257,11 @@ ignore = [
 # sampler is a data generator, not a security control. PLR0913: a training entry
 # point legitimately takes many hyperparameters.
 "training/**" = ["T20", "S311", "INP001", "PLR0913"]
-# Stubs must mirror the upstream signature exactly, including parameter names
-# (`P`, `R`, `UT`) and its untyped **kwargs. Renaming them would break keyword
-# calls and would make the stub describe an API that does not exist.
-"stubs/**" = ["N803", "ANN401", "D", "A002"]
+# The UKF keeps FilterPy's parameter names -- `R` for measurement noise -- so
+# that the call sites it replaced did not have to change in the same commit
+# as the implementation. N803 is the capital-letter rule; the alternative is
+# renaming a symbol every Kalman text calls R.
+"src/astra/layers/l2_estimation/unscented.py" = ["N803"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -261,11 +282,9 @@ docstring-code-format = true
 [tool.mypy]
 python_version = "3.12"
 files = ["src", "tests"]
-# FilterPy ships no py.typed marker. Rather than relax strictness globally, the
-# exact surface the estimation layer depends on is declared in stubs/ — which
-# doubles as the enumeration a safety-case qualification argument for an
-# unmaintained dependency has to start from. See stubs/filterpy/__init__.pyi.
-mypy_path = "stubs"
+# No `mypy_path`. It pointed at stubs/ for FilterPy, which shipped no py.typed
+# marker; FilterPy is gone (P4.3) and the UKF is first-party and strictly
+# typed, so there is no untyped surface left to declare.
 strict = true
 warn_unreachable = true
 warn_no_return = true

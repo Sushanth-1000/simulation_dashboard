@@ -45,7 +45,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Final
 
 import numpy as np
-from filterpy.kalman import MerweScaledSigmaPoints, UnscentedKalmanFilter
 
 from astra.contracts.estimation import FastStateEstimate, InnovationRecord, SlowStateEstimate
 from astra.kernel.constants import (
@@ -59,6 +58,10 @@ from astra.kernel.errors import ContractViolationError, SafetyPathError
 from astra.kernel.matrix import SymmetricMatrix
 from astra.kernel.validation import require_dimension, require_finite
 from astra.layers.l2_estimation.models import fast_transition, slow_transition
+from astra.layers.l2_estimation.unscented import (
+    MerweScaledSigmaPoints,
+    UnscentedKalmanFilter,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

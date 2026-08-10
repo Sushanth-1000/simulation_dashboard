@@ -1595,16 +1595,57 @@ the one that shows it, and show the fix when there is one.
 
 **Estimate:** 2–3 days, down from 2–4. **No longer depends on P3.5.**
 
-## P4.3 — Replace FilterPy (work plan §6.1)
+## ~~P4.3 — Replace FilterPy (work plan §6.1)~~ — DONE, 10 Aug 2026
 
 Last released **2018**, unmaintained, inside the safety path, and it drags
 `scipy`, `matplotlib` and `pillow` into a dependency tree that ISO 26262 §8-12
 will require a qualification argument for — one per package. `stubs/filterpy/`
 already enumerates the exact surface depended on, and it is small.
 
-**Exit:** `filterpy` gone from `pyproject.toml`; UKF tracking accuracy unchanged
-against the existing synthetic validation.
-**Estimate:** 3–5 days.
+**Exit met, 10 August 2026.** `filterpy` is gone from `pyproject.toml`, and so
+are `scipy`, `matplotlib` and `pillow` — the tree it pulled in behind it, none of
+which `src/astra/` ever imported. `stubs/` is deleted with it: the UKF is
+first-party and strictly typed, so there is no untyped surface left to declare.
+
+The replacement is `astra.layers.l2_estimation.unscented`, ~250 lines, and it
+**matches FilterPy's algorithm rather than improving it** — including computing
+the gain as `Pxz @ inv(S)` where `solve` would be better conditioned. Replacing
+a library and improving its numerics in one change makes any difference
+unattributable to either, and this filter's outputs are what the evidence pack
+rests on. The `solve` change is a separate one, and now a measurable one.
+
+**Accuracy unchanged, and measured rather than asserted.** The fault study, the
+detector table and the comparison harness all reproduce **every** recorded
+figure exactly (E-68). Against FilterPy directly the agreement is 6e-10 on the
+state over 2,000 steps, with sigma points and weights bit-identical; the
+residual is SciPy's upper-triangular Cholesky against NumPy's lower-triangular
+one and cannot be removed without keeping SciPy (E-69).
+
+### It found something, which is the part worth reading
+
+Writing the test that checks the replacement against the **textbook Kalman
+filter** — rather than against the library — turned up **OD-10**. The update
+reuses the sigma points `predict` pushed through `fx`, whose spread carries no
+process noise, so the innovation covariance is short by exactly `H Q Hᵀ`. At the
+simulation operating point that is not a rounding matter: `Q` diag is
+**0.02 / 0.05 / 0.3** against `R` diag **0.01 / 0.0001 / 0.0016**, inflating the
+Mahalanobis distance by **1.73×, 22.4× and 13.7×** across the three observed
+channels (E-70).
+
+It is **inherited, not introduced** — the behaviour is FilterPy's and has been in
+every number this project ever recorded. It is also, for now, harmless in
+verdict terms: the corpus was calibrated on the same inflated statistic, so
+calibration and runtime are self-consistent. What it invalidates is the *name*.
+The recorded `fast_innovation` is not a Mahalanobis distance, so it may not be
+compared against a chi-squared expectation, against a distance computed
+elsewhere, or across a change to `Q`.
+
+**Also surfaced:** `benchmarks/soak.py` imported matplotlib and never declared
+it. The import resolved by accident for as long as FilterPy pulled scipy, which
+pulled matplotlib. It is now a declared benchmark-group dependency — a hidden
+dependency becoming visible, not a new one appearing.
+
+**Estimate:** met.
 
 ## P4.4 — Test domain independence for real (work plan §6.2, assumption A-1)
 
