@@ -24,7 +24,7 @@ belief.
 
 | ID | Assumption | Status after Phase 1 |
 |---|---|---|
-| [A-1](#a-1--domain-independence-comes-from-ports-plus-a-configured-actuationspace) | Domain independence via ports + configured `ActuationSpace` | HOLDING |
+| [A-1](#a-1--domain-independence-comes-from-ports-plus-a-configured-actuationspace) | Domain independence via ports + configured `ActuationSpace` | **PARTLY VIOLATED** |
 | [A-2](#a-2--a-10-ms-end-to-end-budget-at-20-hz-is-achievable-in-cpython) | 10 ms end-to-end at 20 Hz is achievable in CPython | OPEN |
 | [A-3](#a-3--append-only-jsonl-one-file-per-run-is-adequate-prototype-evidence) | Append-only JSONL is adequate prototype evidence | HOLDING |
 | [A-4](#a-4--safety-thresholds-have-no-defensible-default) | Safety thresholds have no defensible default | **ENFORCED** |
@@ -63,6 +63,37 @@ still carry automotive vocabulary in places a reviewer should note — `road_fri
 `tyre_wear_index` in `SLOW_STATE_FIELDS`, `legal_speed_limit_kmh` in `ShieldSettings`. Those are
 defensible as the *configured* domain rather than a hardcoded one, but the argument is currently
 made in prose, not by a second working profile.
+
+### Status after the test: **PARTLY VIOLATED**, 10 August 2026
+
+The second profile was built — a differential-drive warehouse AGV,
+[`training/warehouse.py`](../training/warehouse.py) — and driven at the pipeline. The paragraph
+above was right to be uneasy and understated how much.
+
+**The assumption holds where it claimed to and for the reason it claimed.** Every layer interface
+is a structural `Protocol`, and L3, L6, L7a and L7b took the AGV without a single change: their
+inputs are numbers with units and they do not care what produced them. `FAST_STATE_FIELDS`, the
+`ActuationSpace` contract, the `Policy` protocol and the projector role were all neutral in
+practice, not just in prose.
+
+**It fails in four places, and one of them is not vocabulary** (E-72 – E-75, OD-11):
+
+1. `assemble_pipeline` calls `automotive_actuation_space()` directly and has **no parameter** for
+   one. A different platform cannot supply a different space.
+2. The command projector is equally fixed, and its arithmetic — divide a target lateral
+   acceleration by a *steering effectiveness* — has no differential-drive counterpart.
+3. **L2's process model is a bicycle model.** Given the AGV's ordinary condition of pivoting at
+   zero forward speed, it propagates a heading change of exactly `0.000000`. That is domain
+   knowledge inside a layer, which is the thing this assumption exists to forbid.
+4. `astra.kernel` names road friction, tyre wear, highways and rain.
+
+**This entry's own "impact if wrong" called it.** *"Extracting vehicle vocabulary from a core that
+has absorbed it is a migration, not a refactor — which is precisely why the assumption was made at
+Phase 1 rather than tested later."* Items 1, 2 and 4 are a refactor. Item 3 is the migration.
+
+Each is pinned as a strict xfail in `tests/architecture/test_domain_independence.py`, so closing
+any of them turns the suite red and forces this section to be rewritten rather than quietly
+outgrown.
 
 ---
 

@@ -1647,16 +1647,43 @@ dependency becoming visible, not a new one appearing.
 
 **Estimate:** met.
 
-## P4.4 — Test domain independence for real (work plan §6.2, assumption A-1)
+## ~~P4.4 — Test domain independence for real (work plan §6.2, assumption A-1)~~ — DONE, 10 Aug 2026
 
 NFR5 is asserted, structurally defended, and never tested. Add a genuinely
 non-automotive profile — a warehouse AGV, a two-channel differential-drive robot
 — and get it through the pipeline **without touching `src/astra/` outside
 adapters**.
 
-**Exit:** either the claim is validated, or it is revealed to be
-automotive-shaped. Both are valuable; the second is more so.
-**Estimate:** 4–6 days.
+**Exit met, 10 August 2026, and it was the second outcome.**
+[`training/warehouse.py`](../training/warehouse.py) is a differential-drive AGV —
+two wheels in rad/s, no throttle, no brake, no steering angle, turning on the
+spot. Driven at the pipeline, it meets four walls (E-72 – E-75, **OD-11**):
+
+| | wall | kind |
+|---|---|---|
+| 1 | `assemble_pipeline` has 14 parameters and **none accepts an actuation space** | refactor |
+| 2 | The command projector is equally fixed, and divides by a *steering effectiveness* | refactor |
+| 3 | **L2's process model is a bicycle model** — propagates `0.000000` heading change for a platform pivoting at zero speed | **migration** |
+| 4 | `astra.kernel` names road friction, tyre wear, highways, rain | refactor |
+
+**The claim holds for the gates and fails for the plumbing.** L3, L6, L7a and
+L7b took the AGV unchanged, because every input they read is a number with a
+unit. What is automotive is the composition root, the process model and the
+vocabulary.
+
+**A-1's own "impact if wrong" called it**: *"Extracting vehicle vocabulary from a
+core that has absorbed it is a migration, not a refactor."* Walls 1, 2 and 4 are
+the refactor. Wall 3 is the migration.
+
+Every wall is pinned as a **strict xfail**, so closing one turns the suite red
+and forces the evidence row to be rewritten rather than quietly outgrown.
+
+**Not fixed here, deliberately** — the same discipline as OD-9 and ADR-0020.
+Walls 1, 2 and 4 are perhaps 2 days; wall 3 means making the process model an
+injected strategy, which touches the layer every gate reads and needs its own
+measurement that the automotive numbers are unchanged.
+**Estimate:** met for the test. **3–5 days** for walls 1, 2 and 4; wall 3 is
+its own item.
 
 ## ~~P4.5 — Security threat model (work plan §6.4)~~ — DONE, 10 Aug 2026
 
