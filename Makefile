@@ -74,6 +74,28 @@ contracts: ## Architecture fitness contracts (import-linter)
 	@# dependency graph and SI-1/SI-10.
 	$(RUN) lint-imports
 
+blobsize: ## Refuse any file large enough to make the branch unpushable
+	@# GitHub rejects any blob over 100 MB, and it rejects it at *push* time --
+	@# by which point the offending commit is history and only a rewrite gets it
+	@# out. That happened here: a `str.replace` accident on 6 August 2026 blew
+	@# docs/PENDING.md from 63 KB to 210 MB, the file was repaired two commits
+	@# later, and the branch was silently unpushable for four days because the
+	@# blob stayed in history. Removing it took a filter-branch over forty
+	@# commits and moved twenty-six hashes.
+	@#
+	@# Scanned from the *filesystem*, not from `git ls-files`. The first version
+	@# of this target used git, which meant it passed vacuously wherever the
+	@# tree is not a git repository -- and the tree rsynced into WSL, which is
+	@# where this gate actually runs, is exactly that. It reported success
+	@# having checked nothing, which is the same silent false pass the
+	@# `contracts` target above carries a warning about.
+	@#
+	@# The ceiling is 5 MB, far below GitHub's, because nothing here has any
+	@# business being larger: the biggest tracked file is uv.lock at 0.31 MB.
+	@# A limit set just under the one that bites gives no warning; this one
+	@# complains while the mistake is still a working-tree change.
+	@bad=$$(find . -type f -size +5M 		-not -path './.git/*' -not -path './.venv/*' 		-not -path '*/__pycache__/*' -not -path './.mypy_cache/*' 		-not -path './.pytest_cache/*' -not -path './.ruff_cache/*' 		-not -path './htmlcov/*' -not -path './var/soak/*' 		-not -path './var/faults/*' -not -path './var/ablation/*' 		-not -path './var/comparison/*' -not -path './var/effectiveness/*' 		-not -path './var/flake/*' 2>/dev/null); 	if [ -n "$$bad" ]; then 		echo "files over 5 MB -- committing one puts it in history for ever:"; 		for f in $$bad; do ls -lh "$$f" | awk '{print "  " $$5 "	" $$NF}'; done; 		exit 1; 	fi
+
 lockfile: ## Verify uv.lock is current with pyproject.toml
 	@# The lockfile went stale twice, and both times a *training run* found it
 	@# rather than the gate -- because this check lived only in CI, which is to
@@ -121,7 +143,7 @@ coverage: ## Write an HTML coverage report to htmlcov/
 doctor: ## Report on this installation, as `astra doctor` does
 	$(RUN) astra doctor
 
-check: lockfile format-check lint typecheck contracts test ## The full quality gate, exactly as CI runs it
+check: blobsize lockfile format-check lint typecheck contracts test ## The full quality gate, exactly as CI runs it
 	@echo ""
 	@echo "  quality gate: PASSED"
 

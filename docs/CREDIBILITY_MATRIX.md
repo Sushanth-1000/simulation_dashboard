@@ -3,7 +3,7 @@
 **Purpose** One row per claim this project makes. Each row states the evidence behind it,
 the provenance of that evidence, and what the claim does *not* license.
 
-**Baseline commit** `2cd0d35`
+**Baseline commit** `1236daf`
 **Status** Working document. Rows are promoted as evidence lands; nothing is written in the
 future tense to make it read as finished.
 **Last reconciled** 9 August 2026, against the P0–P3.4 work.

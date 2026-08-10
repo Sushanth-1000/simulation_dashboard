@@ -5,7 +5,7 @@ it, the command that reproduces it, and the date. A number that is not in this
 table has not been measured, and a number here that cannot be reproduced by its
 command is a defect in this table.
 
-**Last verified** 9 August 2026, commit `2cd0d35`, on WSL2 Ubuntu / CPython
+**Last verified** 9 August 2026, commit `1236daf`, on WSL2 Ubuntu / CPython
 3.12.13 / CPU only.
 
 > ### What a date in this table means, and the correction of 9 August 2026
@@ -54,6 +54,26 @@ command is a defect in this table.
 >   published on the shared remote, and rewriting them would mean force-pushing
 >   over a branch this repository does not own. Left as a decision for whoever
 >   owns that call, not taken quietly.
+
+> ### A 200 MB blob was stripped from history on 10 August 2026
+>
+> `docs/PENDING.md` was 63 KB, and a `str.replace` accident on 6 August made it
+> **210 MB** in two commits before it was repaired in the third. The repair fixed
+> the *file*; the blob stayed in the *history*, and GitHub refuses any pushed
+> object over 100 MB. **The branch was therefore unpushable from 6 August, and
+> nothing found out until the first push was attempted on the 10th** -- four days
+> and thirty-odd commits later.
+>
+> The two commits were rewritten to carry their parent's copy of the file, so
+> they no longer touch `PENDING.md` at all and the repair two commits later
+> reads as an ordinary edit. Nothing else in any commit changed, and the working
+> tree is byte-identical. Twenty-six hashes moved and four citations were
+> remapped; `backup-before-blob-strip-20260810` tags the pre-strip tip.
+>
+> `make check` now runs `make blobsize`, which fails on any tracked file over
+> 5 MB. A limit set just under the one that bites gives no warning; this one
+> complains while the mistake is still a working-tree change rather than four
+> days of history.
 
 > **The caveat that governs every row in the first table.** The plant, the digital
 > twin and the calibration corpus all descend from the same kinematic bicycle
