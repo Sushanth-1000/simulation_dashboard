@@ -262,6 +262,22 @@ class DecisionRecord:
         frame_health: Per-modality health of the fused sensor frame, as ordered
             pairs for deterministic rendering.
         fast_state: The UKF fast state estimate.
+        fast_innovation: ``||nu_t||`` under the innovation covariance for this
+            tick's fast update, or ``None`` if no update ran.
+
+            **The one quantity in the record that can disagree with the
+            estimate.** Everything else here is derived from the state the
+            filter settled on; this is how far the measurement was from what
+            the filter expected before it settled. The pipeline has always
+            computed it -- L6's rolling covariate-shift window is fed from it
+            and L3's Trust Index is computed from it -- and until 9 August 2026
+            it reached the evidence log through neither. An auditor could read
+            every record of a run and not recover the signal both gates were
+            reasoning about.
+
+            Added while measuring OD-9, where the question *"could anything in
+            Core-B have seen this fault?"* could not be answered from the
+            archive.
         trust: The Trust Module assessment.
         proposal: The untrusted proposed command.
         prediction: The digital twin's one-step prediction. Two gates score
@@ -288,6 +304,7 @@ class DecisionRecord:
     config_hash: str
     frame_health: tuple[tuple[SensorModality, StreamHealth], ...] = ()
     fast_state: FastStateEstimate | None = None
+    fast_innovation: float | None = None
     trust: TrustAssessment | None = None
     proposal: ProposedCommand | None = None
     prediction: PredictedCommand | None = None
@@ -334,6 +351,7 @@ class DecisionRecord:
                 modality.value: health.value for modality, health in self.frame_health
             },
             "fast_state": None if self.fast_state is None else _render_fast_state(self.fast_state),
+            "fast_innovation": self.fast_innovation,
             "trust": None if self.trust is None else _render_trust(self.trust),
             "proposal": None if self.proposal is None else _render_proposal(self.proposal),
             "prediction": (

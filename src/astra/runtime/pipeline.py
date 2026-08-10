@@ -432,9 +432,13 @@ class GovernancePipeline[PayloadT]:
             frame = self._sensor_bus.acquire(tick)
             frame_health = tuple(self._sensor_bus.health(frame).items())
             state = self._estimate(frame, tick)
-            trust = self._trust_module.assess(
-                tick=tick, state=state, innovation=self._estimator.latest_innovation()
-            )
+            innovation = self._estimator.latest_innovation()
+            # Read once and threaded to both consumers and the record. Calling
+            # `latest_innovation()` twice would be harmless today and is exactly
+            # the kind of duplicate read that lets an audit row disagree with
+            # the gate it claims to describe.
+            fast_innovation = None if innovation is None else innovation.mahalanobis_distance
+            trust = self._trust_module.assess(tick=tick, state=state, innovation=innovation)
             proposal = self._deliver(tick=tick, state=state, trust=trust)
             # The context L3 just classified selects the twin's output head, so
             # the non-conformity score's reference and the quantile it is
@@ -479,6 +483,7 @@ class GovernancePipeline[PayloadT]:
             config_hash=self._config_hash,
             frame_health=frame_health,
             fast_state=state,
+            fast_innovation=fast_innovation,
             trust=trust,
             proposal=proposal,
             prediction=prediction,

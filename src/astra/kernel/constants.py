@@ -136,14 +136,26 @@ RCS_DIMENSION: Final = len(RCS_FIELDS)
 # after the schema has moved on. A version field is the cheapest possible
 # insurance against an unreadable evidence archive.
 
-AUDIT_SCHEMA_VERSION: Final = 2
+AUDIT_SCHEMA_VERSION: Final = 3
 """Schema version stamped on every audit record. Increment on any field change.
 
 Version 2 (ADR-0016) widened the verdict vocabulary: a gate verdict may now read
 ``ABSTAIN`` as well as ``PASS`` or ``VETO``. No field was added or removed, so a
 version-1 reader will parse a version-2 record structurally -- and will
 mis-classify an abstention, most likely as an unrecognised veto. That is exactly
-the failure the version field exists to make loud rather than silent."""
+the failure the version field exists to make loud rather than silent.
+
+Version 3 (9 August 2026) adds ``fast_innovation`` to the decision record: the
+Mahalanobis distance of the tick's fast innovation. The quantity was always
+computed -- L6's covariate-shift window is fed from it and L3's Trust Index is
+derived from it -- and reached the archive through neither, so a run's evidence
+did not contain the one number in the pipeline that can *disagree* with the
+state estimate. Added while measuring OD-9, where the question "could anything
+in Core-B have seen this fault?" turned out to be unanswerable from the archive.
+
+A version-2 reader parses a version-3 record structurally and will not see the
+new key. That is the benign direction: it loses a signal rather than
+misinterpreting one, unlike the version-1/2 boundary above."""
 
 CONFIG_SCHEMA_VERSION: Final = 1
 """Schema version required in every configuration file. Rejected if mismatched."""

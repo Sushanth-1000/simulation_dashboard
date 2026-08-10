@@ -49,6 +49,7 @@ DECISION_RECORD_KEYS = (
     "config_hash",
     "frame_health",
     "fast_state",
+    "fast_innovation",
     "trust",
     "proposal",
     "prediction",

@@ -53,6 +53,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from astra.layers.l4_proposer.learned import LearnedPolicy
+from benchmarks.detectors import evaluate
 from training.closed_loop import CHANNEL_SIGMAS, CORPUS, TWIN, TickSample, drive_closed_loop
 from training.faults import (
     FaultChannel,
@@ -160,6 +161,7 @@ class Outcome:
     ticks: int
     faulted_ticks: int
     peak_injected_error: float | None
+    detections: tuple[object, ...] = ()
 
     def to_payload(self) -> dict[str, object]:
         """Return a JSON-serialisable view."""
@@ -175,11 +177,26 @@ class Outcome:
             "ticks": self.ticks,
             "faulted_ticks": self.faulted_ticks,
             "peak_injected_error": self.peak_injected_error,
+            "detections": [
+                {
+                    "detector": d.detector,
+                    "fired_at": d.fired_at,
+                    "latency_ticks": d.latency_ticks,
+                    "fired_ticks": d.fired_ticks,
+                    "false_alarm": d.false_alarm,
+                }
+                for d in self.detections  # type: ignore[attr-defined]
+            ],
         }
 
 
 def _measure(
-    name: str, samples: Sequence[TickSample], result: object, *, opened_at: int
+    name: str,
+    samples: Sequence[TickSample],
+    result: object,
+    *,
+    opened_at: int,
+    faulted: bool,
 ) -> Outcome:
     """Reduce one run to the figures the comparison is made on."""
     errors = [
@@ -197,6 +214,11 @@ def _measure(
         for episode in result.fault_episodes  # type: ignore[attr-defined]
         if episode.peak_absolute_error is not None
     ]
+    detections = evaluate(
+        [s.record for s in samples],
+        fault_active=[s.fault_active for s in samples],
+        opened_at=opened_at if faulted else None,
+    )
     return Outcome(
         name=name,
         final_deviation_m=result.final_absolute_deviation_m,  # type: ignore[attr-defined]
@@ -209,6 +231,7 @@ def _measure(
         ticks=result.ticks,  # type: ignore[attr-defined]
         faulted_ticks=result.faulted_ticks,  # type: ignore[attr-defined]
         peak_injected_error=max(peaks) if peaks else None,
+        detections=detections,
     )
 
 
@@ -237,7 +260,7 @@ def run(*, ticks: int, open_at: int, seed: int, policy_path: Path, output: Path)
             observer=samples.append,
             fault=injector,
         )
-        return _measure(name, samples, result, opened_at=open_at)
+        return _measure(name, samples, result, opened_at=open_at, faulted=specs is not None)
 
     outcomes = [drive("control", None)]
     for scenario in SCENARIOS:
@@ -286,6 +309,26 @@ def render(outcomes: Sequence[Outcome]) -> list[str]:
     lines.append("")
     lines.append("  A scenario whose veto count and reason codes equal the control's")
     lines.append("  was not detected, however far the vehicle went.")
+    lines.append("")
+    lines.append("  Shadow detectors -- read the record, change no verdict (P2.7):")
+    lines.append("")
+    names = [d.detector for d in control.detections]  # type: ignore[attr-defined]
+    header = f"  {'scenario':<16}" + "".join(f"{n:>16}" for n in names)
+    lines.append(header)
+    lines.append(f"  {'-' * 16}" + "".join(f"{'-' * 15:>16}" for _ in names))
+    for outcome in outcomes:
+        cells = []
+        for d in outcome.detections:  # type: ignore[attr-defined]
+            if d.fired_at is None:
+                cells.append(f"{'silent':>16}")
+            elif d.latency_ticks is None:
+                cells.append(f"{'FALSE ALARM':>16}")
+            else:
+                cells.append(f"{f'+{d.latency_ticks} ticks':>16}")
+        lines.append(f"  {outcome.name:<16}" + "".join(cells))
+    lines.append("")
+    lines.append("  'silent' means the signal did not move at all -- not that a")
+    lines.append("  threshold was set too high. That is the finding, not the gap.")
     return lines
 
 

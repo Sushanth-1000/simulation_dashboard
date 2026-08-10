@@ -172,9 +172,14 @@ def test_the_fast_state_supplies_the_lateral_acceleration_the_shield_bounds() ->
     ("version", "expected"),
     [
         # Audit v2: ADR-0016 widened the gate-verdict vocabulary with ABSTAIN.
+        # Audit v3: the decision record carries `fast_innovation`, the one
+        # quantity in it that can disagree with the state estimate. It was
+        # always computed and never archived, which is how OD-9 came to be
+        # unanswerable from the evidence log.
         # Pinned rather than merely bounded, so that a schema change has to be a
-        # decision someone made here as well as there.
-        (AUDIT_SCHEMA_VERSION, 2),
+        # decision someone made here as well as there. This pin has now fired
+        # once for that reason and did its job.
+        (AUDIT_SCHEMA_VERSION, 3),
         (CONFIG_SCHEMA_VERSION, 1),
     ],
 )

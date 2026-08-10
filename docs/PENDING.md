@@ -951,7 +951,53 @@ measurement.
 | **C** | **Gate on estimate uncertainty**, `trace(P_f)` | Free; already on the record | Almost certainly useless here, and worth writing down so nobody tries it twice: a frozen or biased reading is *self-consistent*, so the filter grows more confident, not less. `P_f` shrinks under exactly the faults that matter |
 | **D** | **Require sensor redundancy and cross-check it** | What a real vehicle actually does, and the only one that addresses the general case rather than a fault list | The reference plant publishes one ground truth to all five modalities, so it **cannot express redundancy** and cannot be used to measure this. Belongs in the deployment requirements, and in Phase 7 |
 
-### The decision that *is* taken
+### Measured, 9 August 2026 — the shadow run happened
+
+Latency from the fault opening; **zero false alarms on the control for all three**.
+
+| scenario | departure | health (A) | innovation (B) | trust |
+|---|---|---|---|---|
+| `imu_dropout` | **4.199 m** | **+5 ticks** | silent | **+5 ticks** |
+| `position_drift` | **2.025 m** | silent | silent | silent |
+| `position_bias` | 0.931 m | silent | silent | silent |
+| `lateral_noise` | 0.140 m | silent | +84 ticks | +10 ticks |
+| `speed_stuck` / `speed_bias` | — | silent | silent | silent |
+
+**A works, and better than expected.** It fires at **+5 ticks** against a
+departure that begins at **+73** — 3.4 seconds of margin at 20 Hz, from a signal
+L1 already computes and records and that no gate reads.
+
+**B is refuted, by measurement rather than by argument.** The innovation
+sequence was the principled candidate — the one recorded quantity that can
+*disagree* with the estimate — and it is silent on the slow drift. Ramping 2 m
+over 200 ticks is 1 cm per tick against a declared sigma of 0.1 m, so every step
+sits well inside what the filter expects and the innovation never leaves its
+band. It is silent on exactly the fault it was most wanted for.
+
+**C was a dead end and is now a measured one**: `fast_innovation` had to be added
+to the decision record (schema v2 → v3) before B could be evaluated at all, which
+is its own finding — the pipeline computed the signal every tick, fed it to two
+consumers, and archived it nowhere (E-54).
+
+**The slow drift remains undetected by anything.** Option D — sensor redundancy
+and a cross-check — is the only candidate left for it, and the reference plant
+publishes one ground truth to all five modalities, so it **cannot be measured
+here**. That is a limitation of the plant, not a gap in the analysis, and it is
+where Phase 7 earns its place.
+
+### What follows, and what deliberately does not
+
+**Wire A.** It is cheap, it is measured, it has margin, and it turns the worst
+scenario in the study from "no reaction at all" into "3.4 seconds of warning."
+
+**Do not wire it as a veto without a second measurement.** These are six faults
+chosen by hand to defeat six named defences, not a population drawn from
+anything. A threshold that catches all six is fitted to its own test set --
+which is precisely the defect E-41 records for the conformal corpus, and it
+would be no more defensible here. The shadow harness stays in front of it, as it
+did for FB2 and FB3.
+
+<details><summary>The original entry, kept for the reasoning that led here</summary>
 
 **Measure A and B in shadow against `benchmarks/fault_study.py` before either is
 given authority over a verdict.** That is the standing convention this project
@@ -973,6 +1019,12 @@ survives shadow, or a written statement that neither does and D is the only
 answer. Both are publishable; the second is more so.
 **Estimate:** 2–3 days for the shadow measurement. The wiring depends on what it
 says.
+
+</details>
+
+**Exit — met for the measurement, open for the wiring.** The detection table
+exists (E-51). Wiring A behind the shadow harness is what remains.
+**Estimate:** 1–2 days for the wiring.
 
 ---
 
