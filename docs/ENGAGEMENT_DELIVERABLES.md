@@ -92,7 +92,7 @@ Stated up front, because it is what makes the rest credible.
 
 - **Not a deployment.** Python reference implementation; no hard-real-time guarantee on an ECU
 - **No certification support.** No ISO 26262 work products, no ASIL decomposition, no safety manual
-- **No security posture.** No threat model, no signed artefacts, no ISO/SAE 21434 work
+- **A threat model, and nothing beyond it.** [`THREAT_MODEL.md`](THREAT_MODEL.md) exists and the evidence log is now tamper-evident (E-66). There are still **no signed artefacts, no key management and no ISO/SAE 21434 work products**, and nothing has been tested by attack
 - **No controller work.** We do not replace, retrain, tune, or read their policy
 - **No hardware-in-the-loop.** Never run against real hardware
 

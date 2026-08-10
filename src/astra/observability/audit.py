@@ -36,9 +36,12 @@ stage and may need a signed log or a database for real certification.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import queue
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
@@ -51,7 +54,14 @@ if TYPE_CHECKING:
     from astra.contracts.audit import AuditEvent, DecisionRecord, ExecutionOutcome, JsonValue
     from astra.kernel.identifiers import RunId
 
-__all__ = ["EVENTS_FILENAME", "JsonlAuditSink"]
+__all__ = ["EVENTS_FILENAME", "GENESIS_DIGEST", "ChainBreak", "JsonlAuditSink", "verify_chain"]
+
+GENESIS_DIGEST: Final = "0" * 64
+"""The ``previous_digest`` of a run's first record.
+
+A fixed value rather than a random one, so a verifier needs nothing but the
+file to check the chain from its first line.
+"""
 
 EVENTS_FILENAME: Final = "events.jsonl"
 """Name of the evidence file written inside each run's directory."""
@@ -82,7 +92,9 @@ class JsonlAuditSink:
         "_fsync",
         "_handle",
         "_path",
+        "_previous_digest",
         "_queue",
+        "_seal",
         "_thread",
         "dropped_records",
     )
@@ -119,6 +131,8 @@ class JsonlAuditSink:
             message = f"cannot open the audit log at {self._path}"
             raise AdapterError(message, context={"path": str(self._path)}) from error
 
+        self._previous_digest = GENESIS_DIGEST
+        self._seal = threading.Lock()
         self._queue: queue.Queue[str | None] = queue.Queue(maxsize=queue_size)
         self._thread = threading.Thread(
             target=self._drain,
@@ -245,7 +259,15 @@ class JsonlAuditSink:
             payload: The JSON-serialisable record.
         """
         payload.setdefault("schema_version", AUDIT_SCHEMA_VERSION)
-        line = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+        # The chain is sealed here rather than in the writer thread because this
+        # is where the queue's order is fixed, and the queue is FIFO into a
+        # single writer -- so enqueue order *is* file order. Sealing in the
+        # writer would be equally correct and would move a hash computation onto
+        # the thread whose job is not to fall behind.
+        with self._seal:
+            payload["previous_digest"] = self._previous_digest
+            line = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+            self._previous_digest = hashlib.sha256(line.encode("utf-8")).hexdigest()
         try:
             self._queue.put_nowait(line)
         except queue.Full:
@@ -276,3 +298,73 @@ class JsonlAuditSink:
                 self.dropped_records += 1
             finally:
                 self._queue.task_done()
+
+
+@dataclass(frozen=True, slots=True)
+class ChainBreak:
+    """Where an evidence log stops being self-consistent.
+
+    Attributes:
+        index: Zero-based line number of the first record that does not follow
+            from its predecessor.
+        expected: The digest that record should have carried.
+        found: The digest it did carry, or ``None`` if the field was absent.
+        reason: Which check failed, for a human reading a report.
+    """
+
+    index: int
+    expected: str | None
+    found: str | None
+    reason: str
+
+
+def verify_chain(path: Path) -> ChainBreak | None:
+    """Check that an evidence file is an unbroken hash chain.
+
+    Each record carries the SHA-256 digest of the *serialised line* before it,
+    the first carrying :data:`GENESIS_DIGEST`. Altering, removing or inserting a
+    record therefore breaks every link after it.
+
+    **What this detects, and the one thing it does not.** Alteration, deletion
+    and insertion anywhere in the file are caught. **Truncation of the tail is
+    not**, and cannot be by a chain alone: a prefix of a valid chain is itself a
+    valid chain. Catching that needs an external record of the expected length,
+    or a signed root -- and signing needs key management, which this project
+    does not have. See ``docs/THREAT_MODEL.md`` §5.4.
+
+    This makes the log **tamper-evident**, not tamper-proof. An adversary who
+    can rewrite the file can also recompute the chain. What it removes is the
+    *silent* alteration: changing one record now requires rewriting every record
+    after it, which a verifier comparing against an independently held digest
+    of the final record will still catch.
+
+    Args:
+        path: The evidence file.
+
+    Returns:
+        The first break, or ``None`` if the chain is intact.
+
+    Raises:
+        AdapterError: If the file cannot be read.
+    """
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError as error:
+        message = f"cannot read the audit log at {path}"
+        raise AdapterError(message, context={"path": str(path)}) from error
+
+    expected = GENESIS_DIGEST
+    for index, line in enumerate(text.splitlines()):
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            return ChainBreak(index=index, expected=expected, found=None, reason="unparseable")
+        found = payload.get("previous_digest")
+        if not isinstance(found, str):
+            return ChainBreak(index=index, expected=expected, found=None, reason="missing")
+        if not hmac.compare_digest(found, expected):
+            return ChainBreak(index=index, expected=expected, found=found, reason="mismatch")
+        expected = hashlib.sha256(line.encode("utf-8")).hexdigest()
+    return None

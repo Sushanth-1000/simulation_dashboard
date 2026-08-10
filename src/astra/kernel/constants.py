@@ -136,7 +136,7 @@ RCS_DIMENSION: Final = len(RCS_FIELDS)
 # after the schema has moved on. A version field is the cheapest possible
 # insurance against an unreadable evidence archive.
 
-AUDIT_SCHEMA_VERSION: Final = 4
+AUDIT_SCHEMA_VERSION: Final = 5
 """Schema version stamped on every audit record. Increment on any field change.
 
 Version 2 (ADR-0016) widened the verdict vocabulary: a gate verdict may now read
@@ -164,7 +164,13 @@ run's, because every other field is identical by construction -- that is what
 an ablation *is*. The version field is the only thing standing between an
 ablation study and a certification artefact describing a system that was not
 running, which is why ADR-0021 stamps the profile per tick rather than once
-per run."""
+per run.
+
+Version 5 (10 August 2026) adds ``previous_digest`` to every record, making
+the evidence log a hash chain and therefore **tamper-evident** rather than
+merely integrity-checked -- N-10, and the cheapest item in the threat model
+written the same day. A version-4 reader ignores the field and loses only the
+ability to detect tampering it could not detect before."""
 
 CONFIG_SCHEMA_VERSION: Final = 1
 """Schema version required in every configuration file. Rejected if mismatched."""

@@ -1617,15 +1617,40 @@ adapters**.
 automotive-shaped. Both are valuable; the second is more so.
 **Estimate:** 4–6 days.
 
-## P4.5 — Security threat model (work plan §6.4)
+## ~~P4.5 — Security threat model (work plan §6.4)~~ — DONE, 10 Aug 2026
 
-Currently **nothing exists**: no threat model, no signed artefacts, no key
-management. The evidence log is integrity-checked but **not tamper-evident**.
-Write down the asymmetry: the architecture assumes an untrusted *proposer* on a
-*trusted platform*, and the second half has never been examined.
+[`THREAT_MODEL.md`](THREAT_MODEL.md) is written. It enumerates seven assets, the
+two trust boundaries — one enforced as a type error, one assumed entirely — and
+five adversary tiers, and it states the asymmetry plainly: **ASTRA defends
+thoroughly against a proposer that is wrong and not at all against a platform
+that is compromised**, which is the larger surface because everything the first
+defence relies on lives there.
 
-Pure design work, no compute. Blocks every industrial conversation.
-**Estimate:** 3–5 days.
+Three of this session's *safety* findings turned out to be security findings:
+
+- **OD-9 is an attack primitive.** An adversary who can influence one sensor
+  channel has a measured path to a 4.199 m lane departure that produces clean
+  evidence the whole way (§5.1).
+- **Veto authority is concentrated.** Disarming L7b removes essentially all of
+  it, so an attacker choosing one target has an obvious one (§5.2, E-59).
+- **Recorded provenance is not verified integrity.** Corpus, twin and
+  configuration digests are written into the evidence and checked against
+  nothing at load, so substituting the corpus yields a run that faithfully
+  records the attacker's digest (§5.3).
+
+**The model's cheapest item is also now done.** The evidence log is a hash chain
+— each record carrying the digest of the serialised line before it — so
+alteration, deletion, insertion and reordering are all detected (E-66). **N-10
+is closed.** Two limits are asserted as tests rather than left in prose: tail
+truncation and a consistent whole-file rewrite are both undetectable by chaining
+alone (E-67), and closing either needs signing, which needs key management.
+
+**Still open**, and now itemised rather than lumped under "no security posture":
+verify artefact digests at load against a manifest; wire the stream-health gate
+(P2.7); require sensor redundancy; and a platform security argument, which is
+not this project's work and without which §5.6 is void.
+
+**Estimate:** met.
 
 ## P4.6 — Make the data-split protocol enforceable, *with* the ingestion code
 

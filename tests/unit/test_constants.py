@@ -181,10 +181,14 @@ def test_the_fast_state_supplies_the_lateral_acceleration_the_shield_bounds() ->
         # wrong rather than merely poorer: a v3 reader sees an ablated run's
         # records as a governed run's, because every other field is identical
         # by construction -- that is what an ablation is.
+        # Audit v5: every record carries `previous_digest`, making the log a
+        # hash chain and therefore tamper-evident rather than merely
+        # integrity-checked -- N-10, and the cheapest item in the threat
+        # model.
         # Pinned rather than merely bounded, so that a schema change has to be a
         # decision someone made here as well as there. This pin has now fired
-        # twice for that reason and did its job both times.
-        (AUDIT_SCHEMA_VERSION, 4),
+        # three times for that reason and did its job every time.
+        (AUDIT_SCHEMA_VERSION, 5),
         (CONFIG_SCHEMA_VERSION, 1),
     ],
 )
