@@ -1434,7 +1434,7 @@ against `None` paths that mostly do not exist.
 dissolved by P0.0, the loop runs at a 0.1% veto rate, and an ablation now
 measures the layer rather than the latch.
 
-## P3.5 — Comparison harness (work plan §4.2)
+## ~~P3.5 — Comparison harness (work plan §4.2)~~ — DONE, 9 Aug 2026
 
 The single most persuasive artefact available, and it needs no GPU. Two
 synchronised instances — full ASTRA and raw Core-A — driven from the same seed
@@ -1458,9 +1458,33 @@ leave the corridor, because the gates read the estimate the fault corrupted
 a demo rather than a measurement. Build it to report whichever way each fault
 falls, and expect a mixed table.
 
-**Exit:** a reproducible script producing a two-column result per fault, and a
-recorded run.
-**Estimate:** 2–4 days, down from 3–5. **Unblocked.**
+**Exit — met, 9 August 2026.** [`benchmarks/comparison.py`](../benchmarks/comparison.py)
+produces the two-column result per fault. The table is mixed, as expected, and
+on one row it is inverted:
+
+| scenario | ASTRA | Core-A raw |
+|---|---|---|
+| control | **0.009 m** / 0 ticks out | 0.055 m / 0 |
+| `imu_dropout` | **4.199 m / 73 ticks out** | **1.707 m / 0** |
+| `position_drift` | 2.025 m / 34 | 2.001 m / 27 |
+| `position_bias` | 0.931 m / 0 | 0.960 m / **5** |
+
+**The dropout row is the finding, and it sharpens OD-9 rather than contradicting
+it.** A frozen position reading is maximally self-consistent, so the filter grows
+confident in it, and keeping *"y is not changing"* consistent with the motion
+model forces the conclusion that the vehicle is not turning. True heading reaches
+0.0686 rad while the estimate reports 0.0017 rad — a fortyfold understatement of
+the one state nothing observes (E-58). The fault propagates out of the channel it
+entered, and proposer and gates alike then read the result.
+
+**Read it narrowly.** The baseline avoids this only because it is handed a true
+heading no sensor publishes, so it is not realisable; on the control run that
+same generosity leaves it worse than ASTRA. The row measures the filter's
+failure mode under a frozen sensor, not a case for removing the filter.
+
+**Still open:** the third arm — gates removed, UKF kept — which is P3.4's
+ablation and is what would attribute the difference to a layer.
+**Estimate:** met. The ablation is costed under P3.4.
 
 ---
 
