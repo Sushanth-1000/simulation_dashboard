@@ -5,7 +5,7 @@ it, the command that reproduces it, and the date. A number that is not in this
 table has not been measured, and a number here that cannot be reproduced by its
 command is a defect in this table.
 
-**Last verified** 9 August 2026, commit `1236daf`, on WSL2 Ubuntu / CPython
+**Last verified** 10 August 2026, commit `7ab4807`, on WSL2 Ubuntu / CPython
 3.12.13 / CPU only.
 
 > ### What a date in this table means, and the correction of 9 August 2026
@@ -95,12 +95,15 @@ uv run python benchmarks/latency.py
 uv run python -m benchmarks.soak --ticks 100000 --window 1000
 uv run python -m benchmarks.flake_hunt   # ~40 min under load
 uv run python -m benchmarks.fault_study
+uv run python -m benchmarks.comparison
+uv run python -m benchmarks.ablation
+uv run python -m benchmarks.effectiveness
 make verify-install
 ```
 
 Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 ticks),
-`summary.json`, `soak.png`, and the full `audit/` evidence log. The fault study
-writes `var/faults/summary.json`.
+`summary.json`, `soak.png`, and the full `audit/` evidence log. The studies write
+`var/faults/`, `var/comparison/`, `var/ablation/` and `var/effectiveness/`.
 
 ---
 
@@ -108,7 +111,7 @@ writes `var/faults/summary.json`.
 
 | # | Claim | Value | Produced by | Date |
 |:--:|---|---|---|:--:|
-| E-1 | Quality gate is green | **2,822 tests, 97.95% coverage**, `ruff` + `mypy --strict` over **152** files + **12** import contracts, 0 broken | `make check` | 9 Aug |
+| E-1 | Quality gate is green | **2,822 tests, 97.95% coverage**, `ruff` + `mypy --strict` over **152** files + **12** import contracts, 0 broken | `make check` | 10 Aug |
 | E-2 | The closed loop is stable over a long run | **All ten soak criteria pass over 100,000 ticks** | `python -m benchmarks.soak --ticks 100000 --window 1000` | 5 Aug |
 | E-3 | A command is issued on every tick | **100,000 of 100,000**, and 400,000 of 400,000 across the four runs of the day | as E-2 | 5 Aug |
 | E-4 | The proposer's commands are accepted | `PROPOSED` on **99,997** ticks; **3** vetoed, all answered by the rate limiter. Veto rate 3×10⁻⁵, which the console rounds to 0.0% — the JSON is authoritative | as E-2, `summary.json` | 5 Aug |
@@ -170,7 +173,8 @@ writes `var/faults/summary.json`.
 | E-67 | Two things chaining cannot do, asserted rather than omitted | **Truncating the tail is undetectable** — a prefix of a valid chain is a valid chain — and **a consistent rewrite of the whole file is undetectable**, because an adversary who can rewrite every record can recompute every link. Both are asserted as tests rather than left to prose. Closing either needs an independently held digest of the final record, or a signed root, and signing needs key management this project does not have | as E-66 | 10 Aug |
 | E-68 | **FilterPy is gone, and every recorded number reproduces** | The UKF is now `astra.layers.l2_estimation.unscented`, ~250 lines, matching FilterPy's algorithm rather than improving it. Re-run after the swap: the fault study reproduces **every** figure of E-46, E-49 and E-50 to three decimals — 0.009 / 4.199 / 0.931 / 2.025 / 0.008 / 0.075 / 0.140 m and vetoes 3 / 3 / 12 / 3 / 3 / 3 / 4 — the detector table reproduces E-51 exactly, and the comparison harness reproduces E-56 exactly. `scipy`, `matplotlib`, `pillow` and `filterpy` all leave the runtime tree; nothing in `src/` ever imported the first three | `python -m benchmarks.fault_study`, `python -m benchmarks.comparison` | 10 Aug |
 | E-69 | The replacement agrees with what it replaced to 6e-10, and cannot do better | Over 2,000 predict/update steps with varying measurement dimension: state **6.0e-10**, covariance **1.1e-14**, Mahalanobis **2.2e-09**. Sigma points and weights are **bit-identical**. The residual is LAPACK — FilterPy factors covariance with SciPy's upper-triangular Cholesky, this uses NumPy's lower-triangular one — and removing it would mean keeping SciPy, which is the point of the exercise. E-68 is the check that matters: the difference changes no decision | comparison probe, recorded in `tests/unit/test_unscented.py` | 10 Aug |
-| E-70 | **The innovation covariance omits the process-noise term, inflating the Mahalanobis distance up to 22x** | The update reuses the sigma points `predict` pushed through `fx`, whose spread is `F P Fᵀ` — without the `Q` that predict added analytically — so `S` is short by `H Q Hᵀ`. At the simulation operating point, process noise **dwarfs** measurement noise on two of three observed channels: `Q` diag **0.02 / 0.05 / 0.3** against `R` diag **0.01 / 0.0001 / 0.0016**. The distance is therefore inflated by **1.73x** on lateral position, **22.4x** on speed and **13.7x** on lateral acceleration. Inherited from FilterPy, not introduced by the port, and found by writing the test that checks the port against the textbook Kalman filter | `pytest tests/unit/test_unscented.py -k omits_the_process_noise` | 10 Aug |
+| E-70† | **The innovation covariance omits the process-noise term** | The update reuses the sigma points `predict` pushed through `fx`, whose spread is `F P Fᵀ` — without the `Q` that predict added analytically — so `S` is short by exactly `H Q Hᵀ`. At the simulation operating point `Q` diag is **0.02 / 0.05 / 0.3** against `R` diag **0.01 / 0.0001 / 0.0016**, giving **per-channel** bounds of 1.73x, 22.4x and 13.7x. Inherited from FilterPy, not introduced by the port, and found by writing the test that checks the port against the textbook Kalman filter. **† The 22.4x is an algebraic bound and was quoted as the effect when this row was first written, which overstated it — see E-71 for what it actually does** | `pytest tests/unit/test_unscented.py -k omits_the_process_noise` | 10 Aug |
+| E-71 | **The realised inflation is 1.24x at the median, and 1.02x on the largest innovation** | Both statistics computed side by side over a 400-tick run, correcting nothing. Recorded against corrected, by band of recorded distance: bottom 50% **0.179 → 0.129 (1.53x)**; 50–90% **0.381 → 0.296 (1.41x)**; **top 10% — the tail that drives vetoes — 1.134 → 1.028 (1.23x)**; the single largest distance **20.806 → 20.309 (1.024x)**. The per-channel 22.4x assumes the innovation lands entirely in the speed channel; in the closed loop it is dominated by lateral position, where the factor is 1.73x. **The correction matters least exactly where the statistic is used for decisions** | shadow probe over `drive_closed_loop`, no behaviour changed | 10 Aug |
 
 † **Historical, not reproducible from the current tree.** These three measured the
 elastic-weight-consolidation penalty, which [ADR-0019](adr/0019-one-twin-head-per-context.md)
