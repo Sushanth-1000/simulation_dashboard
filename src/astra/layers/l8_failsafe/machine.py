@@ -111,7 +111,9 @@ class FailSafeStateMachine:
         self._tick: TickId | None = None
         self._human_intervention_requested = False
 
-    def observe(self, *, tick: TickId, verdict: SafetyVerdict) -> FailSafeSnapshot:
+    def observe(
+        self, *, tick: TickId, verdict: SafetyVerdict, exploring: bool = False
+    ) -> FailSafeSnapshot:
         """Advance the machine with one tick's verdict.
 
         Args:
@@ -121,19 +123,48 @@ class FailSafeStateMachine:
                 escalation policy. Weighting gates differently here would make
                 the machine's response depend on gate identity and would give
                 one gate more authority than another, which SI-3 forbids.
+            exploring: Whether L9 has declared bounded safe exploration for this
+                tick. **The counter freezes while it has** -- see
+                :meth:`_advanced_counter` and ADR-0023.
 
         Returns:
             The safety posture after the transition.
         """
-        self._counter = self._advanced_counter(blocking=verdict.is_blocking)
+        self._counter = self._advanced_counter(blocking=verdict.is_blocking, exploring=exploring)
         self._state = self._next_state()
         self._tick = tick
         if self._state is FailSafeState.HALT:
             self._human_intervention_requested = True
         return self.snapshot
 
-    def _advanced_counter(self, *, blocking: bool) -> int:
+    def _advanced_counter(self, *, blocking: bool, exploring: bool = False) -> int:
         """Return the counter after one verdict, bounded at both ends.
+
+        **Frozen during bounded safe exploration, and that is ADR-0023.** The
+        counter exists to *detect* sustained out-of-distribution operation and
+        degrade the posture in response. While L9 has declared
+        ``SAFE_EXPLORATION`` that condition has already been detected, declared,
+        logged, and responded to -- by a narrowed actuation envelope. Counting
+        it again escalates one event twice, and measured on a platform the twin
+        was never fitted to it escalated all the way: RCM held
+        ``SAFE_EXPLORATION`` for 520 ticks while this counter climbed 0 -> 100
+        and HALTed the vehicle underneath it (OD-12).
+
+        That defeated the architecture's distinguishing claim -- *"others
+        degrade to a halt when they leave their certified envelope; ASTRA is
+        built not to"* -- using ASTRA's own fail-safe machine.
+
+        **Veto authority is untouched.** Every gate still vetoes and every veto
+        still stops the command reaching an actuator; SI-3 is exactly as it was.
+        What is suspended is escalation to a *terminal* posture, and the
+        exploration envelope -- half the nearest certified speed, a +/-15 degree
+        steering cone, no lane changes -- is the risk control in its place,
+        which is what that envelope is for.
+
+        The freeze is deliberately not a decay. On leaving exploration the
+        machine resumes from the posture it held on entering, so a vehicle that
+        was already DEGRADED does not emerge from a tunnel pretending it was
+        not.
 
         The floor stops a long clean run building 'credit'. The ceiling is the
         HALT threshold, because no value above it can change any decision: the
@@ -150,10 +181,14 @@ class FailSafeStateMachine:
 
         Args:
             blocking: Whether this tick's verdict was blocking.
+            exploring: Whether L9 has declared bounded safe exploration. The
+                counter neither rises nor falls while it has.
 
         Returns:
             The new counter, in ``[0, ood_threshold_halt]``.
         """
+        if exploring:
+            return self._counter
         if not blocking:
             return max(_COUNTER_FLOOR, self._counter - 1)
         return min(self._settings.ood_threshold_halt, self._counter + 1)

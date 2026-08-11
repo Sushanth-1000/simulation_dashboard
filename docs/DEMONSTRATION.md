@@ -4,7 +4,7 @@
 **For** a technical audience at a company: engineers, a safety lead, possibly a
 research manager. Not a sales meeting.
 **Runs on** one laptop, no GPU, no network.
-**Length** 12 minutes of driving, 20–30 with questions.
+**Length** 13 minutes of driving, 20–30 with questions.
 
 ---
 
@@ -41,12 +41,13 @@ Each scene earns the next. Do not reorder.
 | # | Scene | Time | What it proves | The line that lands |
 |:--:|---|:--:|---|---|
 | 0 | The nominal drive | 1 min | The thing runs, and every number is traceable | *"Everything on this screen came out of an audit record. Nothing is drawn."* |
-| 1 | **The tunnel** | 3 min | An unrecognised context narrows the envelope instead of stopping | *"Most runtime assurance halts here. This keeps moving, inside a bound it can defend."* |
+| 1 | **The tunnel** | 4 min | An unrecognised context narrows the envelope instead of stopping | *"Most runtime assurance halts here. This keeps moving, inside a bound it can defend."* |
 | 1b | *(within scene 1)* | — | Calibration promotion is staged, not a config reload | *"It found a better profile and is running both in parallel. Nothing switches until the divergence clears."* |
+| 1c | *(within scene 1)* | — | **That claim was false until yesterday, on a different vehicle, and we found it** | *"We changed the car. It halted at tick 404 — having first accelerated to 23.4 metres per second. Both are closed and both are in the register."* |
 | 2 | **The sensor fault** | 3 min | The gates are blind to it, measured, on screen | *"Watch the two lines separate. Now watch the gate panel. That is our worst open defect and we found it."* |
 | 3 | **The recovery** | 2 min | The blindness lasts exactly as long as the lie | *"The instant the sensor tells the truth again, all three gates fire at once."* |
 | 4 | **The ablation** | 2 min | One gate does almost all the work | *"We measured what each gate is worth. Two of them are worth less than we assumed."* |
-| 5 | The register | 1 min | Eleven defects, all self-found | *"Every one of these was found by us, and five were found this week by instruments we built for the purpose."* |
+| 5 | The register | 1 min | Thirteen defects, all self-found | *"Every one of these was found by us, and five were found this week by instruments we built for the purpose."* |
 
 ---
 
@@ -112,6 +113,9 @@ certified profile in the knowledge base.
   certified profile's maximum, steering restricted to a ±15° cone, lane changes
   refused**.
 - **The vehicle keeps driving.** Commands continue to issue on every tick.
+- The fail-safe panel stays **`NOMINAL`** and the **OOD counter stops moving** —
+  it neither climbs nor decays. Say so if anyone is watching that panel; it is
+  the visible half of the fix described below.
 
 **Say:**
 
@@ -130,12 +134,86 @@ certified profile in the knowledge base.
 > exploration rather than as normal operation. The vehicle keeps moving inside
 > a bound the system can defend.
 
+### 1c — What this sentence cost, and it is the strongest thing in the demo
+
+**Say this next, unprompted. It is three sentences of setup for the best moment
+in the twelve minutes.**
+
+> That sentence was false until yesterday, on our own system, and we found it by
+> changing the vehicle.
+
+**Then give it:**
+
+> Everything you are watching — the twin, the calibration corpus, the trained
+> policy — is fitted to one set of vehicle physics. So we asked the obvious
+> question: what happens on a *different* vehicle? Not a different road. A
+> different car. Weaker brakes, less steering bite. Nothing else changed, same
+> seed, same command.
+>
+> Two things happened, and each was hiding the other.
+>
+> **First, it halted.** The twin mispredicts on a platform it was never fitted
+> to, so two gates veto — correctly. RCM sees no matching profile and declares
+> safe exploration — correctly. And the fail-safe machine counts those same
+> vetoes, escalates through degraded and limp, and reaches HALT, which is
+> terminal. One condition with two owners, and the terminal answer won. Six
+> hundred ticks: the weak-braking car stopped dead at tick 404, at zero metres
+> per second, with the arbitrator on that same tick still reporting that it was
+> safely exploring.
+>
+> **Second — and this is why we did not just fix the first one — it was never
+> bounded.** Before it halted, that car reached 23.4 metres per second. The
+> calibrated one holds 14.3. The envelope computes a speed cap and it was
+> enforced against nothing: it narrowed the *channel* bounds, which limit how
+> much throttle you may command on one tick, and bound the resulting speed not
+> at all. Had we shipped the first fix alone, we would have replaced a car that
+> stops with a car that accelerates without limit, and reported it as a fix.
+
+**Then the close, and slow down for it:**
+
+> Both are closed. The counter freezes while another layer owns the same
+> condition — and every gate still vetoes, every veto still stops the command;
+> what is suspended is escalation to a terminal state, not anyone's authority.
+> The cap now goes through the same seam that made the fail-safe cap real six
+> weeks ago, so a capped command is stamped as one. That car now runs the full
+> six hundred ticks, nominal, at 16.7 metres per second across a hundred and
+> five capped ticks — half the highway profile's maximum, plus one tick of
+> integration.
+>
+> It is ADR-0023 and defects twelve and thirteen in our register. We found them
+> on Monday by passing one different number to a function that had always
+> accepted it.
+
+**Have ready, if asked to see it:**
+
+```bash
+uv run python -m benchmarks.platform_transfer
+```
+
+Five platforms, 600 ticks each, about ninety seconds. It **exits non-zero if any
+platform halts or stops**, so the defect regressing is a failed command rather
+than a table someone has to re-read. To show the defect itself, check out the
+three source files at `HEAD~1` and run it again — that is exactly how the
+control-arm figures were taken (E-83, E-84).
+
+**Why this belongs in scene 1 rather than in scene 5's register.** Scene 5 lists
+defects; this one *demonstrates the method that finds them*, on the very claim
+the scene exists to make. It also pre-empts the sharpest question in the room —
+*"you have shown it works on your simulator; what happens on a real vehicle?"* —
+by answering a version of it that was actually run.
+
 **Then say the limit, unprompted:**
 
 > What this shows is the *mechanism* — the envelope narrows, it widens again on
 > the way out, and no tick fails to issue a command. It does not show that the
-> vehicle drives *well* in a tunnel. That needs a real simulator and a trained
-> policy, and it is Phase 7.
+> vehicle drives *well* in a tunnel, or on the weak-braking car. That needs a
+> real simulator and a trained policy, and it is Phase 7.
+>
+> And one more thing we would rather say than have you find: freezing that
+> counter means a sensor fault that arises *while* exploring will not escalate
+> the posture either. That is a real cost, it is written into the ADR as an
+> accepted risk, and it interacts with the defect you are about to see in scene
+> 2. Whoever closes that one has to come back to this.
 
 **Why unprompted matters.** Saying the limit before they ask converts a
 weakness into a demonstration of calibration. Saying it after they ask converts
@@ -261,19 +339,26 @@ safety lead notices.
 
 ## Scene 5 — The register
 
-**Do:** put `CREDIBILITY_MATRIX.md`'s open-defect register on screen. Eleven
-rows.
+**Do:** put `CREDIBILITY_MATRIX.md`'s open-defect register on screen. Thirteen
+rows — seven struck through, six open.
 
 **Say:**
 
-> Eleven open defects. Every one found by this project, none reported to us.
-> Five were found this week, by instruments we built for the purpose — a fault
-> injector, a shadow harness, an ablation profile, and a test written against
-> the textbook rather than against the code it was checking.
+> Thirteen defects. Every one found by this project, none reported to us.
+> Seven were found this week, by instruments we built for the purpose — a fault
+> injector, a shadow harness, an ablation profile, a test written against the
+> textbook rather than against the code it was checking, and, for the last two,
+> simply passing a different vehicle to a function that had always accepted one.
 >
-> Two of the eleven are cases where our own evidence log confidently recorded
+> Two of the thirteen are cases where our own evidence log confidently recorded
 > something that had not happened. Those are the ones we care most about,
 > because they are invisible to testing by construction.
+>
+> And note what is *not* here: nothing on this list was found by the test suite.
+> Twenty-eight hundred tests, ninety-eight percent coverage, and every one of
+> these passed every test that existed when it was written. Each is a
+> composition that is correct at every layer and wrong as a whole. That is the
+> case for runtime evidence, and it is the reason this architecture exists.
 
 **Then stop.** This is the note to end on.
 

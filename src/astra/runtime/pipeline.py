@@ -465,7 +465,7 @@ class GovernancePipeline[PayloadT]:
             )
 
         verdict = self._adjudicate(tick=tick, proposal=proposal, prediction=prediction, state=state)
-        failsafe = self._failsafe.observe(tick=tick, verdict=verdict)
+        failsafe = self._failsafe.observe(tick=tick, verdict=verdict, exploring=self._is_exploring)
         issued = self._issue(
             tick=tick,
             proposal=proposal,
@@ -911,6 +911,18 @@ class GovernancePipeline[PayloadT]:
             # The previous decision stays in force; see the docstring.
             return
 
+    @property
+    def _is_exploring(self) -> bool:
+        """Return whether L9 currently has bounded safe exploration engaged.
+
+        Read by the fail-safe machine so it can freeze its counter rather than
+        escalate a condition RCM has already answered -- ADR-0023.
+        """
+        return (
+            self._arbitration is not None
+            and self._arbitration.outcome is ArbitrationOutcome.SAFE_EXPLORATION
+        )
+
     def _follow(self, decision: ArbitrationDecision) -> None:
         """Act on what arbitration decided.
 
@@ -933,7 +945,10 @@ class GovernancePipeline[PayloadT]:
 
         if wants_exploration and not exploring:
             envelope = exploration_envelope(float(self._arbiter.active_profile.max_speed))
-            self._arbiter.engage_exploration(restricted_space(self._arbiter.space, envelope))
+            self._arbiter.engage_exploration(
+                restricted_space(self._arbiter.space, envelope),
+                speed_cap=float(envelope.speed_cap),
+            )
         elif exploring and not wants_exploration:
             # A certified profile is reachable again -- ExplorationExit
             # PROFILE_REACQUIRED. Every exit leaves the vehicle moving; none of

@@ -5,8 +5,7 @@ it, the command that reproduces it, and the date. A number that is not in this
 table has not been measured, and a number here that cannot be reproduced by its
 command is a defect in this table.
 
-**Last verified** 10 August 2026, commit `7ab4807`, on WSL2 Ubuntu / CPython
-3.12.13 / CPU only.
+**Last verified** 11 August 2026, on WSL2 Ubuntu / CPython 3.12.13 / CPU only.
 
 > ### What a date in this table means, and the correction of 9 August 2026
 >
@@ -98,12 +97,17 @@ uv run python -m benchmarks.fault_study
 uv run python -m benchmarks.comparison
 uv run python -m benchmarks.ablation
 uv run python -m benchmarks.effectiveness
+uv run python -m benchmarks.platform_transfer
 make verify-install
 ```
 
 Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 ticks),
 `summary.json`, `soak.png`, and the full `audit/` evidence log. The studies write
-`var/faults/`, `var/comparison/`, `var/ablation/` and `var/effectiveness/`.
+`var/faults/`, `var/comparison/`, `var/ablation/`, `var/effectiveness/` and
+`var/platform/`.
+
+`platform_transfer` **exits non-zero if any platform HALTs or stops**, so OD-12
+regressing is a failed command rather than a table someone has to re-read.
 
 ---
 
@@ -111,7 +115,7 @@ Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 tick
 
 | # | Claim | Value | Produced by | Date |
 |:--:|---|---|---|:--:|
-| E-1 | Quality gate is green | **2,851 tests + 5 strict xfail**, `ruff` + `mypy --strict` over **154** files + **12** import contracts, 0 broken | `make check` | 10 Aug |
+| E-1 | Quality gate is green | **2,861 tests + 5 strict xfail** at **97.96%** coverage, `ruff` + `mypy --strict` over **155** files + **12** import contracts, 0 broken | `make check` | 11 Aug |
 | E-2 | The closed loop is stable over a long run | **All ten soak criteria pass over 100,000 ticks** | `python -m benchmarks.soak --ticks 100000 --window 1000` | 5 Aug |
 | E-3 | A command is issued on every tick | **100,000 of 100,000**, and 400,000 of 400,000 across the four runs of the day | as E-2 | 5 Aug |
 | E-4 | The proposer's commands are accepted | `PROPOSED` on **99,997** ticks; **3** vetoed, all answered by the rate limiter. Veto rate 3×10⁻⁵, which the console rounds to 0.0% — the JSON is authoritative | as E-2, `summary.json` | 5 Aug |
@@ -186,6 +190,10 @@ Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 tick
 | E-80 | **Bounded safe exploration engages on an unrecognised context, and the vehicle keeps moving** | With the cold path live, moving the context signature to a tunnel — visibility **0.05**, road complexity **0.95**, outside every certified centroid — takes RCM from `SHADOW_EXECUTION` to **`SAFE_EXPLORATION`**. The envelope narrows and the effect is visible in the plant: speed **12.5 → 7.39 m/s**, half the nearest certified profile's maximum. **A command still issues on every tick**, all three gates still PASS, and lane deviation holds at **0.027 m**. Nothing instructs RCM to explore — the context moves and RCM decides for itself on its own evaluation period | `python -m demo.dashboard`, then *Enter the tunnel* | 10 Aug |
 | E-81 | On a matched context RCM stages a calibration promotion rather than switching | On `(visibility 0.85, traffic 0.7, complexity 0.7)` — tuned to `URBAN_CLEAR`'s centroid **and** to the speed the vehicle actually holds — arbitration reaches **`SHADOW_EXECUTION`** with trust **0.717** against τ **0.70**, running both tables in parallel. It does not commit inside 200 ticks: the divergence index has not cleared, which is the mechanism working rather than stalling | as E-80 | 10 Aug |
 | E-82 | The context tuning is measured, because guessing it inverted the result | A context that *looks* like clear highway on the three supplied components — `(0.90, 0.3, 0.2)` — sits in permanent `SAFE_EXPLORATION`, because the signature's second component is **ego speed normalised by the legal limit** and this policy holds 12.5 m/s of 33.3, i.e. **0.375** against `HIGHWAY_CLEAR`'s centroid of **0.8**. Three components matching and one missing is a miss. Had this not been checked, the tunnel scene would have shown exploration against a baseline that was already exploring | as E-80 | 10 Aug |
+| E-83 | **Bounded safe exploration halted the vehicle, on two platforms out of five** | The distinguishing claim tested by the cheapest honest means: change the **plant**, leave the twin, corpus and policy fitted to the old one. 600 ticks, seed 20260810, certified context throughout — so the *platform* is what no profile covers. **Weak acceleration (3.0 → 1.5 m/s²): 520 exploring ticks, 352 vetoes, HALT at t398, final speed 0.00 m/s.** **Weak brakes (8.0 → 3.0): 580 exploring, 315 vetoes, HALT at t404, final 0.00.** In both, L8 was counting the same vetoes L9 had already responded to by declaring `SAFE_EXPLORATION` — one condition, two owners, and the terminal answer won (OD-12). The three unchanged platforms explored for 80 ticks and finished NOMINAL, which is why 500,000 ticks of soak had never shown it | `git stash` the three files of ADR-0023, then `uv run python -m benchmarks.platform_transfer` | 11 Aug |
+| E-84 | **The exploration envelope's speed cap was enforced against nothing** | Same control arm, and only visible because the run counts `CommandOrigin.SPEED_CAPPED`: before halting, the weak-braking platform reached **23.43 m/s** against the calibrated platform's 14.27, with **zero capped ticks**. `exploration_envelope` computes `speed_cap = nearest_certified_max × 0.5`; `restricted_space` turns the envelope into narrowed *channel* bounds, which limit throttle per tick and bound speed not at all (OD-13). **Fixing E-83 alone would have made this worse** — the halt was the only thing arresting the acceleration | as E-83 | 11 Aug |
+| E-85 | **After ADR-0023 every platform finishes NOMINAL and still moving** | Same command, same seed, current tree. Weak acceleration **520 exploring, 306 vetoes, final 4.36 m/s**; weak brakes **600 exploring, 3 vetoes, final 16.58 m/s, \|dev\| 0.237 m**; the three unchanged platforms unmoved from their control values (12.53 / 12.49 / 12.45 m/s, \|dev\| ≤ 0.032 m). No platform reaches HALT. The script exits non-zero if one does, so the regression is a build failure rather than a re-reading | `uv run python -m benchmarks.platform_transfer` | 11 Aug |
+| E-86 | **The cap now alters commands, and the record says which ones** | The weak-braking platform is held at **16.72 m/s across 105 `SPEED_CAPPED` ticks** — half the highway profile's 33.34 maximum (16.67), plus one tick of plant integration. The cap flows through the same projector seam P2.1 built for the fail-safe cap, so `SPEED_CAPPED` continues to mean *a command the cap altered* rather than *a cap that existed*. **The 0.05 m/s overshoot is honest and structural**: the cap bounds the command, and the plant integrates it over the tick | as E-85 | 11 Aug |
 
 † **Historical, not reproducible from the current tree.** These three measured the
 elastic-weight-consolidation penalty, which [ADR-0019](adr/0019-one-twin-head-per-context.md)

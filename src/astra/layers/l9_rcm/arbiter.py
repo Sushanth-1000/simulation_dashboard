@@ -155,6 +155,7 @@ class RuntimeCalibrationManager:
         "_clock",
         "_component",
         "_exploration_space",
+        "_exploration_speed_cap",
         "_fallback",
         "_profiles",
         "_projector",
@@ -231,6 +232,7 @@ class RuntimeCalibrationManager:
         self._rate_limited_reasons = rate_limited_reasons
         self._shadow: ShadowExecution | None = None
         self._exploration_space: ActuationSpace | None = None
+        self._exploration_speed_cap: float | None = None
 
     @property
     def space(self) -> ActuationSpace:
@@ -257,13 +259,26 @@ class RuntimeCalibrationManager:
         """Return the staging period in progress, if any."""
         return self._shadow
 
-    def engage_exploration(self, restricted_space: ActuationSpace) -> None:
+    def engage_exploration(
+        self, restricted_space: ActuationSpace, *, speed_cap: float | None = None
+    ) -> None:
         """Enter bounded safe exploration inside a narrowed actuation space.
 
         Args:
             restricted_space: A space whose channel bounds already encode the
                 exploration envelope. Built by the adapter, which knows which
                 channel is steering; this layer only clamps to it.
+            speed_cap: The envelope's maximum speed, in m/s, or ``None`` to
+                bound nothing.
+
+                **This parameter exists because OD-13 was that it did not.**
+                A narrowed *space* bounds how much throttle may be commanded on
+                any one tick; it does not bound the speed that results. Measured
+                on a platform with weak brakes, the vehicle explored for all 600
+                ticks while accelerating monotonically to **23.10 m/s** -- above
+                the calibrated baseline's 12.54 -- with no gate objecting,
+                because no gate had been given the number to object with. The
+                envelope computed a cap and enforced it against nothing.
 
         Raises:
             ConfigurationError: If the restricted space does not describe the
@@ -280,10 +295,12 @@ class RuntimeCalibrationManager:
                 message, layer=LayerId.L9_RCM, context={"channels": list(restricted_space.names)}
             )
         self._exploration_space = restricted_space
+        self._exploration_speed_cap = speed_cap
 
     def exit_exploration(self) -> None:
         """Leave bounded safe exploration and return to the nominal space."""
         self._exploration_space = None
+        self._exploration_speed_cap = None
 
     def issue(
         self,
@@ -383,7 +400,7 @@ class RuntimeCalibrationManager:
         failsafe: FailSafeSnapshot,
         state: FastStateEstimate,
     ) -> tuple[float, ...] | None:
-        """Return the command with the fail-safe cap enforced, or ``None``.
+        """Return the command with whichever speed cap binds, or ``None``.
 
         ``None`` means the cap did not change anything -- either no cap is in
         force, no projector was supplied, or the vehicle is already within it.
@@ -393,15 +410,26 @@ class RuntimeCalibrationManager:
 
         Args:
             values: The command the regimes selected.
-            failsafe: The FSM's posture, supplying the cap.
+            failsafe: The FSM's posture, supplying one of the two caps.
             state: The current fast state estimate, supplying the speed.
 
         Returns:
             The capped command, or ``None`` if the cap did not bind.
         """
-        cap = failsafe.speed_cap
-        if cap is None or self._projector is None:
+        # The tighter of the two caps in force. The fail-safe machine's cap
+        # answers "how degraded is the posture"; the exploration envelope's
+        # answers "how far outside its certified envelope is the vehicle". Both
+        # are real bounds and neither subsumes the other, so the binding one is
+        # whichever is lower -- and taking the minimum means adding exploration
+        # can only ever tighten, never loosen, a cap already in force.
+        candidates = [
+            value
+            for value in (failsafe.speed_cap, self._exploration_speed_cap)
+            if value is not None
+        ]
+        if not candidates or self._projector is None:
             return None
+        cap = min(float(value) for value in candidates)
         capped = self._clamp(
             self._projector.with_speed_cap(values, current_speed=float(state.speed), cap=float(cap))
         )

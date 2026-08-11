@@ -33,6 +33,12 @@ is also recorded in the source, the module docstring is named — the reader who
 | [0015](0015-carla-interpreter-strategy.md) | Target CARLA 0.9.16 on Linux; no sidecar, no unofficial wheel | `.importlinter`, [`../spikes/R6-carla-interpreter.md`](../spikes/R6-carla-interpreter.md) |
 | [0016](0016-exploration-may-not-override-a-deterministic-veto.md) | A gate that cannot judge abstains; no path overrides a veto | `src/astra/kernel/enums.py` (`Verdict`), `src/astra/layers/l9_rcm/arbiter.py` |
 | [0017](0017-rate-limited-approach-to-a-jerk-vetoed-proposal.md) | A jerk veto yields the largest admissible step, not zero steering | `src/astra/layers/l9_rcm/arbiter.py`, `src/astra/ports/pipeline.py` (`CommandProjector`) |
+| [0018](0018-ewc-anchors-on-context-not-on-every-update.md) | The EWC anchor moves on a context change, not on every update | `src/astra/layers/l5_twin/` — **superseded in effect by 0019** |
+| [0019](0019-one-twin-head-per-context.md) | One twin output head per context, instead of a consolidation penalty | `src/astra/layers/l5_twin/twin.py` |
+| [0020](0020-fb2-estimates-control-effectiveness.md) | FB2 estimates the control effectiveness, rather than regressing on commands | `src/astra/runtime/assembly.py` (`ControlEffectivenessEstimator`), `benchmarks/effectiveness.py` |
+| [0021](0021-ablation-neutralises-a-gate-it-never-removes-one.md) | An ablation neutralises a gate; it never removes one | `src/astra/runtime/ablation.py`, `benchmarks/ablation.py` |
+| [0022](0022-faults-are-injected-at-the-sensor-boundary.md) | Faults are injected at the sensor boundary, never inside the core | `training/faults.py`, `benchmarks/fault_study.py` |
+| [0023](0023-the-ood-counter-freezes-during-bounded-exploration.md) | The OOD counter freezes during bounded exploration, and the envelope's speed cap goes through the projector | `src/astra/layers/l8_failsafe/machine.py`, `src/astra/layers/l9_rcm/arbiter.py`, `benchmarks/platform_transfer.py` |
 
 ## Format
 
