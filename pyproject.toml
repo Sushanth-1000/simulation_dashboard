@@ -188,7 +188,7 @@ extend-exclude = [".venv", "build", "dist"]
 # off the runtime import graph, not because they belong to somebody else.
 # Without this they sort as third-party packages and the import block reads as
 # though the pipeline depended on an external trainer.
-known-first-party = ["astra", "benchmarks", "training"]
+known-first-party = ["astra", "benchmarks", "demo", "training"]
 
 [tool.ruff.lint]
 select = [

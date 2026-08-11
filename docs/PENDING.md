@@ -1558,7 +1558,7 @@ ablation and is what would attribute the difference to a layer.
 
 # P4 — Parallelisable across people
 
-## P4.1 — Dashboard (work plan §5.1)
+## ~~P4.1 — Dashboard (work plan §5.1)~~ — DONE, 10 Aug 2026
 
 FastAPI + WebSocket backend, React + Recharts frontend, rendering the pipeline
 diagram itself: Trust Index gauge; **L6 and L7 as separately lit paths** — the
@@ -1570,9 +1570,42 @@ with independent-cause attribution.
 **Rule:** every number on screen must trace to a live `DecisionRecord`. Nothing
 scripted, nothing interpolated.
 
-**Estimate:** 10–15 days. This is a front-end project, not a task.
+### Built, 10 August 2026 — [`demo/dashboard.py`](../demo/dashboard.py)
 
-## P4.2 — Interactive fault injection (work plan §5.2) — HALF DONE, 9 Aug 2026
+Live: the three gates lit separately with their reason codes, Trust Index, the
+fail-safe state and OOD counter, the issued command and its origin, the
+quantile, stream health, an event ticker — and the trace that matters, **the
+estimate against the truth on one axis with the ±1.75 m corridor drawn**.
+
+**The rule is structural, not a promise.** `Frame` is a pure projection of one
+`TickSample`, and every field is asserted against the specific record attribute
+it claims to come from (E-78). `test_every_field_is_declared_as_record_or_simulator`
+fails if a field is added without declaring which of the two it is, which is
+exactly how the distinction would otherwise erode.
+
+**Exactly three fields are simulator-sourced** — `truth_y`, `truth_speed`,
+`fault_active` — and they are on screen for a reason worth stating: **OD-9 is
+invisible without them.** A page showing only what the system knows renders E-46
+as a completely nominal run.
+
+**Two deviations from this entry, both deliberate.**
+
+*No React, no Recharts, no FastAPI, no WebSockets, no build step, and no new
+dependency at all.* Server-Sent Events over `http.server` and one static HTML
+page. P4.3 removed FilterPy because an unmaintained dependency inside a safety
+repository is a qualification argument nobody wants to write, and it dragged
+scipy, matplotlib and pillow behind it; adding a Node toolchain to that
+repository for a *demo* would contradict the discipline that makes the rest
+credible. Telemetry is one-way, which is what SSE is for.
+
+*It took a day, not ten.* The entry costed a front-end project. What was
+actually needed was a projection with tests and a page that draws two lines.
+
+**It found something.** See P4.2.
+
+**Estimate:** met.
+
+## ~~P4.2 — Interactive fault injection (work plan §5.2)~~ — DONE, 10 Aug 2026
 
 **The injection machinery exists.** [`training/faults.py`](../training/faults.py)
 provides five sensor-fault kinds with recorded ground truth, verified by 27 unit
@@ -1593,7 +1626,38 @@ demonstration than the one originally planned, and it is the one the evidence
 supports. **Do not build a demo that requires OD-9 to be fixed first** — build
 the one that shows it, and show the fix when there is one.
 
-**Estimate:** 2–3 days, down from 2–4. **No longer depends on P3.5.**
+### Done, 10 August 2026
+
+Five buttons — dropout, position bias, position drift, speed frozen, lateral
+noise — each arming a 400-tick window from the current tick on the running
+injector. The observer chooses; nothing is staged. An unknown fault is refused
+with 400 rather than silently arming nothing, because a button that appears to
+work and does not is worse than no button.
+
+**The fallback run this entry asked for by name exists.** `--record` writes
+every frame to JSONL while driving; `--replay` streams one back at the captured
+rate with the buttons refused (409 — the faults in a recording already
+happened). A recording is exactly the frames the live run produced, so a replay
+is as traceable to `DecisionRecord`s as the run that made it. `var/demo/` holds
+a 1,200-frame capture with a dropout armed at t468.
+
+### And it found something the fault study had missed
+
+Every study so far ran its fault to the end of the run. The demo arms a window
+that **closes**, and what happens at the closing tick is the finding (E-76):
+
+| dropout | vetoes | first veto | fail-safe | final \|dev\| |
+|---|--:|---|---|--:|
+| persists to the end | **3** (startup only) | **never** | NOMINAL ×800 | **35.705 m** |
+| closes at t600 | 203 | **t600, exactly** | → DEGRADED → LIMP → **HALT** | 21.847 m |
+
+**The blindness lasts exactly as long as the lie.** While the sensor keeps
+lying nothing fires and the departure grows without bound — 4.199 m over 200
+ticks, 35.705 m over 600. The instant it recovers, all three gates fire and the
+graduated response works exactly as designed. It simply cannot start until the
+corrupted channel stops being corrupted.
+
+**Estimate:** met.
 
 ## ~~P4.3 — Replace FilterPy (work plan §6.1)~~ — DONE, 10 Aug 2026
 

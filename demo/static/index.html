@@ -1,0 +1,221 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>ASTRA — live</title>
+<style>
+  :root {
+    --bg: #0e1116; --panel: #161b22; --line: #30363d; --text: #e6edf3;
+    --dim: #8b949e; --pass: #3fb950; --veto: #f85149; --abstain: #d29922;
+    --truth: #f85149; --estimate: #58a6ff; --fault: #bc8cff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  header { padding: 14px 20px; border-bottom: 1px solid var(--line); display: flex;
+           align-items: baseline; gap: 18px; flex-wrap: wrap; }
+  h1 { font-size: 15px; margin: 0; letter-spacing: .06em; }
+  .muted { color: var(--dim); }
+  main { display: grid; grid-template-columns: 1fr 340px; gap: 14px; padding: 14px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
+  .panel h2 { font-size: 11px; margin: 0 0 10px; color: var(--dim);
+              text-transform: uppercase; letter-spacing: .1em; font-weight: 600; }
+  .gates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .gate { border: 1px solid var(--line); border-radius: 4px; padding: 10px; text-align: center; }
+  .gate .name { font-size: 10px; color: var(--dim); letter-spacing: .08em; }
+  .gate .verdict { font-size: 17px; font-weight: 700; margin: 4px 0; }
+  .gate .reason { font-size: 10px; color: var(--dim); word-break: break-all; min-height: 2.4em; }
+  .PASS { color: var(--pass); } .VETO { color: var(--veto); } .ABSTAIN { color: var(--abstain); }
+  .rows { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; }
+  .rows dt { color: var(--dim); } .rows dd { margin: 0; }
+  .bar { height: 7px; background: #21262d; border-radius: 4px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--pass); }
+  button { font: inherit; background: #21262d; color: var(--text); border: 1px solid var(--line);
+           border-radius: 4px; padding: 7px 9px; cursor: pointer; width: 100%; text-align: left; }
+  button:hover { border-color: var(--fault); color: var(--fault); }
+  .buttons { display: grid; gap: 6px; }
+  #ticker { height: 148px; overflow-y: auto; font-size: 11px; }
+  #ticker div { padding: 1px 0; border-bottom: 1px solid #21262d; }
+  .warn { color: var(--abstain); }
+  .legend { display: flex; gap: 14px; font-size: 11px; margin-bottom: 6px; flex-wrap: wrap; }
+  .swatch { display: inline-block; width: 10px; height: 3px; vertical-align: middle; margin-right: 5px; }
+  footer { padding: 10px 20px 24px; color: var(--dim); font-size: 11px; border-top: 1px solid var(--line); }
+  code { color: var(--text); }
+</style>
+
+<header>
+  <h1>ASTRA</h1>
+  <span class="muted">tick <b id="tick">—</b></span>
+  <span class="muted">ablation <b id="ablation">—</b></span>
+  <span class="muted">context <b id="context">—</b></span>
+  <span class="muted" id="conn">connecting…</span>
+</header>
+
+<main>
+  <div>
+    <div class="panel">
+      <h2>Core-B — three gates, lit separately</h2>
+      <div class="gates" id="gates"></div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <h2>Lateral position — what the system believes, against what is true</h2>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--estimate)"></i>estimate (L2, in the record)</span>
+        <span><i class="swatch" style="background:var(--truth)"></i>truth (simulator only — no vehicle has this)</span>
+        <span><i class="swatch" style="background:var(--fault)"></i>fault active</span>
+        <span class="muted">dashed — ±1.75 m corridor</span>
+      </div>
+      <svg id="trace" viewBox="0 0 900 260" preserveAspectRatio="none" style="width:100%;height:260px"></svg>
+      <p class="muted" style="margin:6px 0 0;font-size:11px">
+        When these two separate and the gates above stay green, that is
+        <b>OD-9</b>: every Core-B gate reads the estimate, and the proposer
+        drives the estimate to the value the gates consider safe.
+      </p>
+    </div>
+  </div>
+
+  <div>
+    <div class="panel">
+      <h2>Inject a fault</h2>
+      <div class="buttons">
+        <button data-fault="dropout">IMU dropout — 4.199 m in E-46</button>
+        <button data-fault="position_drift">Slow position drift — caught by nothing</button>
+        <button data-fault="position_bias">Position bias — the one L6 notices</button>
+        <button data-fault="speed_stuck">Speed frozen — fresh and wrong</button>
+        <button data-fault="lateral_noise">Lateral noise burst ×25</button>
+      </div>
+      <p class="muted" style="margin:10px 0 0;font-size:11px">
+        Each lasts 400 ticks (20 s). You choose; nothing here is staged.
+      </p>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <h2>Trust &amp; fail-safe</h2>
+      <dl class="rows">
+        <dt>Trust Index</dt><dd><span id="ti">—</span><div class="bar"><i id="tibar" style="width:0"></i></div></dd>
+        <dt>fail-safe</dt><dd id="fs">—</dd>
+        <dt>OOD counter</dt><dd id="ood">—</dd>
+        <dt>speed cap</dt><dd id="cap">—</dd>
+        <dt>origin</dt><dd id="origin">—</dd>
+        <dt>quantile</dt><dd id="quantile">—</dd>
+        <dt title="Not actually a Mahalanobis distance — see OD-10">innovation *</dt><dd id="innov">—</dd>
+        <dt>truth |dev|</dt><dd id="dev">—</dd>
+        <dt>speed</dt><dd id="speed">—</dd>
+      </dl>
+      <p class="muted" style="margin:8px 0 0;font-size:10px">
+        * <b>OD-10</b>: the innovation covariance omits <code>H&nbsp;Q&nbsp;Hᵀ</code>,
+        so this is inflated ~1.24× at the median. It is not a Mahalanobis distance.
+      </p>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <h2>Events</h2>
+      <div id="ticker"></div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Every value above except <b>truth |dev|</b> and <b>speed</b> is copied from that tick's
+  <code>DecisionRecord</code>. Those two come from the simulator and are shown because OD-9 is
+  invisible without them — no deployed system knows them.
+  Nothing on this page is scripted, smoothed or interpolated.
+</footer>
+
+<script>
+"use strict";
+const GATES = ["STATISTICAL", "PHYSICAL", "DETERMINISTIC"];
+const WINDOW = 300, CORRIDOR = 1.75, SPAN = 5.0;
+const history = [];
+const $ = (id) => document.getElementById(id);
+const fmt = (v, d = 3) => (v === null || v === undefined) ? "—" : Number(v).toFixed(d);
+
+function renderGates(frame) {
+  const byName = new Map(frame.gates.map((g) => [g[0], g]));
+  $("gates").innerHTML = GATES.map((name) => {
+    const g = byName.get(name);
+    const verdict = g ? g[1] : "—";
+    const reason = g ? g[2] : "did not report";
+    return `<div class="gate"><div class="name">${name}</div>
+            <div class="verdict ${verdict}">${verdict}</div>
+            <div class="reason">${reason}</div></div>`;
+  }).join("");
+}
+
+function renderTrace() {
+  const w = 900, h = 260, mid = h / 2, scale = (h / 2) / SPAN;
+  const y = (v) => mid - Math.max(-SPAN, Math.min(SPAN, v)) * scale;
+  const step = w / Math.max(1, WINDOW - 1);
+  const path = (pick) => history.map((f, i) => {
+    const v = pick(f);
+    return (v === null || v === undefined) ? null : `${i * step},${y(v)}`;
+  }).filter(Boolean).join(" ");
+
+  const faults = history.map((f, i) => f.fault_active
+    ? `<rect x="${i * step}" y="0" width="${step + 0.6}" height="${h}" fill="var(--fault)" opacity=".16"/>` : "").join("");
+
+  $("trace").innerHTML = `
+    ${faults}
+    <line x1="0" y1="${y(0)}" x2="${w}" y2="${y(0)}" stroke="var(--line)"/>
+    <line x1="0" y1="${y(CORRIDOR)}" x2="${w}" y2="${y(CORRIDOR)}" stroke="var(--line)" stroke-dasharray="5 5"/>
+    <line x1="0" y1="${y(-CORRIDOR)}" x2="${w}" y2="${y(-CORRIDOR)}" stroke="var(--line)" stroke-dasharray="5 5"/>
+    <polyline fill="none" stroke="var(--truth)" stroke-width="2" points="${path((f) => f.truth_y)}"/>
+    <polyline fill="none" stroke="var(--estimate)" stroke-width="2" points="${path((f) => f.estimate_y)}"/>`;
+}
+
+let lastState = null, lastFault = false;
+function note(text, warn) {
+  const row = document.createElement("div");
+  if (warn) row.className = "warn";
+  row.textContent = text;
+  const t = $("ticker");
+  t.prepend(row);
+  while (t.childElementCount > 120) t.lastElementChild.remove();
+}
+
+function render(frame) {
+  history.push(frame);
+  while (history.length > WINDOW) history.shift();
+
+  $("tick").textContent = frame.tick;
+  $("ablation").textContent = frame.ablation;
+  $("context").textContent = frame.context ?? "—";
+  $("ti").textContent = fmt(frame.trust_index);
+  $("tibar").style.width = `${Math.round(100 * (frame.trust_index ?? 0))}%`;
+  $("tibar").style.background = (frame.trust_index ?? 1) < 0.8 ? "var(--abstain)" : "var(--pass)";
+  $("fs").textContent = frame.failsafe_state ?? "—";
+  $("fs").className = frame.failsafe_state === "NOMINAL" ? "PASS" : "VETO";
+  $("ood").textContent = frame.ood_counter ?? "—";
+  $("cap").textContent = frame.speed_cap === null ? "—" : `${fmt(frame.speed_cap, 1)} m/s`;
+  $("origin").textContent = frame.origin ?? "none issued";
+  $("quantile").textContent = fmt(frame.quantile);
+  $("innov").textContent = fmt(frame.innovation);
+  $("dev").textContent = `${fmt(Math.abs(frame.truth_y))} m`;
+  $("speed").textContent = `${fmt(frame.truth_speed, 2)} m/s`;
+
+  renderGates(frame);
+  renderTrace();
+
+  if (frame.blocking) note(`t${frame.tick}  VETO  ${frame.gates.filter((g) => g[1] === "VETO").map((g) => g[0] + ":" + g[2]).join(" ")}`, true);
+  if (frame.failsafe_state !== lastState) { note(`t${frame.tick}  fail-safe → ${frame.failsafe_state}`, frame.failsafe_state !== "NOMINAL"); lastState = frame.failsafe_state; }
+  if (frame.fault_active !== lastFault) { note(`t${frame.tick}  fault ${frame.fault_active ? "OPENED" : "closed"}`, frame.fault_active); lastFault = frame.fault_active; }
+  if (Math.abs(frame.truth_y) > CORRIDOR && Math.abs(history.at(-2)?.truth_y ?? 0) <= CORRIDOR) {
+    note(`t${frame.tick}  OUTSIDE CORRIDOR — truth ${fmt(frame.truth_y)} m, estimate ${fmt(frame.estimate_y)} m`, true);
+  }
+}
+
+const source = new EventSource("/events");
+source.onopen = () => { $("conn").textContent = "live"; $("conn").className = "PASS"; };
+source.onerror = () => { $("conn").textContent = "disconnected"; $("conn").className = "VETO"; };
+source.onmessage = (event) => render(JSON.parse(event.data));
+
+for (const button of document.querySelectorAll("button[data-fault]")) {
+  button.addEventListener("click", async () => {
+    const response = await fetch(`/fault/${button.dataset.fault}`, { method: "POST" });
+    const armed = await response.json();
+    note(`t${armed.first_tick}  ARMED ${armed.kind}${armed.channel ? " on " + armed.channel : ""} → t${armed.last_tick}`, true);
+  });
+}
+</script>

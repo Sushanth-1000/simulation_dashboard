@@ -421,8 +421,28 @@ class FaultInjector:
 
     @property
     def specs(self) -> tuple[FaultSpec, ...]:
-        """Return the faults this injector was built with."""
+        """Return the faults this injector currently holds."""
         return self._specs
+
+    def arm(self, spec: FaultSpec) -> None:
+        """Add a fault to a running injector.
+
+        **For the interactive demonstration only** (P4.2), where the point is
+        that an observer chooses the fault and a demo they choose cannot be
+        staged. No measurement uses this: every study builds its injector with
+        every specification up front, which is what makes a run reproducible
+        from its seed.
+
+        Arming does not disturb the properties the studies rely on. The
+        randomness discipline is per-tick and unchanged -- a tick with nothing
+        active still draws nothing -- and a specification armed at tick *t* with
+        a window opening at *t* affects no earlier tick, because ``corrupt``
+        reads the window rather than the arming order.
+
+        Args:
+            spec: The fault to add.
+        """
+        self._specs = (*self._specs, spec)
 
     def is_active(self, tick: int) -> bool:
         """Return whether any fault applies to a tick.
