@@ -165,6 +165,39 @@ def test_every_field_is_declared_as_record_or_simulator() -> None:
     assert not set(Frame.from_record()) & set(Frame.from_simulator())
 
 
+def test_the_rcm_fields_are_the_records_own() -> None:
+    from astra.contracts.governance import ArbitrationDecision  # noqa: PLC0415
+    from astra.kernel.enums import ArbitrationOutcome  # noqa: PLC0415
+    from astra.kernel.identifiers import ProfileId  # noqa: PLC0415
+
+    source = dataclasses.replace(
+        record(),
+        arbitration=ArbitrationDecision(
+            tick=TickId(7),
+            outcome=ArbitrationOutcome.SAFE_EXPLORATION,
+            active_profile=ProfileId(name="highway_clear", version=2),
+        ),
+    )
+
+    frame = Frame.from_sample(sample(record=source))
+
+    assert frame.arbitration == "SAFE_EXPLORATION"
+    assert frame.exploring is True
+    assert frame.active_profile is not None
+
+
+def test_a_run_that_has_not_arbitrated_yet_reports_nothing_rather_than_continue() -> None:
+    # Before the first cold-path evaluation there is no decision. Rendering that
+    # as CONTINUE would claim RCM had looked at the context and approved it.
+    bare = DecisionRecord(run=RUN, tick=TickId(3), config_hash="sha256:bare")
+
+    frame = Frame.from_sample(sample(record=bare))
+
+    assert frame.arbitration is None
+    assert frame.active_profile is None
+    assert frame.exploring is False
+
+
 def test_exactly_two_values_come_from_the_simulator() -> None:
     # Plus the injector's own ground-truth label. If this ever grows, the page's
     # footer is wrong and the separation is no longer what it says.

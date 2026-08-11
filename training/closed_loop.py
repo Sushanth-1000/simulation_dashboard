@@ -512,6 +512,7 @@ def drive_closed_loop(
     shadow_fb2: bool = False,
     fault: FaultInjector | None = None,
     ablation: AblationProfile | None = None,
+    on_assembled: Callable[[AssembledPipeline[Any]], None] | None = None,
 ) -> ClosedLoopResult:
     """Run the pipeline against the plant, feeding issued commands back in.
 
@@ -531,6 +532,12 @@ def drive_closed_loop(
             leaves the loop as it was.
         shadow_fb2: Run FB2 against a twin nothing reads, so the run can report
             what online adaptation would have done. Off by default.
+        on_assembled: Called once with the assembled pipeline before the
+            first tick. **For the interactive demonstration**, which needs
+            to move the cold-path context mid-run so an audience can watch
+            a certified profile stop matching. No study uses it: a run that
+            mutates its own configuration is not reproducible from its
+            seed, which is the property every measurement here rests on.
         ablation: Which layers to disarm, or ``None`` for a governed run.
             A disarmed gate is still constructed and still writes a verdict;
             it simply cannot block, and every decision record says which
@@ -581,6 +588,9 @@ def drive_closed_loop(
         ablation=ablation,
         environment=ENVIRONMENT,
     )
+
+    if on_assembled is not None:
+        on_assembled(built)
 
     period = Seconds(1.0 / settings.estimation.fast_rate_hz)
     result = ClosedLoopResult(ticks=ticks)

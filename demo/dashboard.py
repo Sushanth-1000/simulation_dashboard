@@ -99,8 +99,18 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import TYPE_CHECKING, override
 
+from astra.config.loader import load_settings
+from astra.kernel.units import Probability
 from astra.layers.l4_proposer.learned import LearnedPolicy
-from training.closed_loop import CHANNEL_SIGMAS, CORPUS, TWIN, TickSample, drive_closed_loop
+from astra.runtime.pipeline import ColdPathContext
+from training.closed_loop import (
+    CHANNEL_SIGMAS,
+    CORPUS,
+    ENVIRONMENT,
+    TWIN,
+    TickSample,
+    drive_closed_loop,
+)
 from training.faults import (
     FaultChannel,
     FaultInjector,
@@ -129,6 +139,57 @@ The drive must never block on a browser. If a client cannot keep up its frames
 are dropped and the counter says so -- the same discipline the audit sink uses,
 and for the same reason: a demonstration that stalls the thing it demonstrates
 is measuring the demonstration.
+"""
+
+TICK_PERIOD_S = 0.05
+"""The control period, 20 Hz -- and the rate the demonstration runs at.
+
+The harness drives as fast as the machine allows, which is about 110 ticks a
+second: five and a half times real time. That is right for a study and wrong
+for a demonstration. A 400-tick fault window is twenty seconds on the vehicle
+and under four on an unpaced screen, so an audience watching for the divergence
+sees it arrive and leave before they have found it.
+
+Pacing lives here, in the dashboard's own publish path, and **not** in
+``drive_closed_loop``: every benchmark depends on the harness running flat out,
+and a sleep in the shared loop would make the soak take a day.
+"""
+
+ARBITRATION_PERIOD_TICKS = 20
+"""One cold-path evaluation a second.
+
+The cold path is not per-tick work -- the context a vehicle is in changes on a
+timescale of seconds -- but a demonstration wants it visibly responsive, so this
+is at the fast end of defensible rather than the cheap end.
+"""
+
+CERTIFIED = (0.85, 0.7, 0.7)
+"""``(visibility, traffic dynamicity, road complexity)`` of a context the base covers.
+
+Tuned against `URBAN_CLEAR`'s centroid **and against the speed the vehicle
+actually holds**, which is the part that is easy to get wrong. The signature's
+second component is ego speed normalised by the legal limit; this policy cruises
+at about 12.5 m/s of a 33.3 m/s limit, so 0.375 -- which is URBAN_CLEAR's 0.35
+and nowhere near HIGHWAY_CLEAR's 0.8.
+
+Picking clear-highway-looking numbers instead put the run in permanent
+exploration, because three components matched and the fourth did not. A tunnel
+scene is worthless without a contrast, so the contrast is measured rather than
+assumed: on these values RCM reaches **SHADOW_EXECUTION** with a trust score of
+0.717 against a threshold of 0.70.
+"""
+
+TUNNEL = (0.05, 0.7, 0.95)
+"""``(visibility, traffic dynamicity, road complexity)`` of a tunnel, which **no profile covers**.
+
+Withheld deliberately, and the `ContextClass` enum says so in as many words: a
+tunnel class is absent *so that this path gets exercised rather than assumed*.
+Low visibility, high road complexity -- far enough from every certified centroid
+that the mandatory gate finds no admissible candidate and RCM has to decide what
+to do with a context it does not recognise.
+
+This is the scene that most distinguishes the architecture: the systems in its
+prior-art table stop here.
 """
 
 FAULT_WINDOW_TICKS = 400
@@ -167,6 +228,18 @@ class Frame:
         innovation: The fast innovation's Mahalanobis distance. **Not actually
             a Mahalanobis distance** -- see OD-10 -- and labelled on the page
             with that caveat rather than without it.
+        arbitration: RCM's outcome -- ``CONTINUE``, ``SHADOW_EXECUTION``,
+            ``SWITCH_COMMITTED``, ``ROLLBACK`` or ``SAFE_EXPLORATION`` -- or
+            ``None`` before the first cold-path evaluation.
+        active_profile: The calibration profile currently in force.
+        candidate_profile: The profile being shadow-executed, if any.
+        arbitration_trust: RCM's score for the active profile against the
+            current context signature.
+        divergence_index: The Calibration Divergence Index during shadow
+            execution.
+        exploring: Whether bounded safe exploration is engaged. **The
+            architectural differentiator**: an unrecognised context narrows
+            the envelope instead of stopping the vehicle.
         ablation: Which layers were disarmed. ``"NONE"`` for a governed run.
         health: Per-modality stream health.
         estimate_y: Where the *system believes* it is, laterally.
@@ -189,6 +262,12 @@ class Frame:
     issued: tuple[float, ...] | None
     quantile: float | None
     innovation: float | None
+    arbitration: str | None
+    active_profile: str | None
+    candidate_profile: str | None
+    arbitration_trust: float | None
+    divergence_index: float | None
+    exploring: bool
     ablation: str
     health: tuple[tuple[str, str], ...]
     estimate_y: float | None
@@ -208,6 +287,7 @@ class Frame:
             documented as ground truth.
         """
         record = sample.record
+        arbitration = record.arbitration
         verdict = record.safety_verdict
         failsafe = record.failsafe
         issued = record.issued
@@ -241,6 +321,22 @@ class Frame:
                 None if record.trust is None else float(record.trust.class_conditional_quantile)
             ),
             innovation=record.fast_innovation,
+            arbitration=None if arbitration is None else arbitration.outcome.value,
+            active_profile=(None if arbitration is None else str(arbitration.active_profile)),
+            candidate_profile=(
+                None
+                if arbitration is None or arbitration.candidate_profile is None
+                else str(arbitration.candidate_profile)
+            ),
+            arbitration_trust=None if arbitration is None else arbitration.trust_score,
+            divergence_index=(
+                None
+                if arbitration is None or arbitration.calibration_divergence_index is None
+                else float(arbitration.calibration_divergence_index)
+            ),
+            exploring=bool(
+                arbitration is not None and arbitration.outcome.value == "SAFE_EXPLORATION"
+            ),
             ablation=record.ablation,
             health=tuple(
                 (modality.value, health.value) for modality, health in record.frame_health
@@ -275,6 +371,12 @@ class Frame:
             "issued",
             "quantile",
             "innovation",
+            "arbitration",
+            "active_profile",
+            "candidate_profile",
+            "arbitration_trust",
+            "divergence_index",
+            "exploring",
             "ablation",
             "health",
             "estimate_y",
@@ -330,6 +432,29 @@ def build_injector(kind: str, *, tick: int, seed: int) -> FaultSpec:
             raise ValueError(message)
 
 
+def cold_path(where: tuple[float, float, float]) -> ColdPathContext:
+    """Return the cold-path context for a place.
+
+    Args:
+        where: ``(visibility, traffic dynamicity, road complexity)`` --
+            :data:`CERTIFIED` or :data:`TUNNEL`.
+
+    Returns:
+        The context RCM evaluates the knowledge base against.
+    """
+    settings = load_settings(environment=ENVIRONMENT, include_environment_variables=False).settings
+    return ColdPathContext(
+        period_ticks=ARBITRATION_PERIOD_TICKS,
+        trust_threshold=settings.arbitration.trust_threshold_tau,
+        divergence_limit=settings.arbitration.divergence_limit_delta,
+        platform="synthetic-prototype",
+        legal_speed_limit=settings.shield.legal_speed_limit,
+        visibility=Probability(where[0]),
+        traffic_dynamicity=Probability(where[1]),
+        road_complexity=Probability(where[2]),
+    )
+
+
 class FrameStream:
     """Runs the pipeline on a background thread and publishes frames.
 
@@ -345,19 +470,31 @@ class FrameStream:
         "_subscribers",
         "_tick",
         "dropped",
+        "period_s",
+        "pipeline",
         "replaying",
         "started",
     )
 
-    def __init__(self, injector: FaultInjector, *, recorder: object | None = None) -> None:
+    def __init__(
+        self,
+        injector: FaultInjector,
+        *,
+        recorder: object | None = None,
+        period_s: float = TICK_PERIOD_S,
+    ) -> None:
         """Initialise the stream.
 
         Args:
             injector: The live injector, armed by the fault buttons.
             recorder: An open text file to write frames to, or ``None``.
+            period_s: Wall-clock seconds to hold each tick for, so the screen
+                advances at the rate the vehicle does. Zero runs flat out.
         """
         self._injector = injector
         self._recorder = recorder
+        self.period_s = period_s
+        self.pipeline: object | None = None
         self._lock = threading.Lock()
         self._subscribers: list[queue.Queue[str]] = []
         self._tick = 0
@@ -386,6 +523,36 @@ class FrameStream:
         with self._lock:
             if outbox in self._subscribers:
                 self._subscribers.remove(outbox)
+
+    def enter(self, where: tuple[float, float, float]) -> str:
+        """Move the vehicle into a different context, mid-run.
+
+        Swaps the cold-path context the pipeline reads. Arbitration re-evaluates
+        on its own period and decides afresh -- so entering the tunnel does not
+        *tell* RCM to explore, it removes every profile that matched and leaves
+        RCM to work out what to do about it. That distinction is the whole
+        demonstration.
+
+        Args:
+            where: ``(visibility, traffic dynamicity, road complexity)``.
+
+        Returns:
+            A short label for the ticker.
+
+        Raises:
+            RuntimeError: If the pipeline is not available, which means the
+                drive has not started.
+        """
+        if self.pipeline is None:
+            message = "the drive has not started yet"
+            raise RuntimeError(message)
+        # Assigning a private slot on an object this module was handed. The
+        # alternative is a public setter on the pipeline for a demonstration's
+        # benefit, which would put a mid-run configuration change into the
+        # safety surface -- a worse trade than one narrow reach from a
+        # module that ships no verdict.
+        self.pipeline._context = cold_path(where)  # type: ignore[attr-defined]  # noqa: SLF001
+        return "tunnel" if where == TUNNEL else "certified road"
 
     def arm(self, kind: str) -> FaultSpec:
         """Arm a fault from now, and return what was armed.
@@ -417,6 +584,8 @@ class FrameStream:
                 outbox.put_nowait(payload)
             except queue.Full:
                 self.dropped += 1
+        if self.period_s > 0.0:
+            time.sleep(self.period_s)
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -445,6 +614,9 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         """Arm the fault the audience chose."""
+        if self.path.startswith("/context/"):
+            self._enter_context()
+            return
         if not self.path.startswith("/fault/"):
             self.send_error(404)
             return
@@ -467,6 +639,28 @@ class _Handler(BaseHTTPRequestHandler):
                 "magnitude": spec.magnitude,
             }
         ).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _enter_context(self) -> None:
+        """Move the vehicle into a different operating context."""
+        name = self.path.removeprefix("/context/")
+        where = {"tunnel": TUNNEL, "road": CERTIFIED}.get(name)
+        if where is None:
+            self.send_error(400, f"{name!r} is not a context this demonstration offers")
+            return
+        if self.stream.replaying:
+            self.send_error(409, "this is a recording; the context changes in it already happened")
+            return
+        try:
+            label = self.stream.enter(where)
+        except RuntimeError as error:
+            self.send_error(409, str(error))
+            return
+        body = json.dumps({"entered": label, "tick": self.stream.tick}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -544,7 +738,7 @@ def serve(
     port: int,
     record: Path | None = None,
     recording: Path | None = None,
-    period_s: float = 0.05,
+    period_s: float = TICK_PERIOD_S,
 ) -> int:
     """Run the pipeline and the dashboard until interrupted.
 
@@ -553,6 +747,7 @@ def serve(
         seed: The run seed.
         policy_path: The trained proposer.
         port: The port to listen on.
+        period_s: Wall-clock seconds per tick. Defaults to real time.
         record: Where to write frames as they are produced, or ``None``.
         recording: A recording to replay instead of driving, or ``None``.
         period_s: Replay frame interval.
@@ -565,7 +760,7 @@ def serve(
     if record is not None:
         record.parent.mkdir(parents=True, exist_ok=True)
         handle = record.open("w", encoding="utf-8")
-    stream = FrameStream(injector, recorder=handle)
+    stream = FrameStream(injector, recorder=handle, period_s=period_s)
     stream.replaying = recording is not None
     _Handler.stream = stream
 
@@ -579,6 +774,8 @@ def serve(
             seed=seed,
             observer=stream.publish,
             fault=injector,
+            cold_path=cold_path(CERTIFIED),
+            on_assembled=lambda built: setattr(stream, "pipeline", built.pipeline),
         )
         if handle is not None:
             handle.flush()
@@ -586,7 +783,8 @@ def serve(
     server = ThreadingHTTPServer(("127.0.0.1", port), _Handler)
     worker = threading.Thread(target=drive, name="astra-demo-drive", daemon=True)
     print(f"  dashboard: http://127.0.0.1:{port}/")
-    print(f"  driving {ticks} ticks from seed {seed}; Ctrl-C to stop")
+    rate = "flat out" if period_s <= 0.0 else f"{1.0 / period_s:.0f} Hz, real time"
+    print(f"  driving {ticks} ticks from seed {seed} at {rate}; Ctrl-C to stop")
     worker.start()
     stream.started = True
     try:
@@ -614,6 +812,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--port", "-p", type=int, default=8000)
     parser.add_argument("--record", type=Path, default=None)
     parser.add_argument("--replay", type=Path, default=None)
+    parser.add_argument(
+        "--rate",
+        type=float,
+        default=1.0,
+        help="playback speed; 1.0 is real time, 0 runs flat out",
+    )
     arguments = parser.parse_args(argv)
 
     if arguments.replay is None:
@@ -632,6 +836,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         port=arguments.port,
         record=arguments.record,
         recording=arguments.replay,
+        period_s=0.0 if arguments.rate <= 0.0 else TICK_PERIOD_S / arguments.rate,
     )
 
 

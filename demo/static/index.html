@@ -3,219 +3,333 @@
 <title>ASTRA — live</title>
 <style>
   :root {
-    --bg: #0e1116; --panel: #161b22; --line: #30363d; --text: #e6edf3;
-    --dim: #8b949e; --pass: #3fb950; --veto: #f85149; --abstain: #d29922;
-    --truth: #f85149; --estimate: #58a6ff; --fault: #bc8cff;
+    --bg:#0b0e13; --panel:#141922; --line:#2a3340; --text:#e6edf3; --dim:#8b98a8;
+    --pass:#3fb950; --veto:#f85149; --abstain:#d29922; --explore:#bc8cff;
+    --truth:#f85149; --estimate:#58a6ff; --fault:#bc8cff; --accent:#58a6ff;
   }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
-  }
-  header { padding: 14px 20px; border-bottom: 1px solid var(--line); display: flex;
-           align-items: baseline; gap: 18px; flex-wrap: wrap; }
-  h1 { font-size: 15px; margin: 0; letter-spacing: .06em; }
-  .muted { color: var(--dim); }
-  main { display: grid; grid-template-columns: 1fr 340px; gap: 14px; padding: 14px; }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
-  .panel h2 { font-size: 11px; margin: 0 0 10px; color: var(--dim);
-              text-transform: uppercase; letter-spacing: .1em; font-weight: 600; }
-  .gates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .gate { border: 1px solid var(--line); border-radius: 4px; padding: 10px; text-align: center; }
-  .gate .name { font-size: 10px; color: var(--dim); letter-spacing: .08em; }
-  .gate .verdict { font-size: 17px; font-weight: 700; margin: 4px 0; }
-  .gate .reason { font-size: 10px; color: var(--dim); word-break: break-all; min-height: 2.4em; }
-  .PASS { color: var(--pass); } .VETO { color: var(--veto); } .ABSTAIN { color: var(--abstain); }
-  .rows { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; }
-  .rows dt { color: var(--dim); } .rows dd { margin: 0; }
-  .bar { height: 7px; background: #21262d; border-radius: 4px; overflow: hidden; }
-  .bar > i { display: block; height: 100%; background: var(--pass); }
-  button { font: inherit; background: #21262d; color: var(--text); border: 1px solid var(--line);
-           border-radius: 4px; padding: 7px 9px; cursor: pointer; width: 100%; text-align: left; }
-  button:hover { border-color: var(--fault); color: var(--fault); }
-  .buttons { display: grid; gap: 6px; }
-  #ticker { height: 148px; overflow-y: auto; font-size: 11px; }
-  #ticker div { padding: 1px 0; border-bottom: 1px solid #21262d; }
-  .warn { color: var(--abstain); }
-  .legend { display: flex; gap: 14px; font-size: 11px; margin-bottom: 6px; flex-wrap: wrap; }
-  .swatch { display: inline-block; width: 10px; height: 3px; vertical-align: middle; margin-right: 5px; }
-  footer { padding: 10px 20px 24px; color: var(--dim); font-size: 11px; border-top: 1px solid var(--line); }
-  code { color: var(--text); }
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);
+    font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
+  header{padding:12px 18px;border-bottom:1px solid var(--line);display:flex;
+    align-items:baseline;gap:16px;flex-wrap:wrap;position:sticky;top:0;background:var(--bg);z-index:5}
+  h1{font-size:15px;margin:0;letter-spacing:.14em}
+  .muted{color:var(--dim)} .b{font-weight:700}
+  main{display:grid;grid-template-columns:1fr 330px;gap:12px;padding:12px}
+  @media(max-width:1100px){main{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:11px;margin-bottom:12px}
+  .panel h2{font-size:10px;margin:0 0 9px;color:var(--dim);text-transform:uppercase;
+    letter-spacing:.13em;font-weight:600}
+  .gates{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+  .gate{border:1px solid var(--line);border-radius:5px;padding:9px;text-align:center;transition:.15s}
+  .gate.hot{border-color:var(--veto);background:#1d1416}
+  .gate .n{font-size:9px;color:var(--dim);letter-spacing:.1em}
+  .gate .layer{font-size:9px;color:var(--dim)}
+  .gate .v{font-size:16px;font-weight:700;margin:3px 0}
+  .gate .r{font-size:9px;color:var(--dim);word-break:break-all;min-height:2.2em}
+  .PASS{color:var(--pass)}.VETO{color:var(--veto)}.ABSTAIN{color:var(--abstain)}
+  .EXPL{color:var(--explore)}
+  dl.rows{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin:0}
+  dl.rows dt{color:var(--dim)} dl.rows dd{margin:0}
+  .bar{height:6px;background:#1c2430;border-radius:3px;overflow:hidden}
+  .bar>i{display:block;height:100%;background:var(--pass);transition:width .2s}
+  button{font:inherit;background:#1c2430;color:var(--text);border:1px solid var(--line);
+    border-radius:5px;padding:7px 9px;cursor:pointer;width:100%;text-align:left;transition:.12s}
+  button:hover{border-color:var(--accent);color:var(--accent)}
+  button.big{border-color:var(--explore)}
+  button.big:hover{background:#1e1726;color:var(--explore)}
+  button small{display:block;color:var(--dim);font-size:10px;margin-top:2px}
+  button:hover small{color:inherit;opacity:.75}
+  .buttons{display:grid;gap:6px}
+  #ticker{height:210px;overflow-y:auto;font-size:11px}
+  #ticker .ev{padding:4px 0;border-bottom:1px solid #1c2430}
+  #ticker .t{color:var(--dim);margin-right:6px}
+  #ticker .why{display:block;color:var(--dim);font-size:10px;padding-left:2px}
+  .legend{display:flex;gap:13px;font-size:10.5px;margin-bottom:5px;flex-wrap:wrap}
+  .sw{display:inline-block;width:11px;height:3px;vertical-align:middle;margin-right:4px}
+  footer{padding:10px 18px 26px;color:var(--dim);font-size:10.5px;border-top:1px solid var(--line)}
+  code{color:var(--text)}
+  .banner{padding:7px 10px;border-radius:5px;font-weight:700;letter-spacing:.05em;
+    margin-bottom:9px;display:none}
+  .banner.on{display:block}
+  #explore{background:#231a30;border:1px solid var(--explore);color:var(--explore)}
+  #departed{background:#241416;border:1px solid var(--veto);color:var(--veto)}
+  .flow{display:flex;align-items:center;gap:3px;flex-wrap:wrap;font-size:9.5px}
+  .node{border:1px solid var(--line);border-radius:4px;padding:4px 6px;color:var(--dim);white-space:nowrap}
+  .node.lit{border-color:var(--pass);color:var(--pass)}
+  .node.hot{border-color:var(--veto);color:var(--veto);background:#1d1416}
+  .node.expl{border-color:var(--explore);color:var(--explore)}
+  .arrow{color:#3a4553}
 </style>
 
 <header>
   <h1>ASTRA</h1>
-  <span class="muted">tick <b id="tick">—</b></span>
-  <span class="muted">ablation <b id="ablation">—</b></span>
-  <span class="muted">context <b id="context">—</b></span>
-  <span class="muted" id="conn">connecting…</span>
+  <span class="muted">tick <b id="tick" class="b">—</b></span>
+  <span class="muted">context <b id="context" class="b">—</b></span>
+  <span class="muted">profile <b id="profile" class="b">—</b></span>
+  <span class="muted">ablation <b id="ablation" class="b">—</b></span>
+  <span id="conn" class="muted">connecting…</span>
 </header>
 
 <main>
   <div>
     <div class="panel">
+      <h2>The pipeline, lit as it runs</h2>
+      <div class="flow" id="flow"></div>
+    </div>
+
+    <div class="panel">
+      <div id="explore" class="banner">BOUNDED SAFE EXPLORATION ENGAGED — no certified profile matches this context</div>
+      <div id="departed" class="banner">OUTSIDE THE CORRIDOR</div>
       <h2>Core-B — three gates, lit separately</h2>
       <div class="gates" id="gates"></div>
     </div>
 
-    <div class="panel" style="margin-top:14px">
+    <div class="panel">
       <h2>Lateral position — what the system believes, against what is true</h2>
       <div class="legend">
-        <span><i class="swatch" style="background:var(--estimate)"></i>estimate (L2, in the record)</span>
-        <span><i class="swatch" style="background:var(--truth)"></i>truth (simulator only — no vehicle has this)</span>
-        <span><i class="swatch" style="background:var(--fault)"></i>fault active</span>
+        <span><i class="sw" style="background:var(--estimate)"></i>estimate (L2 — in the decision record)</span>
+        <span><i class="sw" style="background:var(--truth)"></i>truth (simulator only — no vehicle has this)</span>
+        <span><i class="sw" style="background:var(--fault)"></i>fault active</span>
         <span class="muted">dashed — ±1.75 m corridor</span>
       </div>
-      <svg id="trace" viewBox="0 0 900 260" preserveAspectRatio="none" style="width:100%;height:260px"></svg>
-      <p class="muted" style="margin:6px 0 0;font-size:11px">
-        When these two separate and the gates above stay green, that is
-        <b>OD-9</b>: every Core-B gate reads the estimate, and the proposer
-        drives the estimate to the value the gates consider safe.
+      <svg id="trace" viewBox="0 0 900 250" preserveAspectRatio="none" style="width:100%;height:250px"></svg>
+      <p class="muted" style="margin:6px 0 0;font-size:10.5px">
+        When these separate and the gates stay green, that is <b>OD-9</b>: every Core-B gate
+        reads the estimate, and the proposer drives the estimate to the value the gates
+        consider safe. A sensor fault blinds the monitor and the monitored at once.
       </p>
     </div>
   </div>
 
   <div>
     <div class="panel">
-      <h2>Inject a fault</h2>
+      <h2>Scenario</h2>
       <div class="buttons">
-        <button data-fault="dropout">IMU dropout — 4.199 m in E-46</button>
-        <button data-fault="position_drift">Slow position drift — caught by nothing</button>
-        <button data-fault="position_bias">Position bias — the one L6 notices</button>
-        <button data-fault="speed_stuck">Speed frozen — fresh and wrong</button>
-        <button data-fault="lateral_noise">Lateral noise burst ×25</button>
+        <button class="big" data-context="tunnel">Enter the tunnel
+          <small>No certified profile covers it. Watch RCM decide.</small></button>
+        <button data-context="road">Return to certified road
+          <small>Envelope widens again on the way out.</small></button>
       </div>
-      <p class="muted" style="margin:10px 0 0;font-size:11px">
-        Each lasts 400 ticks (20 s). You choose; nothing here is staged.
-      </p>
     </div>
 
-    <div class="panel" style="margin-top:14px">
-      <h2>Trust &amp; fail-safe</h2>
+    <div class="panel">
+      <h2>Inject a fault — you choose</h2>
+      <div class="buttons">
+        <button data-fault="dropout">IMU dropout
+          <small>4.199 m off a 1.75 m lane in E-46</small></button>
+        <button data-fault="position_drift">Slow position drift
+          <small>1 cm/tick — caught by nothing at all</small></button>
+        <button data-fault="position_bias">Position bias
+          <small>The one L6 partly notices</small></button>
+        <button data-fault="speed_stuck">Speed frozen
+          <small>Fresh, well-formed and wrong. A null — shown anyway</small></button>
+        <button data-fault="lateral_noise">Lateral noise ×25
+          <small>Trust Index responds; the vehicle does not depart</small></button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>L9 · RCM — calibration &amp; exploration</h2>
       <dl class="rows">
-        <dt>Trust Index</dt><dd><span id="ti">—</span><div class="bar"><i id="tibar" style="width:0"></i></div></dd>
+        <dt>arbitration</dt><dd id="arb">—</dd>
+        <dt>active profile</dt><dd id="active">—</dd>
+        <dt>candidate</dt><dd id="cand">—</dd>
+        <dt>trust score</dt><dd id="atrust">—</dd>
+        <dt>divergence</dt><dd id="cdi">—</dd>
+      </dl>
+    </div>
+
+    <div class="panel">
+      <h2>L3 trust · L8 fail-safe</h2>
+      <dl class="rows">
+        <dt>Trust Index</dt><dd><span id="ti">—</span><div class="bar"><i id="tibar"></i></div></dd>
         <dt>fail-safe</dt><dd id="fs">—</dd>
         <dt>OOD counter</dt><dd id="ood">—</dd>
         <dt>speed cap</dt><dd id="cap">—</dd>
         <dt>origin</dt><dd id="origin">—</dd>
         <dt>quantile</dt><dd id="quantile">—</dd>
-        <dt title="Not actually a Mahalanobis distance — see OD-10">innovation *</dt><dd id="innov">—</dd>
+        <dt title="Not a Mahalanobis distance — OD-10">innovation *</dt><dd id="innov">—</dd>
         <dt>truth |dev|</dt><dd id="dev">—</dd>
         <dt>speed</dt><dd id="speed">—</dd>
       </dl>
-      <p class="muted" style="margin:8px 0 0;font-size:10px">
-        * <b>OD-10</b>: the innovation covariance omits <code>H&nbsp;Q&nbsp;Hᵀ</code>,
-        so this is inflated ~1.24× at the median. It is not a Mahalanobis distance.
+      <p class="muted" style="margin:7px 0 0;font-size:9.5px">
+        * <b>OD-10</b> — the innovation covariance omits <code>H&nbsp;Q&nbsp;Hᵀ</code>,
+        inflating this ~1.24× at the median. It is not a Mahalanobis distance.
       </p>
     </div>
 
-    <div class="panel" style="margin-top:14px">
-      <h2>Events</h2>
+    <div class="panel">
+      <h2>What just happened, and why</h2>
       <div id="ticker"></div>
     </div>
   </div>
 </main>
 
 <footer>
-  Every value above except <b>truth |dev|</b> and <b>speed</b> is copied from that tick's
-  <code>DecisionRecord</code>. Those two come from the simulator and are shown because OD-9 is
-  invisible without them — no deployed system knows them.
-  Nothing on this page is scripted, smoothed or interpolated.
+  Every value here except <b>truth |dev|</b> and <b>speed</b> is copied from that tick's
+  <code>DecisionRecord</code> — the same record written to the audit log. Those two come from
+  the simulator and are shown because OD-9 is invisible without them: no deployed system knows
+  where it actually is. Nothing on this page is scripted, smoothed or interpolated.
 </footer>
 
 <script>
 "use strict";
-const GATES = ["STATISTICAL", "PHYSICAL", "DETERMINISTIC"];
-const WINDOW = 300, CORRIDOR = 1.75, SPAN = 5.0;
+const GATES = [["STATISTICAL","L6 · conformal"],["PHYSICAL","L7b · admissibility"],["DETERMINISTIC","L7a · hard bounds"]];
+const WINDOW = 320, CORRIDOR = 1.75, SPAN = 5.0;
 const history = [];
 const $ = (id) => document.getElementById(id);
 const fmt = (v, d = 3) => (v === null || v === undefined) ? "—" : Number(v).toFixed(d);
 
-function renderGates(frame) {
-  const byName = new Map(frame.gates.map((g) => [g[0], g]));
-  $("gates").innerHTML = GATES.map((name) => {
-    const g = byName.get(name);
-    const verdict = g ? g[1] : "—";
-    const reason = g ? g[2] : "did not report";
-    return `<div class="gate"><div class="name">${name}</div>
-            <div class="verdict ${verdict}">${verdict}</div>
-            <div class="reason">${reason}</div></div>`;
+function renderFlow(f) {
+  const veto = new Set(f.gates.filter((g) => g[1] === "VETO").map((g) => g[0]));
+  const cls = (name, lit) => veto.has(name) ? "node hot" : (lit ? "node lit" : "node");
+  const nodes = [
+    `<span class="${f.health.some((h) => h[1] !== "HEALTHY") ? "node hot" : "node lit"}">L1 sense</span>`,
+    `<span class="${f.estimate_y === null ? "node" : "node lit"}">L2 UKF</span>`,
+    `<span class="${f.trust_index === null ? "node" : "node lit"}">L3 trust</span>`,
+    `<span class="node lit">L4 proposer</span>`,
+    `<span class="node lit">L5 twin</span>`,
+    `<span class="${cls("STATISTICAL", true)}">L6</span>`,
+    `<span class="${cls("PHYSICAL", true)}">L7b</span>`,
+    `<span class="${cls("DETERMINISTIC", true)}">L7a</span>`,
+    `<span class="${f.failsafe_state === "NOMINAL" ? "node lit" : "node hot"}">L8 ${f.failsafe_state ?? "—"}</span>`,
+    `<span class="${f.exploring ? "node expl" : "node lit"}">L9 ${f.exploring ? "EXPLORING" : "RCM"}</span>`,
+    `<span class="${f.origin ? "node lit" : "node hot"}">${f.origin ?? "no command"}</span>`,
+  ];
+  $("flow").innerHTML = nodes.join('<span class="arrow">→</span>');
+}
+
+function renderGates(f) {
+  const by = new Map(f.gates.map((g) => [g[0], g]));
+  $("gates").innerHTML = GATES.map(([name, layer]) => {
+    const g = by.get(name), v = g ? g[1] : "—", r = g ? g[2] : "did not report";
+    return `<div class="gate ${v === "VETO" ? "hot" : ""}"><div class="n">${name}</div>
+      <div class="layer">${layer}</div><div class="v ${v}">${v}</div><div class="r">${r}</div></div>`;
   }).join("");
 }
 
 function renderTrace() {
-  const w = 900, h = 260, mid = h / 2, scale = (h / 2) / SPAN;
+  const w = 900, h = 250, mid = h / 2, scale = mid / SPAN;
   const y = (v) => mid - Math.max(-SPAN, Math.min(SPAN, v)) * scale;
   const step = w / Math.max(1, WINDOW - 1);
-  const path = (pick) => history.map((f, i) => {
+  const line = (pick) => history.map((f, i) => {
     const v = pick(f);
     return (v === null || v === undefined) ? null : `${i * step},${y(v)}`;
   }).filter(Boolean).join(" ");
-
-  const faults = history.map((f, i) => f.fault_active
-    ? `<rect x="${i * step}" y="0" width="${step + 0.6}" height="${h}" fill="var(--fault)" opacity=".16"/>` : "").join("");
-
-  $("trace").innerHTML = `
-    ${faults}
+  const bands = history.map((f, i) => {
+    if (f.fault_active) return `<rect x="${i*step}" y="0" width="${step+0.7}" height="${h}" fill="var(--fault)" opacity=".15"/>`;
+    if (f.exploring) return `<rect x="${i*step}" y="0" width="${step+0.7}" height="${h}" fill="var(--explore)" opacity=".07"/>`;
+    return "";
+  }).join("");
+  $("trace").innerHTML = `${bands}
     <line x1="0" y1="${y(0)}" x2="${w}" y2="${y(0)}" stroke="var(--line)"/>
     <line x1="0" y1="${y(CORRIDOR)}" x2="${w}" y2="${y(CORRIDOR)}" stroke="var(--line)" stroke-dasharray="5 5"/>
     <line x1="0" y1="${y(-CORRIDOR)}" x2="${w}" y2="${y(-CORRIDOR)}" stroke="var(--line)" stroke-dasharray="5 5"/>
-    <polyline fill="none" stroke="var(--truth)" stroke-width="2" points="${path((f) => f.truth_y)}"/>
-    <polyline fill="none" stroke="var(--estimate)" stroke-width="2" points="${path((f) => f.estimate_y)}"/>`;
+    <polyline fill="none" stroke="var(--truth)" stroke-width="2" points="${line((f)=>f.truth_y)}"/>
+    <polyline fill="none" stroke="var(--estimate)" stroke-width="2" points="${line((f)=>f.estimate_y)}"/>`;
 }
 
-let lastState = null, lastFault = false;
-function note(text, warn) {
+/* The narrator. Each entry says what happened AND why it matters, because a
+   log line an audience has to interpret is a log line they will not read. */
+function note(tick, what, why, kind) {
   const row = document.createElement("div");
-  if (warn) row.className = "warn";
-  row.textContent = text;
-  const t = $("ticker");
-  t.prepend(row);
-  while (t.childElementCount > 120) t.lastElementChild.remove();
+  row.className = "ev";
+  row.innerHTML = `<span class="t">t${tick}</span><span class="${kind || ""}">${what}</span>` +
+                  (why ? `<span class="why">${why}</span>` : "");
+  const t = $("ticker"); t.prepend(row);
+  while (t.childElementCount > 150) t.lastElementChild.remove();
 }
 
-function render(frame) {
-  history.push(frame);
-  while (history.length > WINDOW) history.shift();
-
-  $("tick").textContent = frame.tick;
-  $("ablation").textContent = frame.ablation;
-  $("context").textContent = frame.context ?? "—";
-  $("ti").textContent = fmt(frame.trust_index);
-  $("tibar").style.width = `${Math.round(100 * (frame.trust_index ?? 0))}%`;
-  $("tibar").style.background = (frame.trust_index ?? 1) < 0.8 ? "var(--abstain)" : "var(--pass)";
-  $("fs").textContent = frame.failsafe_state ?? "—";
-  $("fs").className = frame.failsafe_state === "NOMINAL" ? "PASS" : "VETO";
-  $("ood").textContent = frame.ood_counter ?? "—";
-  $("cap").textContent = frame.speed_cap === null ? "—" : `${fmt(frame.speed_cap, 1)} m/s`;
-  $("origin").textContent = frame.origin ?? "none issued";
-  $("quantile").textContent = fmt(frame.quantile);
-  $("innov").textContent = fmt(frame.innovation);
-  $("dev").textContent = `${fmt(Math.abs(frame.truth_y))} m`;
-  $("speed").textContent = `${fmt(frame.truth_speed, 2)} m/s`;
-
-  renderGates(frame);
-  renderTrace();
-
-  if (frame.blocking) note(`t${frame.tick}  VETO  ${frame.gates.filter((g) => g[1] === "VETO").map((g) => g[0] + ":" + g[2]).join(" ")}`, true);
-  if (frame.failsafe_state !== lastState) { note(`t${frame.tick}  fail-safe → ${frame.failsafe_state}`, frame.failsafe_state !== "NOMINAL"); lastState = frame.failsafe_state; }
-  if (frame.fault_active !== lastFault) { note(`t${frame.tick}  fault ${frame.fault_active ? "OPENED" : "closed"}`, frame.fault_active); lastFault = frame.fault_active; }
-  if (Math.abs(frame.truth_y) > CORRIDOR && Math.abs(history.at(-2)?.truth_y ?? 0) <= CORRIDOR) {
-    note(`t${frame.tick}  OUTSIDE CORRIDOR — truth ${fmt(frame.truth_y)} m, estimate ${fmt(frame.estimate_y)} m`, true);
+let last = {};
+function narrate(f) {
+  if (f.arbitration !== last.arbitration && f.arbitration) {
+    const why = {
+      SAFE_EXPLORATION: "No certified profile covers this context. Rather than stop, RCM narrows the envelope — half the nearest certified speed, a ±15° steering cone, no lane changes — and keeps issuing commands.",
+      CONTINUE: "The active calibration table remains admissible for this context.",
+      SHADOW_EXECUTION: "A better candidate was found. Both tables now evaluate in parallel; nothing switches until the divergence index clears.",
+      SWITCH_COMMITTED: "The Calibration Divergence Index cleared. The candidate table is now active.",
+      ROLLBACK: "Sustained divergence during shadow execution. The previous table is retained.",
+    }[f.arbitration] || "";
+    note(f.tick, `RCM → ${f.arbitration}`, why, f.exploring ? "EXPL" : "");
+    last.arbitration = f.arbitration;
   }
+  if (f.fault_active !== last.fault) {
+    note(f.tick, f.fault_active ? "FAULT OPENED" : "fault closed",
+      f.fault_active
+        ? "A sensor is now lying. Watch the estimate and the truth separate — and watch the gate panel not react."
+        : "The sensor is telling the truth again. If the vehicle departed, the gates can finally see it.",
+      f.fault_active ? "VETO" : "PASS");
+    last.fault = f.fault_active;
+  }
+  if (f.failsafe_state !== last.fs) {
+    const why = {
+      NOMINAL: "Full envelope. No restriction in force.",
+      DEGRADED: "The OOD counter crossed θ₁. Speed capped; the graduated response has begun.",
+      LIMP: "θ₂ crossed. Severely restricted envelope.",
+      HALT: "θ₃ crossed. A commanded stop — terminal by design; reset() is its only exit.",
+    }[f.failsafe_state] || "";
+    if (last.fs !== undefined) note(f.tick, `fail-safe → ${f.failsafe_state}`, why,
+      f.failsafe_state === "NOMINAL" ? "PASS" : "VETO");
+    last.fs = f.failsafe_state;
+  }
+  if (f.blocking) {
+    const fired = f.gates.filter((g) => g[1] === "VETO");
+    note(f.tick, `VETO — ${fired.map((g) => g[0]).join(", ")}`,
+      fired.map((g) => `${g[0]}: ${g[2]}`).join(" · "), "VETO");
+  }
+  const out = Math.abs(f.truth_y) > CORRIDOR;
+  if (out !== last.out) {
+    if (out) note(f.tick, `LEFT THE CORRIDOR — truth ${fmt(f.truth_y)} m`,
+      `The estimate reads ${fmt(f.estimate_y)} m, so the corridor bound sees nothing wrong.`, "VETO");
+    else note(f.tick, "back inside the corridor", "", "PASS");
+    last.out = out;
+  }
+}
+
+function render(f) {
+  history.push(f); while (history.length > WINDOW) history.shift();
+  $("tick").textContent = f.tick;
+  $("context").textContent = f.context ?? "—";
+  $("profile").textContent = f.active_profile ?? "—";
+  $("ablation").textContent = f.ablation;
+  $("arb").textContent = f.arbitration ?? "—";
+  $("arb").className = f.exploring ? "EXPL" : "";
+  $("active").textContent = f.active_profile ?? "—";
+  $("cand").textContent = f.candidate_profile ?? "—";
+  $("atrust").textContent = fmt(f.arbitration_trust);
+  $("cdi").textContent = fmt(f.divergence_index);
+  $("ti").textContent = fmt(f.trust_index);
+  $("tibar").style.width = `${Math.round(100 * (f.trust_index ?? 0))}%`;
+  $("tibar").style.background = (f.trust_index ?? 1) < 0.8 ? "var(--abstain)" : "var(--pass)";
+  $("fs").textContent = f.failsafe_state ?? "—";
+  $("fs").className = f.failsafe_state === "NOMINAL" ? "PASS" : "VETO";
+  $("ood").textContent = f.ood_counter ?? "—";
+  $("cap").textContent = f.speed_cap === null ? "none" : `${fmt(f.speed_cap,1)} m/s`;
+  $("origin").textContent = f.origin ?? "none issued";
+  $("quantile").textContent = fmt(f.quantile);
+  $("innov").textContent = fmt(f.innovation);
+  $("dev").textContent = `${fmt(Math.abs(f.truth_y))} m`;
+  $("speed").textContent = `${fmt(f.truth_speed,2)} m/s`;
+  $("explore").classList.toggle("on", f.exploring);
+  $("departed").classList.toggle("on", Math.abs(f.truth_y) > CORRIDOR);
+  renderFlow(f); renderGates(f); renderTrace(); narrate(f);
 }
 
 const source = new EventSource("/events");
 source.onopen = () => { $("conn").textContent = "live"; $("conn").className = "PASS"; };
 source.onerror = () => { $("conn").textContent = "disconnected"; $("conn").className = "VETO"; };
-source.onmessage = (event) => render(JSON.parse(event.data));
+source.onmessage = (e) => render(JSON.parse(e.data));
 
-for (const button of document.querySelectorAll("button[data-fault]")) {
-  button.addEventListener("click", async () => {
-    const response = await fetch(`/fault/${button.dataset.fault}`, { method: "POST" });
-    const armed = await response.json();
-    note(`t${armed.first_tick}  ARMED ${armed.kind}${armed.channel ? " on " + armed.channel : ""} → t${armed.last_tick}`, true);
-  });
+async function post(url, describe) {
+  const r = await fetch(url, { method: "POST" });
+  if (!r.ok) { note("—", `refused (${r.status})`, await r.text(), "VETO"); return; }
+  describe(await r.json());
 }
+for (const b of document.querySelectorAll("button[data-fault]"))
+  b.addEventListener("click", () => post(`/fault/${b.dataset.fault}`, (a) =>
+    note(a.first_tick, `ARMED ${a.kind}${a.channel ? " on " + a.channel : ""}`,
+      `Runs to t${a.last_tick}. You chose this; nothing here is staged.`, "EXPL")));
+for (const b of document.querySelectorAll("button[data-context]"))
+  b.addEventListener("click", () => post(`/context/${b.dataset.context}`, (a) =>
+    note(a.tick, `ENTERED ${a.entered}`,
+      "The context signature moved. RCM re-evaluates on its own period and decides for itself — nothing told it to explore.", "EXPL")));
 </script>
