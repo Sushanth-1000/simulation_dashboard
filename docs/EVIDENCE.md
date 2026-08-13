@@ -99,13 +99,14 @@ uv run python -m benchmarks.ablation
 uv run python -m benchmarks.effectiveness
 uv run python -m benchmarks.platform_transfer
 uv run python -m benchmarks.parity
+uv run python -m benchmarks.commissioning
 make verify-install
 ```
 
 Artefacts land in `var/soak/<name>/` — `windows.jsonl` (one row per 1,000 ticks),
 `summary.json`, `soak.png`, and the full `audit/` evidence log. The studies write
-`var/faults/`, `var/comparison/`, `var/ablation/`, `var/effectiveness/` and
-`var/platform/`.
+`var/faults/`, `var/comparison/`, `var/ablation/`, `var/effectiveness/`,
+`var/platform/` and `var/commissioning/`.
 
 `platform_transfer` **exits non-zero if any platform HALTs or stops**, so OD-12
 regressing is a failed command rather than a table someone has to re-read.
@@ -116,7 +117,7 @@ regressing is a failed command rather than a table someone has to re-read.
 
 | # | Claim | Value | Produced by | Date |
 |:--:|---|---|---|:--:|
-| E-1 | Quality gate is green | **2,881 tests + 5 strict xfail**, `ruff` + `mypy --strict` over **156** files + **12** import contracts, 0 broken | `make check` | 11 Aug |
+| E-1 | Quality gate is green | **2,894 tests + 5 strict xfail**, `ruff` + `mypy --strict` over **156** files + **12** import contracts, 0 broken | `make check` | 11 Aug |
 | E-2 | The closed loop is stable over a long run | **All ten soak criteria pass over 100,000 ticks** | `python -m benchmarks.soak --ticks 100000 --window 1000` | 5 Aug |
 | E-3 | A command is issued on every tick | **100,000 of 100,000**, and 400,000 of 400,000 across the four runs of the day | as E-2 | 5 Aug |
 | E-4 | The proposer's commands are accepted | `PROPOSED` on **99,997** ticks; **3** vetoed, all answered by the rate limiter. Veto rate 3×10⁻⁵, which the console rounds to 0.0% — the JSON is authoritative | as E-2, `summary.json` | 5 Aug |
@@ -205,6 +206,10 @@ regressing is a failed command rather than a table someone has to re-read.
 | E-94 | **Analytical redundancy is refuted: the parity residual is 2.2x to 4.0x larger than the fault it must detect** | A second state estimate propagated from the *issued commands alone*, never corrected by a sensor, re-anchored to the filtered estimate every W ticks. On a healthy cruising vehicle the residual accumulates at **0.0403 / 0.0272 / 0.0224 / 0.0226 m per tick of window** at W = 10 / 20 / 40 / 100. The slow drift injects **0.0100 m per tick** by construction. **Both grow linearly with the window**, so the ratio is roughly constant and no window separates them. Swept over six windows and three faults: the faulted peak is below the clean peak in every cell but two, and those two are non-monotonic in the window — noise, not signal. Separation 0.20x – 1.61x against a bar of 2x | `uv run python -m benchmarks.parity`; per-arm table in `uv run python -m benchmarks.fault_study` | 11 Aug |
 | E-95 | **The reason it cannot work, and it is a mechanism this project relies on** | The two estimates were never independent. **FB1 feeds the issued command into the filter's *prediction* step**, so the filtered estimate and the open-loop propagation share the same process model *and the same command input*; they differ only by the measurement correction. The parity residual is therefore not *commands versus sensors* — it is *how far the measurement pulled the filter*, which under a slow drift is exactly the drift rate. Meanwhile the propagation's own error, heading integrated from `a_lat / v` and position from heading with no correction, accumulates several times faster. **The idea was refuted by the feedback loop that exists to fix the very defect it was built to attack** — and FB1 is not removable, it is the mitigation for the shared-estimate common cause | as E-94 | 11 Aug |
 | E-96 | The startup transient was separated before the noise floor was quoted | The plant starts up to 1 m off centre and the correction is a **sustained one-sided manoeuvre — the same shape a fault response has**. Reported together, ticks 0–199 give a peak of 5.411 m at W=100 against cruise's 2.260 m, so quoting the combined figure would have flattered the noise floor by 2.4x by attributing a real manoeuvre to it. Split before any threshold was considered | as E-94 | 11 Aug |
+| E-97 | **A commissioning certificate: this platform is certified for one of the four seeded contexts** | Drive the platform through each seeded profile's road conditions in turn and record what RCM does. On the calibrated platform: **`urban_clear` CERTIFIED** (profile held all 400 ticks); **`highway_clear`, `rain_night`, `degraded_sensor` and `tunnel` all BOUNDED** — no profile matched and the vehicle drove anyway, inside the envelope, never halting, peak settled deviation **0.258 m**. **Three of four seeded profiles are unreachable by this platform**, and the certificate says why rather than leaving it to be discovered | `uv run python -m benchmarks.commissioning` | 11 Aug |
+| E-98 | **The reason is ego speed, which no deployment can set** | Two of the five signature components are *measured*, not supplied: `ego_speed` from the vehicle and `sensor_reliability` from frame health. This policy realises **0.28** against `HIGHWAY_CLEAR`'s centroid of **0.80**, `RAIN_NIGHT`'s 0.50 and `DEGRADED_SENSOR`'s 0.40 — and matches `URBAN_CLEAR`'s **0.35** almost exactly at 0.35. **A profile whose centroid a platform cannot physically reach is a profile that platform is not certified for**, however well its road conditions match. E-82 recorded this as a tuning trap; the certificate makes it a reported column | as E-97 | 11 Aug |
+| E-99 | **The same software on a different vehicle loses its only certified context** | Weak brakes (8.0 → 3.0 m/s²) and worn tyres (B 140 → 112), nothing else changed, same seed: **zero CERTIFIED, five BOUNDED.** `urban_clear` still matches on some ticks but holds for only **40 of 400** — the rest is exploration — and peak settled deviation roughly doubles, **0.255 → 0.565 m**. Neither platform is UNFIT; the certificate distinguishes them anyway, which a pass/fail answer could not | `uv run python -m benchmarks.commissioning --braking-authority 3.0 --steer-effectiveness 112.0` | 11 Aug |
+| E-100 | The verdict rule was too lenient on its first run, and the second platform found it | The first version asked only whether a profile had **ever** matched, and reported the weak-braking platform's `urban_clear` as CERTIFIED while it spent **360 of 400 ticks in exploration**. Corrected to require a **majority** — the weakest defensible bar, and deliberately not tuned finer, because a threshold chosen to make a particular platform pass would be fitted to that platform. Pinned by `test_a_profile_that_matched_but_barely_held_is_bounded` | `pytest tests/unit/test_commissioning.py` (13 tests) | 11 Aug |
 
 † **Historical, not reproducible from the current tree.** These three measured the
 elastic-weight-consolidation penalty, which [ADR-0019](adr/0019-one-twin-head-per-context.md)

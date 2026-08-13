@@ -173,6 +173,17 @@ refutation is worth more than the attempt would have been.**
 | **Gave up** | Nothing shipped, so nothing was given up but the time. The cost of *not* shadowing it would have been a monitor whose false-alarm rate exceeded its detection rate, wired into a fail-safe machine |
 | **What it bought** | A quantitative bound rather than an intuition — 0.022–0.040 m of residual per tick of window against a 0.010 m/tick fault — and it identified the surviving candidate: a **cross-channel** check that does not integrate and does not pass through FB1 |
 
+### D-12c · A commissioning certificate reports three verdicts, not two
+
+| | |
+|---|---|
+| **Forced by** | OD-11. NFR5 claims a second platform costs only an adapter, and measured against a warehouse AGV that is **partly false**. "Which contexts does this platform actually work in" is the question that finding leaves open, and nothing answered it — the four seeded profiles were an assumption nobody had checked a vehicle against |
+| **Alternatives** | (a) **Binary certified / not certified** — rejected, and this is the whole design decision: it reports `BOUNDED` as a *failure*, when bounded safe exploration is the behaviour the architecture exists to have. A vehicle that drives safely inside a narrowed envelope in an uncalibrated context has not failed; it has a weaker certificate. (b) A continuous fitness score — rejected: an integrator needs a decision, and a score defers it back to them. (c) Add a fourth `MARGINAL` verdict — rejected on the second platform's evidence; a majority-hold rule inside `BOUNDED` carries the same information without diluting a three-way answer. (d) **CERTIFIED / BOUNDED / UNFIT**, with the reason phrase on every row including the passes |
+| **Why this one** | It mirrors what the architecture actually does. A certificate that could not express *"safe here, not calibrated here"* would be describing a different system |
+| **Gave up** | Three verdicts need a hold threshold, and any threshold is arguable. It is set at a bare majority and deliberately not tuned finer — a value chosen to make a particular platform pass would be fitted to that platform |
+| **What it found immediately** | On the calibrated platform, **three of the four seeded profiles are unreachable** — not because the road conditions differ but because `ego_speed` is *measured*, and this policy realises 0.28 against `HIGHWAY_CLEAR`'s centroid of 0.80. On a weak-braking platform, **all four**. E-82 had recorded this as a tuning trap; the certificate makes it a reported column |
+| **What it got wrong first** | The verdict asked only whether a profile had *ever* matched, and reported a platform that spent **360 of 400 ticks in exploration** as CERTIFIED. Found by running a second platform rather than by review — the same instrument that found OD-12 and OD-13 |
+
 ---
 
 ## Part 3 · Decisions about how the project works

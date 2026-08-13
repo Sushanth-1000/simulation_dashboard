@@ -126,7 +126,7 @@ The strongest column. These hold regardless of plant, dataset, or policy.
 | A-4 | Only L9 may construct an `IssuedCommand` (SI-7) | **[M-code]** | Runtime enforcement + import contract | Actuator-level authority; this is a software boundary |
 | A-5 | Architecture contracts hold | **[M-code]** | `lint-imports` — 12 contracts kept, 0 broken | — |
 | A-6 | Full static typing | **[M-code]** | `mypy --strict` clean over **156** source files — E-1 | Runtime correctness |
-| A-7 | Test suite and coverage | **[M-code]** | **2,881** tests + 5 strict xfail against a 95% gate — E-1 | **Correctness.** See D-0 — a fail-safe that did not fail safe survived all of this for the project's whole life |
+| A-7 | Test suite and coverage | **[M-code]** | **2,894** tests + 5 strict xfail against a 95% gate — E-1 | **Correctness.** See D-0 — a fail-safe that did not fail safe survived all of this for the project's whole life |
 
 > **Reproduce:** `make check` on a Linux/WSL2 host. The gate does not run on Windows —
 > Smart App Control blocks the unsigned native extensions in `torch`, `mypy` and `grimp`.
