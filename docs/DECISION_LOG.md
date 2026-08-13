@@ -159,6 +159,20 @@ transfers furthest.**
 | **Why this one** | One sentence decides it: **you cannot veto your way out of a lying sensor.** Everything downstream of L2 is compromised together, so a remedy has to read something that is not — and `StreamHealth` is computed at the sensor boundary before the filter touches anything. What the vehicle needs is not a refusal but a change of *posture*, and L8 already owns converting sustained evidence into a graduated one. **It also shrinks D-11's accepted risk**, because the integrity counter deliberately does *not* freeze during exploration: a narrowed envelope is a response to the world being unfamiliar and says nothing about whether the sensors are honest |
 | **Gave up** | **Two thirds of OD-9, and the row stays open.** `StreamHealth` is computed from staleness, so `BIAS`, `DRIFT` and `STUCK_AT` — which keep the stream perfectly fresh — are invisible; the slow drift still ends 2.025 m out with the counter at 0. **No gate sees the fault even now**, so D-3's independence claim is no less contradicted. One unhealthy channel escalates, which over-fires on a platform with a different sensor set. And it creates a denial-of-service surface: an adversary who can silence one channel can stop the vehicle in two seconds — the right trade against a loss-of-lane-position hazard, but a trade |
 
+### D-12b · Analytical redundancy, tried and refuted
+
+**Kept because a log of only successful decisions is a brochure, and because the
+refutation is worth more than the attempt would have been.**
+
+| | |
+|---|---|
+| **Forced by** | OD-9's remaining two thirds. A self-consistent lie is invisible to every mechanism in the system; the general answer is a second sensor, and the reference plant cannot express one |
+| **Alternatives** | (a) Wait for Phase 7 and real redundancy — still the fallback. (b) **Build a second estimate from the issued commands**, propagated through the process model: commands are not measurements, so the two should share no channel |
+| **Why it was tried** | It costs microseconds, needs no hardware, and the failure mode is checkable in advance — which is exactly the profile the shadow convention exists to exploit |
+| **Why it failed** | **FB1 feeds the issued command into the filter's prediction step**, so the two estimates share the process model *and* the command input and differ only by the measurement correction. The residual measures "how far the measurement pulled the filter", which under a slow drift is exactly the drift rate — and the propagation's own uncorrected error accumulates 2.2x to 4.0x faster than that. **Refuted by the feedback loop that exists to mitigate the very defect it was built to attack**, and FB1 is load-bearing and not removable |
+| **Gave up** | Nothing shipped, so nothing was given up but the time. The cost of *not* shadowing it would have been a monitor whose false-alarm rate exceeded its detection rate, wired into a fail-safe machine |
+| **What it bought** | A quantitative bound rather than an intuition — 0.022–0.040 m of residual per tick of window against a 0.010 m/tick fault — and it identified the surviving candidate: a **cross-channel** check that does not integrate and does not pass through FB1 |
+
 ---
 
 ## Part 3 · Decisions about how the project works

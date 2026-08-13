@@ -48,13 +48,23 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from astra.config.loader import load_settings
 from astra.layers.l4_proposer.learned import LearnedPolicy
 from benchmarks.detectors import evaluate
-from training.closed_loop import CHANNEL_SIGMAS, CORPUS, TWIN, TickSample, drive_closed_loop
+from benchmarks.parity import ParityReading, evaluate_parity
+from benchmarks.parity import render as render_parity
+from training.closed_loop import (
+    CHANNEL_SIGMAS,
+    CORPUS,
+    ENVIRONMENT,
+    TWIN,
+    TickSample,
+    drive_closed_loop,
+)
 from training.faults import (
     FaultChannel,
     FaultInjector,
@@ -164,6 +174,7 @@ class Outcome:
     faulted_ticks: int
     peak_injected_error: float | None
     detections: tuple[object, ...] = ()
+    parity: ParityReading | None = None
 
     def to_payload(self) -> dict[str, object]:
         """Return a JSON-serialisable view."""
@@ -181,6 +192,7 @@ class Outcome:
             "ticks": self.ticks,
             "faulted_ticks": self.faulted_ticks,
             "peak_injected_error": self.peak_injected_error,
+            "parity": None if self.parity is None else asdict(self.parity),
             "detections": [
                 {
                     "detector": d.detector,
@@ -201,6 +213,7 @@ def _measure(
     *,
     opened_at: int,
     faulted: bool,
+    parity_inputs: tuple[tuple[float, ...], float, float],
 ) -> Outcome:
     """Reduce one run to the figures the comparison is made on."""
     errors = [
@@ -231,6 +244,15 @@ def _measure(
         fault_active=[s.fault_active for s in samples],
         opened_at=opened_at if faulted else None,
     )
+    effectiveness, period_seconds, yaw_minimum = parity_inputs
+    parity = evaluate_parity(
+        name,
+        [s.record for s in samples],
+        fault_active=[s.fault_active for s in samples],
+        effectiveness=effectiveness,
+        period_seconds=period_seconds,
+        yaw_rate_minimum_speed=yaw_minimum,
+    )
     return Outcome(
         name=name,
         final_deviation_m=result.final_absolute_deviation_m,  # type: ignore[attr-defined]
@@ -246,6 +268,7 @@ def _measure(
         faulted_ticks=result.faulted_ticks,  # type: ignore[attr-defined]
         peak_injected_error=max(peaks) if peaks else None,
         detections=detections,
+        parity=parity,
     )
 
 
@@ -278,6 +301,12 @@ def run(
         The control first, then one outcome per scenario.
     """
     last = ticks - 1 if close_at is None else close_at
+    settings = load_settings(environment=ENVIRONMENT, include_environment_variables=False).settings
+    parity_inputs = (
+        tuple(float(gain) for gain in settings.twin.control_effectiveness),
+        1.0 / float(settings.estimation.fast_rate_hz),
+        float(settings.estimation.yaw_rate_minimum_speed),
+    )
     output.mkdir(parents=True, exist_ok=True)
 
     def drive(name: str, specs: tuple[FaultSpec, ...] | None) -> Outcome:
@@ -290,7 +319,14 @@ def run(
             observer=samples.append,
             fault=injector,
         )
-        return _measure(name, samples, result, opened_at=open_at, faulted=specs is not None)
+        return _measure(
+            name,
+            samples,
+            result,
+            opened_at=open_at,
+            faulted=specs is not None,
+            parity_inputs=parity_inputs,
+        )
 
     outcomes = [drive("control", None)]
     for scenario in SCENARIOS:
@@ -335,6 +371,9 @@ def render(outcomes: Sequence[Outcome]) -> list[str]:
             f"{outcome.max_estimator_error_m:>10.3f} m {outcome.vetoed:>7} "
             f"{degraded:>12} {outcome.issued:>6}/{outcome.ticks}"
         )
+    readings = [o.parity for o in outcomes if o.parity is not None]
+    if readings:
+        lines.extend(render_parity(readings))
     lines.append("")
     lines.append("  Fail-safe escalation, ticks after the fault opened (ADR-0024):")
     lines.append("")

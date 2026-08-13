@@ -1043,6 +1043,35 @@ graduated one.
 | control false alarms | — | **0**, integrity counter 0 across 400 ticks |
 | the other five faults | — | **unchanged to three decimals**, integrity counter 0 |
 
+### Option E, tried and refuted — analytical redundancy, 11 Aug 2026
+
+Since the plant cannot express sensor redundancy, the obvious substitute is a
+second estimate the system can build **without any sensor at all**: propagate the
+issued commands through the process model. Commands are not measurements — the
+system knows what it sent — so the two estimates should share no channel.
+
+**Refuted by measurement** (E-94 – E-96), and the reason is worth more than the
+attempt. On a healthy cruising vehicle the parity residual accumulates at
+**0.022–0.040 m per tick of window**; the slow drift injects **0.010 m per tick**.
+Both scale linearly with the window, so the ratio is constant and **no window
+separates them**.
+
+**The two estimates were never independent.** FB1 feeds the issued command into
+the filter's *prediction* step, so the filtered estimate and the propagation
+share the process model *and* the command input, differing only by the
+measurement correction. The residual is not "commands versus sensors" — it is
+"how far the measurement pulled the filter", which under a slow drift is exactly
+the drift rate.
+
+**Refuted by the feedback loop that exists to fix the very defect it attacked**,
+and FB1 is not removable.
+
+**What it points at, unmeasured:** integration is what kills it, so a check that
+does *not* integrate survives — compare the **position channel against the
+acceleration channel** directly. Under a position drift the IMU honestly reports
+a turning vehicle while the position reading says nothing moved. Cross-channel,
+no propagation, does not pass through FB1. Not built, not measured.
+
 **Two thirds of OD-9 remain open and the register says so.** `StreamHealth` is
 computed from staleness, so `BIAS`, `DRIFT` and `STUCK_AT` — which keep the
 stream perfectly fresh — are invisible to it, and **no gate sees the fault even
