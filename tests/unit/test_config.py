@@ -62,6 +62,9 @@ CERTIFICATION_MISSING_FIELDS = frozenset(
         "failsafe.ood_threshold_halt",
         "failsafe.degraded_speed_cap_kmh",
         "failsafe.limp_speed_cap_kmh",
+        "failsafe.integrity_threshold_degraded",
+        "failsafe.integrity_threshold_limp",
+        "failsafe.integrity_threshold_halt",
         "arbitration.trust_threshold_tau",
         "arbitration.divergence_limit_delta",
     }
@@ -133,6 +136,9 @@ ood_threshold_limp = 6
 ood_threshold_halt = 10
 degraded_speed_cap_kmh = 40.0
 limp_speed_cap_kmh = 20.0
+integrity_threshold_degraded = 2
+integrity_threshold_limp = 4
+integrity_threshold_halt = 8
 
 [arbitration]
 trust_threshold_tau = 0.60
@@ -253,6 +259,9 @@ def test_constructing_astra_settings_without_the_gate_section_fails() -> None:
                     "ood_threshold_halt": 10,
                     "degraded_speed_cap_kmh": 40.0,
                     "limp_speed_cap_kmh": 20.0,
+                    "integrity_threshold_degraded": 2,
+                    "integrity_threshold_limp": 4,
+                    "integrity_threshold_halt": 8,
                 },
                 "arbitration": {"trust_threshold_tau": 0.6, "divergence_limit_delta": 0.25},
             }
@@ -601,6 +610,9 @@ def test_strictly_increasing_fail_safe_thresholds_are_accepted() -> None:
         ood_threshold_halt=10,
         degraded_speed_cap_kmh=40.0,
         limp_speed_cap_kmh=20.0,
+        integrity_threshold_degraded=2,
+        integrity_threshold_limp=4,
+        integrity_threshold_halt=8,
     )
 
     assert failsafe.ood_threshold_degraded < failsafe.ood_threshold_limp
@@ -625,6 +637,9 @@ def test_out_of_order_fail_safe_thresholds_are_refused(degraded: int, limp: int,
             ood_threshold_halt=halt,
             degraded_speed_cap_kmh=40.0,
             limp_speed_cap_kmh=20.0,
+            integrity_threshold_degraded=2,
+            integrity_threshold_limp=4,
+            integrity_threshold_halt=8,
         )
 
 

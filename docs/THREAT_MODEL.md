@@ -57,7 +57,7 @@ enumeration of what that presumption is worth.
 | # | Asset | Why it is worth attacking | What protects it today |
 |:--:|---|---|---|
 | **A-1** | **The actuation path** — what the vehicle is commanded to do | Direct physical consequence. The only asset whose compromise hurts someone | L9 sole authority (SI-7), three gates, the fail-safe machine |
-| **A-2** | **The state estimate** | Every gate and the proposer read it. Corrupting it defeats all of them at once | Nothing. See §5.1 — this is the finding |
+| **A-2** | **The state estimate** | Every gate and the proposer read it. Corrupting it defeats all of them at once | **Partial, since 11 Aug.** A channel that goes *quiet* is caught at the sensor boundary and stops the vehicle before the hazard (ADR-0024). A channel that *lies fluently* still defeats everything. See §5.1 |
 | **A-3** | **The evidence log** | It is the certification argument. Forging it forges the safety case | Append-only by convention; integrity-checked; **not tamper-evident** |
 | **A-4** | **The calibration corpus** | Sets the conformal quantile. Widen it and the statistical gate stops firing | SHA-256 digest recorded per run; the digest is not *verified* against anything at load |
 | **A-5** | **The twin weights** | The reference two gates score against | Digest recorded per run, same limitation as A-4 |
@@ -132,18 +132,38 @@ an attack primitive**: an adversary who can influence one sensor channel has a
 measured path to loss of lane position that produces *clean evidence* the whole
 way. Nothing raises, nothing degrades, and the audit log records a nominal run.
 
-**What exists:** L1 correctly detects the dropout case — IMU `DEGRADED` from the
-second tick. **No gate reads it.** Only L9's context signature weights it.
+**What exists, since 11 August 2026:** L8 carries a **second counter** driven by
+`StreamHealth`, which L1 computes at the sensor boundary before the filter
+touches anything — the one input to the fail-safe machine upstream of the common
+cause (ADR-0024). The dropout arm is closed by measurement: final deviation
+**4.199 m → 0.167 m** over 400 ticks and **35.705 m → 0.170 m** over 800, with
+DEGRADED at **+5 ticks**, LIMP at +15 and a commanded stop at **+40** against a
+departure that begins at +73 (E-87, E-88, E-92). Zero false alarms on the
+control.
 
-**What would close it:** P2.7 measured three candidate detectors in shadow. A
-stream-health gate fires at **+5 ticks against a departure at +73** — 3.4 s of
-margin (E-52). The innovation sequence is **refuted**: a drift slower than the
-measurement sigma never leaves the filter's expected band (E-53). For the drift
-case the only remaining candidate is **sensor redundancy with a cross-check**,
-which the reference plant cannot express because it publishes one ground truth
-to all five modalities.
+**No gate reads it, and that is deliberate.** A veto would not have helped: L9's
+fallback controller reads the same corrupted estimate, so refusing the proposal
+exchanges one command computed from a lie for another. **You cannot veto your
+way out of a lying sensor** — the remedy had to be a change of posture driven by
+a signal that is not downstream of L2.
 
-**Residual after the health gate is wired: the slow drift is still undetected.**
+**Residual, and it is most of the primitive.** `StreamHealth` is computed from
+*staleness*, so the mitigation covers only an adversary who makes a channel go
+**quiet**. An adversary who makes a channel **lie fluently** — a constant
+offset, a slow ramp, a value frozen at its last good reading — leaves the stream
+perfectly fresh and the integrity counter at **zero**. The slow drift still ends
+**2.025 m** out (E-90). The only remaining candidate is **sensor redundancy with
+a cross-check**, which the reference plant cannot express because it publishes
+one ground truth to all five modalities.
+
+**And the mitigation adds a surface of its own.** An adversary who can silence
+one channel can now drive the vehicle to a controlled halt in **two seconds**.
+That is a denial-of-service trade taken deliberately against a loss-of-lane-
+position hazard, and it is the right trade — a stopped vehicle in a known state
+beats a moving one twenty lane-widths out — but it is a trade and it belongs in
+this document rather than in a footnote. It also means the integrity thresholds
+are an availability/safety operating point, which is part of why they carry no
+default (A-4).
 
 ### 5.2 · T1-B — Neutralise one gate and almost all veto authority goes with it
 

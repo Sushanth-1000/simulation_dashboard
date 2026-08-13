@@ -468,6 +468,24 @@ class FailSafeSettings(_Section):
             and, today, enforced on no actuator -- see
             :class:`~astra.kernel.enums.FailSafeState`.
         limp_speed_cap_kmh: Speed cap imposed in LIMP. The same caveat applies.
+        integrity_threshold_degraded: ``phi-1``. **Sensor-integrity** counter
+            above this enters DEGRADED. **No default** (A-4).
+        integrity_threshold_limp: ``phi-2``. Enters LIMP. **No default** (A-4).
+        integrity_threshold_halt: ``phi-3``. Enters HALT. **No default** (A-4).
+
+    **Why there are two sets of thresholds, and why the second set is tighter.**
+    The ``ood_*`` thresholds answer *"how long should sustained refusal be
+    tolerated?"*, and their floor is set by a legitimate recovery: a vehicle 1 m
+    off the lane centre needs ~21 vetoed ticks to correct, so a threshold below
+    that turns a correction into a pull-over. The ``integrity_*`` thresholds
+    answer a different question -- *"how long should a sensor channel be allowed
+    to say nothing?"* -- and it has no legitimate answer above a fraction of a
+    second. There is no benign reason for a modality to stop publishing.
+
+    Sharing one set would have forced the tighter question to accept the looser
+    answer, and measured (E-46) the loose answer is too slow: the vehicle leaves
+    its corridor 73 ticks after an IMU dropout opens, and ``ood_threshold_halt``
+    is 100. See ADR-0024.
     """
 
     ood_threshold_degraded: PositiveInt
@@ -475,6 +493,42 @@ class FailSafeSettings(_Section):
     ood_threshold_halt: PositiveInt
     degraded_speed_cap_kmh: PositiveFloat
     limp_speed_cap_kmh: PositiveFloat
+    integrity_threshold_degraded: PositiveInt
+    integrity_threshold_limp: PositiveInt
+    integrity_threshold_halt: PositiveInt
+
+    @field_validator("integrity_threshold_halt")
+    @classmethod
+    def _integrity_thresholds_must_be_ordered(cls, value: int, info: object) -> int:
+        """Validate that the three integrity thresholds increase with severity.
+
+        Same reasoning as :meth:`_thresholds_must_be_ordered`, and it is a
+        separate validator rather than a shared one because the two triples are
+        independent operating points: nothing requires them to relate, and a
+        validator that compared them would invent a constraint the architecture
+        does not have.
+
+        Args:
+            value: The HALT threshold under validation.
+            info: Pydantic's validation context, carrying the already-validated
+                fields.
+
+        Returns:
+            The value, unchanged.
+
+        Raises:
+            ValueError: If the thresholds are not strictly increasing.
+        """
+        data = getattr(info, "data", {})
+        degraded = data.get("integrity_threshold_degraded")
+        limp = data.get("integrity_threshold_limp")
+        if degraded is not None and limp is not None and not degraded < limp < value:
+            message = (
+                f"sensor-integrity thresholds must strictly increase with severity: "
+                f"phi1={degraded} < phi2={limp} < phi3={value}"
+            )
+            raise ValueError(message)
+        return value
 
     @field_validator("ood_threshold_halt")
     @classmethod

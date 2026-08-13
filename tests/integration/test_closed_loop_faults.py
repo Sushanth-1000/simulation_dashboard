@@ -248,46 +248,86 @@ def test_a_dropout_degrades_the_stream_rather_than_emptying_the_frame(
     assert all(s.record.fast_state is not None for s in settled)
 
 
-def test_a_frozen_imu_walks_the_vehicle_out_of_the_corridor(
+def test_a_frozen_imu_no_longer_walks_the_vehicle_out_of_the_corridor(
     clean: tuple[list[TickSample], ClosedLoopResult],
     dropped: tuple[list[TickSample], ClosedLoopResult],
 ) -> None:
-    # Ten seconds of frozen IMU against the same seed, same policy, same plant.
-    # The estimate stays near the lane centre because that is what the last
-    # healthy reading said, so the UKF corrects towards a position the vehicle
-    # left seconds ago.
+    """The defect, and the date it stopped being true.
+
+    **This test asserted the opposite until 11 August 2026**, and its own
+    comment said why: *"pinned so that a future change which fixes it fails here
+    and has to say so."* It fired. This is the saying-so.
+
+    Ten seconds of frozen IMU, same seed, same policy, same plant. The estimate
+    stays near the lane centre because that is what the last healthy reading
+    said, so the UKF corrects towards a position the vehicle left seconds ago,
+    and the vehicle went **4.199 m off a 1.75 m lane** -- 73 ticks outside the
+    corridor with the corridor bound reading 0.023 m (E-46, E-48).
+
+    ADR-0024 gave L8 a second counter, driven by ``StreamHealth`` rather than by
+    verdicts, so the posture escalates on a dark channel with no veto anywhere.
+    Measured after: **0.167 m**, and the vehicle is stopping by tick +40 against
+    a departure that began at +73.
+    """
     clean_deviation = clean[1].final_absolute_deviation_m
     faulted_deviation = dropped[1].final_absolute_deviation_m
+    corridor_half_width = 1.75
 
     assert clean_deviation < 0.1
-    assert faulted_deviation > 2.0  # measured at 4.199 m -- E-44
+    # Was `> 2.0`, measured at 4.199 m. Now inside the lane it used to leave.
+    assert faulted_deviation < corridor_half_width
+    # And still worse than the clean run: the fault is arrested, not absent.
+    assert faulted_deviation > clean_deviation
 
 
 def test_not_one_gate_fires_while_it_happens(
     clean: tuple[list[TickSample], ClosedLoopResult],
     dropped: tuple[list[TickSample], ClosedLoopResult],
 ) -> None:
-    # The finding, pinned so that a future change which fixes it fails here and
-    # has to say so. The verdict trace under a fault that puts the vehicle two
-    # and a half lane widths off is **identical** to the clean run's: the same
-    # three jerk vetoes from the startup transient, and nothing else.
+    # **Still true, and this half of OD-9 is not fixed.** The verdict trace under
+    # the fault is *identical* to the clean run's: the same three jerk vetoes
+    # from the startup transient, and nothing else. Not one of the three gates
+    # notices, because all three read the same corrupted estimate the proposer
+    # reads -- a common-cause failure between the monitor and the monitored,
+    # bearing directly on D-3.
     #
-    # The cause is not that Core-B lacks a bound on where the vehicle is -- P2.1a
-    # added one, and `shield.py` bounds `|position_y|` against the corridor
-    # half-width. The cause is that the bound reads `state.position_y`, which is
-    # the same corrupted estimate the proposer reads. A sensor fault blinds the
-    # monitor and the monitored at once, which is a common-cause failure between
-    # them and bears directly on D-3, the claim that the gates fail for
-    # structurally unrelated reasons.
-    #
-    # `shield.py` says this in as many words: "This bound is only as good as the
+    # `shield.py` says it in as many words: "This bound is only as good as the
     # position estimate, and that is not a quibble." It was written as a caveat.
-    # This is the measurement of it.
+    # This is still the measurement of it.
+    #
+    # What ADR-0024 changed is *not* this. It did not make a gate see the fault;
+    # it gave the fail-safe machine a second input that does not pass through
+    # L2 at all. The distinction matters for the safety case: Core-B remains
+    # blind to a fault the estimator absorbs, and the response comes from
+    # elsewhere.
     assert dropped[1].vetoed == clean[1].vetoed
     assert dropped[1].reasons == clean[1].reasons
-    assert {s.record.failsafe.state.value for s in dropped[0] if s.record.failsafe is not None} == {
-        "NOMINAL"
-    }
+
+
+def test_the_posture_escalates_on_sensor_health_rather_than_on_a_verdict(
+    clean: tuple[list[TickSample], ClosedLoopResult],
+    dropped: tuple[list[TickSample], ClosedLoopResult],
+) -> None:
+    """The new half: something reacted, and it was not a gate.
+
+    The two counters are reported separately for exactly this reason -- so a
+    reader can tell "the gates refused" from "a sensor went dark". Under this
+    fault the OOD counter never moves and the integrity counter runs to its
+    ceiling.
+    """
+    faulted = [s.record.failsafe for s in dropped[0] if s.record.failsafe is not None]
+    control = [s.record.failsafe for s in clean[0] if s.record.failsafe is not None]
+
+    # The control is untouched: zero false alarms over the whole run.
+    assert {snapshot.state.value for snapshot in control} == {"NOMINAL"}
+    assert max(snapshot.integrity_counter for snapshot in control) == 0
+
+    # The faulted arm escalates, and the integrity counter is what did it.
+    assert {snapshot.state.value for snapshot in faulted} != {"NOMINAL"}
+    assert max(snapshot.integrity_counter for snapshot in faulted) > 0
+    assert max(snapshot.ood_counter for snapshot in faulted) == max(
+        snapshot.ood_counter for snapshot in control
+    )
 
 
 def test_the_vehicle_still_receives_a_command_with_the_imu_frozen(

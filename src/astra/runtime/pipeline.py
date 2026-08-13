@@ -465,7 +465,12 @@ class GovernancePipeline[PayloadT]:
             )
 
         verdict = self._adjudicate(tick=tick, proposal=proposal, prediction=prediction, state=state)
-        failsafe = self._failsafe.observe(tick=tick, verdict=verdict, exploring=self._is_exploring)
+        failsafe = self._failsafe.observe(
+            tick=tick,
+            verdict=verdict,
+            frame_health=frame_health,
+            exploring=self._is_exploring,
+        )
         issued = self._issue(
             tick=tick,
             proposal=proposal,

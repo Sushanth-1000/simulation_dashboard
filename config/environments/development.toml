@@ -100,6 +100,13 @@ ood_threshold_halt = 10
 degraded_speed_cap_kmh = 40.0
 limp_speed_cap_kmh = 20.0
 
+# The sensor-integrity counter (ADR-0024), deliberately small for the same
+# reason as the triple above: a developer must be able to reach every state by
+# hand in a short run.
+integrity_threshold_degraded = 2
+integrity_threshold_limp = 4
+integrity_threshold_halt = 8
+
 [arbitration]
 trust_threshold_tau = 0.60
 divergence_limit_delta = 0.25

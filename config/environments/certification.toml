@@ -115,6 +115,17 @@ environment = "certification"
 # ood_threshold_halt =
 # degraded_speed_cap_kmh =
 # limp_speed_cap_kmh =
+#
+# The sensor-integrity thresholds (ADR-0024) are safety thresholds by the same
+# argument and are equally absent. phi1 < phi2 < phi3, and the deployment must
+# choose them against its own hazard: the question is how long a modality may
+# say nothing before the vehicle stops, and the answer depends on how fast the
+# vehicle departs when it does. The prototype's simulation profile derives them
+# from a measured 73-tick departure; a real vehicle has a different number and
+# it is the integrator's to measure, not this repository's to assume.
+# integrity_threshold_degraded =
+# integrity_threshold_limp =
+# integrity_threshold_halt =
 
 [arbitration]
 # τ, the calibration admissibility threshold, and δ_CDI, the divergence limit

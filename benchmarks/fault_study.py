@@ -157,6 +157,8 @@ class Outcome:
     vetoed: int
     reasons: dict[str, int]
     failsafe_states: dict[str, int]
+    escalation: dict[str, int]
+    peak_integrity_counter: int
     issued: int
     ticks: int
     faulted_ticks: int
@@ -173,6 +175,8 @@ class Outcome:
             "vetoed": self.vetoed,
             "reasons": self.reasons,
             "failsafe_states": self.failsafe_states,
+            "escalation": self.escalation,
+            "peak_integrity_counter": self.peak_integrity_counter,
             "issued": self.issued,
             "ticks": self.ticks,
             "faulted_ticks": self.faulted_ticks,
@@ -205,10 +209,18 @@ def _measure(
         if s.record.fast_state is not None
     ]
     states: dict[str, int] = {}
+    escalation: dict[str, int] = {}
+    peak_integrity = 0
     for sample in samples:
         if sample.record.failsafe is not None:
             key = sample.record.failsafe.state.value
             states[key] = states.get(key, 0) + 1
+            # First tick at each posture, relative to the fault opening. This is
+            # the number that says whether a response arrived in time, and the
+            # histogram above cannot answer it.
+            if key != "NOMINAL" and key not in escalation:
+                escalation[key] = sample.tick - opened_at
+            peak_integrity = max(peak_integrity, sample.record.failsafe.integrity_counter)
     peaks = [
         episode.peak_absolute_error
         for episode in result.fault_episodes  # type: ignore[attr-defined]
@@ -227,6 +239,8 @@ def _measure(
         vetoed=result.vetoed,  # type: ignore[attr-defined]
         reasons=dict(result.reasons),  # type: ignore[attr-defined]
         failsafe_states=states,
+        escalation=escalation,
+        peak_integrity_counter=peak_integrity,
         issued=result.issued,  # type: ignore[attr-defined]
         ticks=result.ticks,  # type: ignore[attr-defined]
         faulted_ticks=result.faulted_ticks,  # type: ignore[attr-defined]
@@ -235,12 +249,27 @@ def _measure(
     )
 
 
-def run(*, ticks: int, open_at: int, seed: int, policy_path: Path, output: Path) -> list[Outcome]:
+def run(
+    *,
+    ticks: int,
+    open_at: int,
+    seed: int,
+    policy_path: Path,
+    output: Path,
+    close_at: int | None = None,
+) -> list[Outcome]:
     """Run the control and every scenario, and return their outcomes.
 
     Args:
         ticks: How many control ticks per run.
-        open_at: The tick each fault opens on. It closes at the last tick.
+        open_at: The tick each fault opens on.
+        close_at: The tick each fault closes on, or ``None`` to run to the
+            end. **The distinction is a finding, not a parameter**: a fault
+            that persists produces no attributable veto at all, and the same
+            fault closing mid-run is caught on the exact tick the sensor
+            recovers (E-76). Since ADR-0024 the closing arm also shows that
+            those vetoes now arrive at a vehicle the integrity counter
+            stopped four hundred ticks earlier.
         seed: The run seed, shared by every arm so they differ by the fault.
         policy_path: The trained proposer.
         output: Where to write the summary.
@@ -248,6 +277,7 @@ def run(*, ticks: int, open_at: int, seed: int, policy_path: Path, output: Path)
     Returns:
         The control first, then one outcome per scenario.
     """
+    last = ticks - 1 if close_at is None else close_at
     output.mkdir(parents=True, exist_ok=True)
 
     def drive(name: str, specs: tuple[FaultSpec, ...] | None) -> Outcome:
@@ -265,13 +295,14 @@ def run(*, ticks: int, open_at: int, seed: int, policy_path: Path, output: Path)
     outcomes = [drive("control", None)]
     for scenario in SCENARIOS:
         print(f"  running {scenario.name} ...")
-        outcomes.append(drive(scenario.name, scenario.build(open_at, ticks - 1)))
+        outcomes.append(drive(scenario.name, scenario.build(open_at, last)))
 
     (output / "summary.json").write_text(
         json.dumps(
             {
                 "ticks": ticks,
                 "open_at": open_at,
+                "close_at": close_at,
                 "seed": seed,
                 "scenarios": {s.name: s.defence for s in SCENARIOS},
                 "outcomes": [outcome.to_payload() for outcome in outcomes],
@@ -304,6 +335,20 @@ def render(outcomes: Sequence[Outcome]) -> list[str]:
             f"{outcome.max_estimator_error_m:>10.3f} m {outcome.vetoed:>7} "
             f"{degraded:>12} {outcome.issued:>6}/{outcome.ticks}"
         )
+    lines.append("")
+    lines.append("  Fail-safe escalation, ticks after the fault opened (ADR-0024):")
+    lines.append("")
+    lines.append(f"  {'scenario':<16}{'DEGRADED':>12}{'LIMP':>12}{'HALT':>12}{'peak phi':>12}")
+    lines.append(f"  {'-' * 16}{'-' * 11:>12}{'-' * 11:>12}{'-' * 11:>12}{'-' * 11:>12}")
+    for outcome in outcomes:
+        cells = "".join(
+            f"{('-' if state not in outcome.escalation else f'+{outcome.escalation[state]}'):>12}"
+            for state in ("DEGRADED", "LIMP", "HALT")
+        )
+        lines.append(f"  {outcome.name:<16}{cells}{outcome.peak_integrity_counter:>12}")
+    lines.append("")
+    lines.append("  'peak phi' is the largest sensor-integrity counter reached. A row")
+    lines.append("  with a dash everywhere and phi 0 is a fault this machine cannot see.")
     lines.append("")
     lines.append(f"  control vetoes: {control.vetoed} {control.reasons}")
     lines.append("")
@@ -346,6 +391,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--ticks", "-n", type=int, default=_DEFAULT_TICKS)
     parser.add_argument("--open-at", type=int, default=_DEFAULT_OPEN_AT)
+    parser.add_argument("--close-at", type=int, default=None)
     parser.add_argument("--seed", type=int, default=_DEFAULT_SEED)
     parser.add_argument("--policy", type=Path, default=_DEFAULT_POLICY)
     parser.add_argument("--output", "-o", type=Path, default=_DEFAULT_OUTPUT)
@@ -359,6 +405,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     outcomes = run(
         ticks=arguments.ticks,
         open_at=arguments.open_at,
+        close_at=arguments.close_at,
         seed=arguments.seed,
         policy_path=arguments.policy,
         output=arguments.output,

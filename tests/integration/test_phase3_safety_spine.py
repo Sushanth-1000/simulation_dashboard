@@ -72,6 +72,9 @@ def _failsafe_settings() -> FailSafeSettings:
         ood_threshold_halt=THETA_HALT,
         degraded_speed_cap_kmh=60.0,
         limp_speed_cap_kmh=20.0,
+        integrity_threshold_degraded=5,
+        integrity_threshold_limp=15,
+        integrity_threshold_halt=40,
     )
 
 

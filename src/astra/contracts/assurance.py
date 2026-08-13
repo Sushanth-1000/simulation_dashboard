@@ -256,6 +256,16 @@ class FailSafeSnapshot:
             that binds; see :class:`~astra.kernel.enums.FailSafeState`.
         lane_change_permitted: Whether lane changes are allowed in this state.
         human_intervention_requested: Whether the FSM has asked for a handover.
+        integrity_counter: The sensor-integrity counter, which rises on any
+            modality worse than ``HEALTHY`` and falls on a clean frame. **A
+            separate integer from ``ood_counter`` deliberately**: the two answer
+            different questions -- "is the command being refused?" and "can I
+            still believe what I am being told?" -- and a reader of this record
+            needs to know which one escalated the posture, because the remedies
+            differ. See ADR-0024 and OD-9.
+
+            It defaults to zero so that a snapshot constructed by a caller with
+            no sensor bus is not asserting a fault it never looked for.
     """
 
     tick: TickId
@@ -264,17 +274,23 @@ class FailSafeSnapshot:
     speed_cap: MetresPerSecond | None = None
     lane_change_permitted: bool = True
     human_intervention_requested: bool = False
+    integrity_counter: int = 0
 
     def __post_init__(self) -> None:
         """Validate the counter and the speed cap.
 
         Raises:
-            ContractViolationError: If the OOD counter is negative.
+            ContractViolationError: If either counter is negative.
             RangeViolationError: If a speed cap is present and negative.
             NonFiniteValueError: If a present speed cap is not finite.
         """
         if self.ood_counter < 0:
             message = f"OOD counter must be non-negative, got {self.ood_counter}"
             raise ContractViolationError(message, context={"ood_counter": self.ood_counter})
+        if self.integrity_counter < 0:
+            message = f"integrity counter must be non-negative, got {self.integrity_counter}"
+            raise ContractViolationError(
+                message, context={"integrity_counter": self.integrity_counter}
+            )
         if self.speed_cap is not None:
             require_non_negative(self.speed_cap, name="speed_cap")

@@ -921,7 +921,7 @@ before FB3 wires online requantilisation into it.
 
 </details>
 
-## P2.7 — Close OD-9: no Core-B gate can see a fault the estimator absorbs — NEW, 9 Aug 2026
+## ~~P2.7 — Close OD-9~~ — WIRED, 11 Aug 2026. One third of the defect closed
 
 **The highest-value open defect in the project, and the first one produced by a
 fault rather than by a soak or a mechanism review.**
@@ -1022,9 +1022,33 @@ says.
 
 </details>
 
-**Exit — met for the measurement, open for the wiring.** The detection table
-exists (E-51). Wiring A behind the shadow harness is what remains.
-**Estimate:** 1–2 days for the wiring.
+**Exit — met.** The detection table exists (E-51) and **option A is wired**, as
+a second counter in L8 rather than as a gate
+([ADR-0024](adr/0024-sensor-integrity-is-a-second-counter-not-a-fourth-gate.md)).
+
+**The design turned on a sentence the shadow measurement made unavoidable:
+you cannot veto your way out of a lying sensor.** L9's fallback controller reads
+the same corrupted estimate, so a fourth gate would have exchanged one command
+computed from a lie for another. What the fault needs is not a refusal, it is a
+change of *posture* — and L8 already owns converting sustained evidence into a
+graduated one.
+
+**Measured after** (`uv run python -m benchmarks.fault_study`):
+
+| | before | after |
+|---|--:|--:|
+| `imu_dropout` final \|deviation\| | 4.199 m | **0.167 m** |
+| escalation | none, NOMINAL all 400 ticks | **DEGRADED +5, LIMP +15, HALT +40** |
+| departure begins at | +73 | +73 — the response now precedes it by 1.65 s |
+| control false alarms | — | **0**, integrity counter 0 across 400 ticks |
+| the other five faults | — | **unchanged to three decimals**, integrity counter 0 |
+
+**Two thirds of OD-9 remain open and the register says so.** `StreamHealth` is
+computed from staleness, so `BIAS`, `DRIFT` and `STUCK_AT` — which keep the
+stream perfectly fresh — are invisible to it, and **no gate sees the fault even
+now**. Option D, sensor redundancy with a cross-check, is still the only
+candidate for the general case and still cannot be measured on a plant that
+publishes one ground truth to all five modalities. Phase 7.
 
 ---
 

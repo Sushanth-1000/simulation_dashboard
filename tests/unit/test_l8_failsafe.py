@@ -34,6 +34,9 @@ SETTINGS = FailSafeSettings(
     ood_threshold_halt=THETA_HALT,
     degraded_speed_cap_kmh=DEGRADED_CAP_KMH,
     limp_speed_cap_kmh=LIMP_CAP_KMH,
+    integrity_threshold_degraded=5,
+    integrity_threshold_limp=15,
+    integrity_threshold_halt=40,
 )
 
 LONG_CLEAN_RUN = 100

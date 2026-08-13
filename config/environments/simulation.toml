@@ -88,6 +88,29 @@ ood_threshold_halt = 100
 degraded_speed_cap_kmh = 60.0
 limp_speed_cap_kmh = 20.0
 
+# The sensor-integrity counter (ADR-0024) rises on any modality worse than
+# HEALTHY and falls on a clean frame. It answers a different question from the
+# OOD counter and gets its own, much tighter, thresholds: 0.25 s, 0.75 s and
+# 2.0 s at 20 Hz.
+#
+# The looser triple above has a floor set by a *legitimate* recovery -- a
+# vehicle 1 m off centre needs ~21 vetoed ticks to correct. There is no
+# legitimate reason for a modality to stop publishing, so this triple has no
+# such floor and is bounded from the other side instead: by the hazard.
+#
+# Measured (E-46): under a 200-tick IMU dropout, L1 reports the IMU DEGRADED
+# from the second tick and the vehicle first crosses its +/-1.75 m corridor at
+# tick +73. So every threshold here must land inside 73, and phi3 = 40 leaves a
+# 33-tick margin -- 1.65 s at 20 Hz -- between a commanded stop and the hazard.
+#
+# Do not tune these to catch the six faults in benchmarks/fault_study.py. They
+# are six faults chosen by hand to defeat six named defences, not a population;
+# a threshold fitted to them is fitted to its own test set, which is the defect
+# E-41 records for the conformal corpus.
+integrity_threshold_degraded = 5
+integrity_threshold_limp = 15
+integrity_threshold_halt = 40
+
 [arbitration]
 trust_threshold_tau = 0.70
 divergence_limit_delta = 0.20

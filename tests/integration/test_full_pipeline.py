@@ -121,14 +121,21 @@ def _drive(
     ticks: int,
 ) -> Iterator[object]:
     for index in range(ticks):
-        built.sensor_bus.publish(
-            SensorSample(
-                modality=SensorModality.IMU,
-                observed_at=clock.now(),
-                quality=Probability(1.0),
-                payload=feed(index),  # type: ignore[arg-type]
+        # Every modality, every tick, which is what `training/closed_loop.py`
+        # does and what a vehicle does. Until 11 August this rig published the
+        # IMU alone and the other four read ABSENT on every frame -- harmless
+        # while nothing consulted stream health, and a vehicle with four dead
+        # sensors once L8 started to (ADR-0024). Publishing one modality was
+        # modelling a fault the rig did not intend to inject.
+        for modality in SensorModality:
+            built.sensor_bus.publish(
+                SensorSample(
+                    modality=modality,
+                    observed_at=clock.now(),
+                    quality=Probability(1.0),
+                    payload=feed(index),  # type: ignore[arg-type]
+                )
             )
-        )
         outcome = built.pipeline.tick(TickId(index))
         if outcome.record.fast_state is not None:
             built.fallback.observe(outcome.record.fast_state)
@@ -206,6 +213,45 @@ def test_a_nominal_drive_keeps_the_machine_in_nominal(tmp_path: Path) -> None:
 
     for outcome in outcomes:
         assert outcome.record.failsafe.state is FailSafeState.NOMINAL  # type: ignore[attr-defined]
+        assert outcome.record.failsafe.integrity_counter == 0  # type: ignore[attr-defined]
+
+
+def test_a_vehicle_publishing_one_modality_does_not_stay_nominal(tmp_path: Path) -> None:
+    """A frame missing four of five modalities is a fault, and now reads as one.
+
+    This is the assertion the rig above quietly made until 11 August: it
+    published the IMU alone, four modalities read ``ABSENT`` on every frame, and
+    the machine held NOMINAL because nothing in it looked. The behaviour is kept
+    here rather than deleted, because a reader of ADR-0024 will reasonably ask
+    what happens on a platform that simply has fewer sensors -- and the answer,
+    today, is that it degrades.
+
+    **That is a real deployment constraint and it is recorded as one.** A
+    deployment whose modality set differs from :class:`SensorModality` needs a
+    declared *required* set rather than the whole enumeration; the alternative
+    -- escalating only on a modality that has published at least once -- was
+    rejected because it silently tolerates a sensor that is dead at boot, which
+    is the worst failure of the three to tolerate.
+    """
+    built, sink, clock, period = _build(tmp_path)
+
+    failsafe = None
+    for index in range(8):
+        built.sensor_bus.publish(
+            SensorSample(
+                modality=SensorModality.IMU,
+                observed_at=clock.now(),
+                quality=Probability(1.0),
+                payload=_nominal(index),  # type: ignore[arg-type]
+            )
+        )
+        failsafe = built.pipeline.tick(TickId(index)).record.failsafe
+        clock.advance(period)
+    sink.flush()
+
+    assert failsafe is not None
+    assert failsafe.state is not FailSafeState.NOMINAL
+    assert failsafe.integrity_counter > 0
 
 
 # --------------------------------------------------------------------------- #

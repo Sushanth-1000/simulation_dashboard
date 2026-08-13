@@ -4,7 +4,7 @@
 **For** a technical audience at a company: engineers, a safety lead, possibly a
 research manager. Not a sales meeting.
 **Runs on** one laptop, no GPU, no network.
-**Length** 13 minutes of driving, 20–30 with questions.
+**Length** 14 minutes of driving, 25–35 with questions.
 
 ---
 
@@ -44,8 +44,8 @@ Each scene earns the next. Do not reorder.
 | 1 | **The tunnel** | 4 min | An unrecognised context narrows the envelope instead of stopping | *"Most runtime assurance halts here. This keeps moving, inside a bound it can defend."* |
 | 1b | *(within scene 1)* | — | Calibration promotion is staged, not a config reload | *"It found a better profile and is running both in parallel. Nothing switches until the divergence clears."* |
 | 1c | *(within scene 1)* | — | **That claim was false until yesterday, on a different vehicle, and we found it** | *"We changed the car. It halted at tick 404 — having first accelerated to 23.4 metres per second. Both are closed and both are in the register."* |
-| 2 | **The sensor fault** | 3 min | The gates are blind to it, measured, on screen | *"Watch the two lines separate. Now watch the gate panel. That is our worst open defect and we found it."* |
-| 3 | **The recovery** | 2 min | The blindness lasts exactly as long as the lie | *"The instant the sensor tells the truth again, all three gates fire at once."* |
+| 2 | **The sensor fault** | 4 min | The gates are blind to it, measured, on screen — **and something else catches it anyway** | *"Every gate is green and will stay green. And yet the vehicle is slowing down. You cannot veto your way out of a lying sensor."* |
+| 3 | **The recovery** | 2 min | The blindness is still there, and no longer decides the outcome | *"Thirty-five metres became seventeen centimetres, and the out-of-distribution counter is zero in both columns."* |
 | 4 | **The ablation** | 2 min | One gate does almost all the work | *"We measured what each gate is worth. Two of them are worth less than we assumed."* |
 | 5 | The register | 1 min | Thirteen defects, all self-found | *"Every one of these was found by us, and five were found this week by instruments we built for the purpose."* |
 
@@ -210,10 +210,12 @@ by answering a version of it that was actually run.
 > real simulator and a trained policy, and it is Phase 7.
 >
 > And one more thing we would rather say than have you find: freezing that
-> counter means a sensor fault that arises *while* exploring will not escalate
-> the posture either. That is a real cost, it is written into the ADR as an
-> accepted risk, and it interacts with the defect you are about to see in scene
-> 2. Whoever closes that one has to come back to this.
+> counter means a fault the *gates* can see, arising while exploring, will not
+> escalate the posture. That is a real cost and it is written into the ADR as an
+> accepted risk. It used to be a larger one — the record said whoever closes our
+> worst defect has to come back to it, and when we did, three days later, we
+> gave the machine a second counter that does **not** freeze. You will see that
+> one in scene 2.
 
 **Why unprompted matters.** Saying the limit before they ask converts a
 weakness into a demonstration of calibration. Saying it after they ask converts
@@ -229,38 +231,94 @@ them watch.
 **What appears:**
 
 - The blue estimate line stays flat near the centre.
-- The red truth line walks steadily away from it.
-- **The gate panel stays green.** All three. `NOMINAL` on every one.
-- Fail-safe: `NOMINAL`. OOD counter: 0. No speed cap.
-- The truth line crosses the dashed corridor and keeps going.
+- The red truth line begins to separate from it.
+- **The gate panel stays green.** All three. `NOMINAL` on every one. The OOD
+  counter does not move, and it never will.
+- **The fail-safe panel escalates anyway** — DEGRADED, then LIMP, then a
+  commanded stop — driven by a counter that no gate feeds.
 
-**Say, once it is unmistakable:**
+**Say, while the lines are separating and before the posture moves:**
 
-> Every gate is green. The fail-safe machine is nominal. The audit log for these
-> ticks is indistinguishable from the clean run you just watched.
+> Watch the two lines. And watch the gate panel while you do, because it is
+> going to stay green for the whole of this.
 >
-> The vehicle is now outside its lane by more than a lane width, and the
-> corridor bound — the check we added specifically to catch a lane departure —
-> is reading two centimetres.
+> Every gate is green. Every gate will *stay* green. The verdict trace for these
+> ticks is byte-for-byte indistinguishable from the clean run you just watched —
+> same three vetoes, same reason codes, same everything.
+
+**Then, as the posture escalates:**
+
+> And yet the vehicle is slowing down. Nothing refused a command. Something else
+> noticed.
 
 **Then give the mechanism, because the mechanism is the impressive part:**
 
-> This is not a missing check. The bound exists. It reads the position estimate,
-> and the controller closes its loop on the same estimate — so the controller is
-> actively driving the corrupted number to the value the monitor considers safe.
-> A sensor fault blinds the monitor and the thing it monitors at the same time,
-> through the same channel.
+> This is not a missing check. The bound exists — we added it specifically to
+> catch a lane departure. It reads the position estimate, and the controller
+> closes its loop on the same estimate, so the controller is *actively driving
+> the corrupted number to the value the monitor considers safe*. A sensor fault
+> blinds the monitor and the thing it monitors at the same time, through the
+> same channel.
 >
 > We call it OD-9. We found it on the first fault we ever injected, about an hour
-> after the injector worked.
+> after the injector worked. Two days ago that was the end of the story: the
+> vehicle went **4.199 metres off a 1.75 metre lane** while the corridor bound
+> read **two centimetres**, and nothing anywhere reacted.
 
-**Numbers to have ready** (do not recite them all; use one):
+**Then the sentence the fix turned on. Slow down for it — it is the best line in
+the deck, and it is a negative result:**
 
-- 200-tick dropout: **4.199 m** off a 1.75 m lane, corridor bound reading
-  **0.023 m** (E-46, E-48).
-- The error propagates into the *unobserved* state: true heading **0.0686 rad**
-  against an estimate of **0.0017** (E-58).
-- 600-tick dropout: **35.705 m**, still no attributable veto (E-76).
+> The obvious fix is a fourth gate that vetoes on sensor health. It does not
+> work, and finding out why is the useful part.
+>
+> When a gate vetoes, the arbitrator falls back to its own controller. That
+> controller reads **the same corrupted estimate**. So a veto exchanges one
+> command computed from a lie for another command computed from the same lie.
+>
+> **You cannot veto your way out of a lying sensor.**
+>
+> What the vehicle needs is not a refusal. It is a change of *posture* — slow
+> down, then slow down more, then stop and ask for a human — and it needs it
+> driven by something that is not downstream of the filter. There is exactly one
+> such signal on the record: the sensor bus already reports, at the boundary,
+> before the filter touches anything, that a channel has gone quiet. It was
+> being computed every tick and read by nothing.
+>
+> So the fail-safe machine now has two counters. One counts refusals. One counts
+> silence.
+
+**Numbers to have ready** (do not recite them all; use two — one before, one
+after):
+
+| | before | after |
+|---|--:|--:|
+| final \|deviation\| under a 200-tick dropout | **4.199 m** | **0.167 m** |
+| escalation | none, NOMINAL for all 400 ticks | **DEGRADED +5, LIMP +15, HALT +40** |
+| the corridor departure begins at | +73 | +73 — the stop now precedes it by **1.65 s** |
+| false alarms on the clean run | — | **zero**, counter 0 across 400 ticks |
+
+Also worth having: the error propagates into the *unobserved* state — true
+heading **0.0686 rad** against an estimate of **0.0017** (E-58); and a 600-tick
+dropout used to reach **35.705 m** with no attributable veto (E-76).
+
+**Then the limit, unprompted, and this one matters:**
+
+> Two thirds of that defect are still open and I would rather tell you than have
+> you find it.
+>
+> This catches a channel that goes **quiet**. It does not catch a channel that
+> lies *fluently* — a constant offset, a slow drift, a value frozen at its last
+> good reading. Those keep the stream perfectly fresh, which is exactly why we
+> chose them as three of our six faults, and the slow drift still ends two
+> metres out with this counter reading zero. There is a test that fails if
+> anyone ever describes this mechanism as "detects sensor faults".
+>
+> And note what did *not* change: **no gate sees it even now.** The response
+> comes from outside the three-gate argument, not from within it. The general
+> answer is sensor redundancy and a cross-check, and we cannot even measure that
+> here — our reference plant publishes one ground truth to all five modalities,
+> so it is structurally incapable of disagreeing with itself. That is Phase 7,
+> and it is the honest reason Phase 7 exists.
 
 ---
 
@@ -274,23 +332,60 @@ last five.
 - All three gates flip to **VETO** simultaneously —
   `SCORE_EXCEEDS_CONFORMAL_QUANTILE`, `LATERAL_JERK_EXCEEDS_LIMIT`,
   `LATERAL_OFFSET_EXCEEDS_CORRIDOR`.
-- The fail-safe machine escalates **NOMINAL → DEGRADED → LIMP → HALT**.
-- Speed cap drops to 0.0, origin becomes `SPEED_CAPPED`, the vehicle brakes to a
-  stop.
+- The OOD counter — the one that did nothing for the whole fault — finally
+  starts to climb.
+- **And the vehicle is already stopped**, and has been for hundreds of ticks.
 
 **Say:**
 
 > That happened on the tick the sensor started telling the truth again. Not one
-> tick earlier.
+> tick earlier. Two hundred and three vetoes, none of them attributable to the
+> fault while the fault was happening.
 >
-> So the blindness lasts exactly as long as the lie. The graduated response
-> works precisely as designed — three gates, escalating states, a controlled
-> stop. It simply cannot start until the corrupted channel stops being
-> corrupted, and by then the vehicle is twenty lane-widths out.
+> So the blindness lasts exactly as long as the lie, and it is still there —
+> that is unchanged, and it is the half of our worst defect that is still open.
+> What changed is that those vetoes now arrive at a vehicle something else
+> stopped three hundred and sixty ticks ago.
 
-**This is the best thirty seconds of the demonstration.** It shows a working
-safety machine and its exact failure condition in one continuous shot, and
-neither half is oversold.
+**The numbers, and this is the pair to put on a slide** (E-76, E-77, E-92):
+
+| 600-tick dropout, same seed | before ADR-0024 | after |
+|---|--:|--:|
+| final \|deviation\| | **35.705 m** | **0.170 m** |
+| peak \|deviation\| | — | **0.369 m** |
+| fail-safe posture during the fault | NOMINAL throughout | DEGRADED t205, LIMP t215, **HALT t240** |
+| OOD counter during the fault | 0 | **0 — unchanged, no veto contributed** |
+| speed at HALT | 10.9 m/s, still driving | **1.90 m/s**, braking to a stop |
+| first veto attributable to the fault | none | still none |
+
+**Then the line that makes it land:**
+
+> Read the fourth row again. The out-of-distribution counter is zero in both
+> columns. Nothing about the gates improved. We did not make a monitor smarter —
+> we found the one signal in the system that was not downstream of the broken
+> one, and gave the fail-safe machine a second way to be worried.
+
+**If someone asks how you tell the two apart in the log** — and a safety lead
+will — show them the escalation table from the study:
+
+```bash
+uv run python -m benchmarks.fault_study --ticks 800 --open-at 200 --close-at 600
+```
+
+| scenario | DEGRADED | LIMP | HALT | peak φ |
+|---|--:|--:|--:|--:|
+| `imu_dropout` | +5 | +15 | +40 | **40** |
+| `position_drift` | +410 | +430 | +500 | **0** |
+
+> Same table, same run, two completely different stories, and one column tells
+> you which. The dropout escalated on sensor health, before the hazard. The
+> drift escalated on vetoes, ten ticks after the sensor recovered — which is far
+> too late, and it is why that row is still open.
+
+**This is the best minute of the demonstration.** It shows a working safety
+machine, its exact failure condition, and a fix that addresses the consequence
+without pretending to address the cause — in one continuous shot, with none of
+the three oversold.
 
 ---
 

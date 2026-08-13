@@ -185,10 +185,16 @@ def test_the_fast_state_supplies_the_lateral_acceleration_the_shield_bounds() ->
         # hash chain and therefore tamper-evident rather than merely
         # integrity-checked -- N-10, and the cheapest item in the threat
         # model.
+        # Audit v6: the fail-safe snapshot carries `integrity_counter`. The
+        # machine now escalates on two independent counters -- sustained refusal
+        # and sustained sensor unhealth -- and the state alone no longer says
+        # which (ADR-0024, OD-9). A v5 archive showing NOMINAL through a sensor
+        # fault is *correct about the machine that wrote it* and must not be
+        # compared against a v6 archive as the same system.
         # Pinned rather than merely bounded, so that a schema change has to be a
         # decision someone made here as well as there. This pin has now fired
-        # three times for that reason and did its job every time.
-        (AUDIT_SCHEMA_VERSION, 5),
+        # four times for that reason and did its job every time.
+        (AUDIT_SCHEMA_VERSION, 6),
         (CONFIG_SCHEMA_VERSION, 1),
     ],
 )

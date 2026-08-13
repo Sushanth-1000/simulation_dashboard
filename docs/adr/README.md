@@ -39,6 +39,7 @@ is also recorded in the source, the module docstring is named — the reader who
 | [0021](0021-ablation-neutralises-a-gate-it-never-removes-one.md) | An ablation neutralises a gate; it never removes one | `src/astra/runtime/ablation.py`, `benchmarks/ablation.py` |
 | [0022](0022-faults-are-injected-at-the-sensor-boundary.md) | Faults are injected at the sensor boundary, never inside the core | `training/faults.py`, `benchmarks/fault_study.py` |
 | [0023](0023-the-ood-counter-freezes-during-bounded-exploration.md) | The OOD counter freezes during bounded exploration, and the envelope's speed cap goes through the projector | `src/astra/layers/l8_failsafe/machine.py`, `src/astra/layers/l9_rcm/arbiter.py`, `benchmarks/platform_transfer.py` |
+| [0024](0024-sensor-integrity-is-a-second-counter-not-a-fourth-gate.md) | Sensor integrity is a second counter, not a fourth gate | `src/astra/layers/l8_failsafe/machine.py`, `src/astra/layers/l1_sensing/bus.py` (`StreamHealth`) |
 
 ## Format
 
@@ -74,6 +75,8 @@ time, including where that turned out to be wrong.
 
 ## Related
 
+- [`../DECISION_LOG.md`](../DECISION_LOG.md) — the index across all of these: one row per decision, the
+  alternatives weighed, and what each choice gave up. Read it before reading the records themselves
 - [`../CONVENTIONS.md`](../CONVENTIONS.md) — the coding standards these decisions produced, and how
   each is enforced
 - [`../ASSUMPTIONS.md`](../ASSUMPTIONS.md) — A-1 … A-10, what breaks if each is wrong, and their

@@ -136,7 +136,7 @@ RCS_DIMENSION: Final = len(RCS_FIELDS)
 # after the schema has moved on. A version field is the cheapest possible
 # insurance against an unreadable evidence archive.
 
-AUDIT_SCHEMA_VERSION: Final = 5
+AUDIT_SCHEMA_VERSION: Final = 6
 """Schema version stamped on every audit record. Increment on any field change.
 
 Version 2 (ADR-0016) widened the verdict vocabulary: a gate verdict may now read
@@ -170,7 +170,21 @@ Version 5 (10 August 2026) adds ``previous_digest`` to every record, making
 the evidence log a hash chain and therefore **tamper-evident** rather than
 merely integrity-checked -- N-10, and the cheapest item in the threat model
 written the same day. A version-4 reader ignores the field and loses only the
-ability to detect tampering it could not detect before."""
+ability to detect tampering it could not detect before.
+
+Version 6 (11 August 2026) adds ``integrity_counter`` to the fail-safe snapshot
+(ADR-0024). The machine now escalates on two independent counters -- one for
+sustained refusal, one for sustained sensor unhealth -- and the state alone no
+longer says which. **This boundary is asymmetric in an interesting way.** A
+version-5 reader loses only the new field, so it reads a DEGRADED posture and
+cannot tell whether the gates refused or a sensor went dark; that is a loss of
+attribution, not a misreading. But the *converse* matters more for a safety
+case: every record written before version 6 was produced by a machine that
+could not escalate on sensor health at all, so a version-5 archive showing
+NOMINAL throughout a sensor fault is **correct about what that machine did** and
+must not be compared against a version-6 archive as though the two were the same
+system. That is precisely the OD-9 evidence (E-46), and the version field is
+what keeps it from being quietly re-interpreted."""
 
 CONFIG_SCHEMA_VERSION: Final = 1
 """Schema version required in every configuration file. Rejected if mismatched."""
