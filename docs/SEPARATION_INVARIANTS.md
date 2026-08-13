@@ -41,14 +41,20 @@ guarantee.
 | SI-3 Unconditional veto | `RUNTIME` | Yes, fully |
 | SI-4 Trust isolation | `STATIC` | Yes, fully |
 | SI-5 One-way core channel | `STATIC` | Partially — see §SI-5 |
-| SI-6 Veto-rate exclusion | `REVIEW` | **No.** Review-only until Phase 4 |
+| SI-6 Veto-rate exclusion | `TEST` | Yes — **upgraded from `REVIEW`** when Core-A arrived |
 | SI-7 Sole actuation authority | `RUNTIME` | Yes, fully |
 | SI-8 Timing-domain separation | `TEST` | Partially — see §SI-8 |
 | SI-9 Independent calibration validation | `STATIC` | Partially — see §SI-9 |
 | SI-10 Evidence non-influence | `STATIC` | Yes, at the boundary that exists today |
 
-**Nine of ten are mechanically enforced. SI-6 is not: it is `REVIEW` until Phase 4, and it says
-so in the catalogue, in `astra invariants list`, and here.**
+**All ten are mechanically enforced.** SI-6 was the last holdout — `REVIEW` until Core-A
+existed, because there was no reward computation to inspect — and it was upgraded to `TEST` in
+`5da7222` when the PPO policy landed. **This section said otherwise until 11 August 2026**, four
+weeks after the code changed, which is the same defect class as OD-2 and OD-7: a document
+asserting something the code contradicts. It is recorded rather than quietly corrected, and the
+direction is worth noting — the stale text *understated* the guarantee, which is the rarer and
+less dangerous direction, but a reader cannot tell which way a stale document is wrong without
+checking, so neither direction is acceptable.
 
 Several of the mechanically enforced entries are marked "partially" above. That is not a
 weakening of the classification — each is genuinely checked by a machine today — but the scope of
@@ -232,19 +238,26 @@ be *safe*. The two are indistinguishable to the optimiser and opposite in effect
 
 **Consequence if violated.** The proposer optimises against its own safety monitor.
 
-**Enforcement as built — `REVIEW`. This invariant is not mechanically enforced.**
+**Enforcement as built — `TEST`.**
 
-There is no code today that could enforce it, because there is no reward computation to inspect:
-Core-A arrives in Phase 4. `CommandProposer.propose` accepting no Core-B artefact is *related* —
-it means veto statistics cannot reach the proposer through the inference path — but SI-6 is
-about the **training signal**, which is a different code path entirely and one that does not
-exist yet. Claiming the port signature enforces SI-6 would be exactly the kind of overstatement
-the catalogue's `EnforcementKind` was introduced to prevent.
+`TrainingSignal` is a frozen record over a **closed** permitted field set, and
+`assert_signal_excludes_core_b` compares its fields against that set and rejects any name
+containing a Core-B term. `tests/unit/test_l4_proposer.py` asserts both directions: the real
+signal passes, and a signal carrying a veto statistic raises `InvariantViolationError` naming
+SI-6.
 
-The catalogue records the mechanism as *"Phase 4: test asserting the training signal's field set
-excludes veto statistics"*. Until that test exists and the entry is upgraded to
-`EnforcementKind.TEST`, the honest statement is: **one of the ten separation invariants rests on
-human review.** Upgrading it is a named Phase 4 exit criterion in [`ROADMAP.md`](ROADMAP.md).
+**Why a closed field set rather than a denylist.** A denylist of forbidden names is a list
+someone has to remember to extend; a closed permitted set fails on anything new until a human
+adds it deliberately. The check is on the **training signal**, not on `CommandProposer.propose`
+— the port signature already prevents veto statistics reaching the proposer through the
+*inference* path, but SI-6 is about the path that shapes the policy's weights, which is a
+different code path entirely.
+
+**History.** This was `REVIEW` for the whole of Phase 1–3, because there was no reward
+computation to inspect: Core-A had not been built. Claiming the port signature enforced SI-6
+would have been exactly the kind of overstatement `EnforcementKind` exists to prevent. It was
+upgraded when the PPO policy landed in `5da7222`, and this section was not updated for four
+weeks — see the note under *Current status* above.
 
 ---
 

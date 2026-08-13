@@ -71,13 +71,15 @@ component's PASS.
 
 | | |
 |---|---|
-| **Current phase** | **All ten layers built and composed. A trained policy drives the pipeline. FB1 closed.** |
+| **Current phase** | **All ten layers built and composed. A trained policy drives the pipeline. FB1 and FB4 closed; FB2 and FB3 measured in shadow and refused.** |
 | Implemented | All of **L1-L9** - the tick loop composing them - trained PINN digital twin - calibration corpus - **trained PPO policy under Lagrangian constraints** - **FB1 (UKF re-anchor)** - replay spine - one-way Core-A to Core-B channel |
-| Not yet implemented | **FB2, FB3** (both measured in shadow and found to break the gate they feed) - the ASTRA-vs-Core-A comparison harness - the ablation study - the CARLA adapter - the dashboard |
-| Quality gate | Green - **2 729 tests, 97.99% coverage**, `ruff` + `mypy --strict` over 146 files + **12** `lint-imports` contracts clean |
+| Also built | Fault injector with recorded ground truth ([ADR-0022](docs/adr/0022-faults-are-injected-at-the-sensor-boundary.md)) - ablation study that neutralises a gate without making it optional ([ADR-0021](docs/adr/0021-ablation-neutralises-a-gate-it-never-removes-one.md)) - ASTRA-vs-ungated-Core-A comparison harness - platform-transfer study - live SSE dashboard with interactive fault injection - first-party UKF (FilterPy removed) - hash-chained audit log and [threat model](docs/THREAT_MODEL.md) |
+| Not yet implemented | **FB2, FB3** (both measured in shadow and found to break the gate they feed) - the CARLA adapter - MPC candidate scoring, which the paper's Figure 1 shows and which has never existed (A-9) |
+| Quality gate | Green - **2 861 tests + 5 strict xfail, 97.96% coverage**, `ruff` + `mypy --strict` over 155 files + **12** `lint-imports` contracts clean. The 5 xfails pin the four NFR5 walls of OD-11: making the claim true turns the suite red |
 | Invariants | 10 declared, **all 10 mechanically enforced**. SI-3 now also covers issuance and abstention ([ADR-0016](docs/adr/0016-exploration-may-not-override-a-deterministic-veto.md)). |
 | Measured | **100 000 ticks, all ten soak criteria pass.** 100 000/100 000 commands issued - proposer accepted on **99 997** ticks - mean lane deviation **0.0332 m** - resident set **+0.2 MiB** - full-tick p99 **9.3 ms** against a 50 ms tick - **0** audit records dropped. Every figure traces to a row in [`docs/EVIDENCE.md`](docs/EVIDENCE.md). |
-| Next | Linux + CARLA for non-synthetic validation, then FB2-FB4 - see [`docs/PENDING.md`](docs/PENDING.md) |
+| Open defects | **13 in the register, 7 closed, 6 open** - every one self-found, none by the test suite. See [`docs/CREDIBILITY_MATRIX.md`](docs/CREDIBILITY_MATRIX.md) |
+| Next | Close OD-9 (a sensor fault is invisible to all three gates), then Linux + CARLA for non-synthetic validation - see [`docs/PENDING.md`](docs/PENDING.md) |
 
 > ### The limitation that governs every number above
 >
