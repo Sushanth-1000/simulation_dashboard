@@ -67,7 +67,16 @@ if TYPE_CHECKING:
     from astra.runtime.pipeline import ColdPathContext, TickOutcome
     from training.faults import FaultEpisode, FaultInjector
 
-__all__ = ["CHANNEL_SIGMAS", "ClosedLoopResult", "TickSample", "drive_closed_loop"]
+__all__ = [
+    "CHANNEL_SIGMAS",
+    "FRICTION",
+    "FRICTION_SIGMA",
+    "LATERAL_SIGMA",
+    "SPEED_SIGMA",
+    "ClosedLoopResult",
+    "TickSample",
+    "drive_closed_loop",
+]
 
 ENVIRONMENT = "simulation"
 """The configuration every closed-loop run resolves.
@@ -124,8 +133,10 @@ Every failure the soak reported downstream of that -- the veto latch, the
 statistical gate refusing every correction, the fail-safe machine reaching HALT --
 begins here. See ``docs/SOAK_REPORT.md``.
 """
-_FRICTION_SIGMA = 4e-4
-_FRICTION = 0.85
+FRICTION_SIGMA = 4e-4
+_FRICTION_SIGMA = FRICTION_SIGMA
+FRICTION = 0.85
+_FRICTION = FRICTION
 
 CHANNEL_SIGMAS = {
     FaultChannel.POSITION_Y: POSITION_SIGMA,
@@ -179,6 +190,81 @@ class _Extractor:
         return slow_measurement([("road_friction_coefficient", _FRICTION, _FRICTION_SIGMA)])
 
 
+_REDUNDANT_SEED_OFFSET = 0x2ED0
+"""Offset for the redundant channels' noise stream.
+
+Their draws come from a generator seeded ``seed ^ _REDUNDANT_SEED_OFFSET``
+rather than from the run's own, so adding channels consumes no draw the IMU
+would have taken and a run **with redundancy off is bit-identical to one before
+this existed**. The precedent is the fault injector, whose offset seed exists for
+exactly the same reason: an instrument that perturbs the thing it measures is not
+an instrument.
+"""
+
+
+@dataclass(slots=True)
+class RedundantSensing:
+    """Independent per-modality position readings, and an optional liar.
+
+    Attributes:
+        sigmas: Measurement sigma per channel. **Deliberately unequal** --
+            identical sigmas model identical sensors, and identical sensors
+            share a failure mode.
+        faulted: The channel a drift is injected into, or ``None``.
+        drift_per_tick: Metres added to the faulted channel each tick after
+            ``opens_at``.
+        opens_at: The tick the drift opens on.
+        generator: The channels' own noise source. Seeded disjointly; see
+            :data:`_REDUNDANT_SEED_OFFSET`.
+    """
+
+    sigmas: dict[SensorModality, float]
+    faulted: SensorModality | None
+    drift_per_tick: float
+    opens_at: int
+    generator: random.Random
+
+    @classmethod
+    def build(
+        cls,
+        *,
+        sigmas: dict[SensorModality, float],
+        seed: int,
+        faulted: SensorModality | None = None,
+        drift_per_tick: float = 0.0,
+        opens_at: int = 0,
+    ) -> RedundantSensing:
+        """Build a redundancy spec with a disjointly seeded generator.
+
+        Args:
+            sigmas: Measurement sigma per channel.
+            seed: The run seed, offset before use.
+            faulted: The channel to corrupt, or ``None``.
+            drift_per_tick: Metres per tick of drift.
+            opens_at: The tick the drift opens on.
+
+        Returns:
+            The spec.
+        """
+        return cls(
+            sigmas=dict(sigmas),
+            faulted=faulted,
+            drift_per_tick=drift_per_tick,
+            opens_at=opens_at,
+            generator=random.Random(seed ^ _REDUNDANT_SEED_OFFSET),
+        )
+
+    def draw(self, modality: SensorModality) -> float:
+        """Return one noise sample for a channel."""
+        return self.generator.gauss(0.0, self.sigmas[modality])
+
+    def offset(self, modality: SensorModality, tick: int) -> float:
+        """Return the fault's current magnitude for a channel, or zero."""
+        if modality is not self.faulted or tick < self.opens_at:
+            return 0.0
+        return self.drift_per_tick * (tick - self.opens_at)
+
+
 def _publish_state(
     bus: SharedSensorBus[Any],
     *,
@@ -187,6 +273,7 @@ def _publish_state(
     noise: random.Random,
     tick: int = 0,
     fault: FaultInjector | None = None,
+    redundant: RedundantSensing | None = None,
 ) -> dict[str, float] | None:
     """Publish the plant's observable state to every sensor modality.
 
@@ -229,6 +316,9 @@ def _publish_state(
             byte -- the injector draws no randomness when it is not injecting,
             so the sensor stream is unperturbed either way.
 
+        redundant: Independent per-modality readings, or ``None`` to
+            publish one payload to every modality, as this did before ADR-0026.
+
     Returns:
         The payload as published, or ``None`` if the reading was suppressed.
         Returned so a caller can record what the *sensors* said, which is
@@ -248,12 +338,22 @@ def _publish_state(
     for modality in SensorModality:
         if dropped and modality is SensorModality.IMU:
             continue
+        published = payload
+        if redundant is not None and modality in redundant.sigmas:
+            # An independent reading of the same truth. Drawn from `redundant`'s
+            # own generator, never from `noise`, so adding channels consumes no
+            # draw the IMU would have taken and a run with redundancy off stays
+            # bit-identical. Same reasoning as the fault injector's offset seed.
+            published = {
+                **payload,
+                "y": float(state[1]) + redundant.draw(modality) + redundant.offset(modality, tick),
+            }
         bus.publish(
             SensorSample(
                 modality=modality,
                 observed_at=at,
                 quality=_SENSOR_QUALITY,
-                payload=payload,
+                payload=published,
             )
         )
     return None if dropped else payload
@@ -513,6 +613,7 @@ def drive_closed_loop(
     fault: FaultInjector | None = None,
     ablation: AblationProfile | None = None,
     on_assembled: Callable[[AssembledPipeline[Any]], None] | None = None,
+    redundant: RedundantSensing | None = None,
 ) -> ClosedLoopResult:
     """Run the pipeline against the plant, feeding issued commands back in.
 
@@ -542,12 +643,19 @@ def drive_closed_loop(
             A disarmed gate is still constructed and still writes a verdict;
             it simply cannot block, and every decision record says which
             layers were disarmed (ADR-0021).
+        redundant: Independent per-modality readings, and an optional drift in
+            one of them. ``None`` publishes one payload to every modality.
         fault: Sensor faults to inject, with their ground truth. ``None`` -- the
             default -- is a clean run, and is **bit-identical** to a run given
             an injector whose windows fall outside it, because the injector
             draws no randomness when nothing is active. That equality is what
             makes the fault the only difference between two arms of a
             comparison, and it is pinned by a test rather than assumed.
+        redundant: Independent per-modality position readings, with an
+            optional drift injected into one of them. ``None`` -- the
+            default -- publishes one payload to every modality, which is
+            what every run before ADR-0026 did and is **bit-identical**,
+            because the channels draw from their own generator.
         cold_path: What RCM needs to evaluate the knowledge base. ``None`` --
             the default, and what every run before the first soak used --
             leaves the cold path dormant: the arbitrator keeps its initial
@@ -558,6 +666,12 @@ def drive_closed_loop(
     Returns:
         The run's outcome.
     """
+    # Imported here rather than at module scope: `training.redundant` reads
+    # this module's plant sigmas, so a top-level import would close a cycle.
+    # The adapter is the natural owner of the constants and this module is
+    # the natural owner of the plant, and one of the two has to give.
+    from training.redundant import RedundantExtractor, ResidualMonitor  # noqa: PLC0415
+
     resolved = load_settings(environment=ENVIRONMENT, include_environment_variables=False)
     settings = resolved.settings
     plant = SyntheticDrivingEnv(spec or EnvironmentSpec())
@@ -577,7 +691,7 @@ def drive_closed_loop(
         config_hash=resolved.hash,
         settings=settings,
         clock=clock,
-        extractor=_Extractor(),
+        extractor=_Extractor() if redundant is None else RedundantExtractor(redundant.sigmas),
         audit_sink=sink,
         initial_speed=settings.shield.legal_speed_limit,
         twin_checkpoint=TWIN,
@@ -587,6 +701,7 @@ def drive_closed_loop(
         policy=policy,
         ablation=ablation,
         environment=ENVIRONMENT,
+        integrity=None if redundant is None else ResidualMonitor(),
     )
 
     if on_assembled is not None:
@@ -609,6 +724,7 @@ def drive_closed_loop(
             noise=noise,
             tick=index,
             fault=fault,
+            redundant=redundant,
         )
 
         started_at = time.perf_counter_ns()

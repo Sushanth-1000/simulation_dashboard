@@ -52,6 +52,7 @@ from astra.kernel.time import civil_plus_days
 from astra.kernel.units import MetresPerSecond, Probability, Seconds
 from astra.layers.l1_sensing.bus import SharedSensorBus
 from astra.layers.l2_estimation.filter import DualRateUKF
+from astra.layers.l2_estimation.measurement import IntegrityMonitor
 from astra.layers.l3_trust.classifier import RuleBasedContextClassifier
 from astra.layers.l3_trust.corpus import CalibrationCorpus
 from astra.layers.l3_trust.mondrian import MondrianCalibration
@@ -583,6 +584,7 @@ def assemble_pipeline[PayloadT](
     policy: Policy | None = None,
     ablation: AblationProfile | None = None,
     environment: str = "unknown",
+    integrity: IntegrityMonitor[PayloadT] | None = None,
 ) -> AssembledPipeline[PayloadT]:
     """Construct all ten layers and wire them into a pipeline.
 
@@ -592,6 +594,10 @@ def assemble_pipeline[PayloadT](
         settings: The validated settings.
         clock: The injected time source.
         extractor: Turns fused frames into measurements. Adapter-supplied.
+        integrity: Cross-modality monitor, adapter-supplied and optional. The
+            producer of ``StreamHealth.FAULTED``, which L1 reserves for a
+            *lying* stream and cannot decide from freshness alone. ``None``
+            leaves health exactly as L1 determines it (ADR-0026).
         audit_sink: Where decision records are written.
         initial_speed: The speed the filter starts from.
         shadow_fb2: Run the dormant feedback loops against state nothing reads,
@@ -826,6 +832,7 @@ def assemble_pipeline[PayloadT](
         shadow_calibration=shadow_calibration,
         shadow_failsafe=shadow_failsafe,
         ablation=profile.render(),
+        integrity=integrity,
     )
     return AssembledPipeline(
         pipeline=pipeline,

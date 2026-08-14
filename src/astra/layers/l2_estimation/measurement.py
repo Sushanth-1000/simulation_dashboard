@@ -42,11 +42,13 @@ from astra.kernel.errors import ContractViolationError, DimensionMismatchError
 from astra.kernel.validation import require_finite, require_positive
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from astra.contracts.sensing import FusedSensorFrame
+    from astra.kernel.enums import SensorModality, StreamHealth
 
 __all__ = [
+    "IntegrityMonitor",
     "Measurement",
     "MeasurementExtractor",
     "fast_measurement",
@@ -284,5 +286,64 @@ class MeasurementExtractor[PayloadT](Protocol):
             A measurement over
             :data:`~astra.kernel.constants.SLOW_STATE_FIELDS`, or ``None`` if
             nothing observed a degradation parameter this tick.
+        """
+        ...
+
+
+@runtime_checkable
+class IntegrityMonitor[PayloadT](Protocol):
+    """Decides, by cross-checking modalities, that a stream is **lying**.
+
+    The producer of :attr:`~astra.kernel.enums.StreamHealth.FAULTED`, and the
+    seam that was reserved for it long before anything could fill it.
+    :meth:`~astra.contracts.sensing.SensorReading.health_at` says so directly:
+
+        *"Only ``HEALTHY`` and ``DEGRADED`` can be decided here. ``FAULTED``
+        requires ... a monitor which knows what the reading should have been; a
+        stale stream and a lying stream are different faults and are
+        deliberately not collapsed."*
+
+    That docstring named the UKF's innovation-sequence monitor as the producer.
+    **It was measured on 11 August 2026 and cannot be**: at the shipped gate of
+    7.5 it fires on tick 0 of every arm of the fault study *including the
+    control*, and on no injected fault but a 25-sigma noise burst (E-105). A
+    self-consistent lie produces a small innovation by definition, which is what
+    makes it self-consistent.
+
+    What can produce ``FAULTED`` is a **cross-check between modalities that
+    measure the same quantity**: the residual of each reading against their
+    median. Measured, a drift injected into one of three dissimilar channels
+    separates that channel at **5.3x** while the others sit at 1.1x and 2.4x,
+    and the largest residual **identifies** the liar rather than merely
+    detecting that one exists (E-109).
+
+    Why it is an adapter concern
+    ------------------------------
+    Deciding that two readings *should* agree requires knowing what each
+    modality measures, which is domain knowledge -- and NFR5 keeps domain
+    knowledge out of the layers. This protocol therefore sits beside
+    :class:`MeasurementExtractor`, is supplied by the same adapter, and is the
+    second of the two components permitted to read a raw payload.
+
+    The pipeline merges what this returns with L1's staleness-derived health,
+    taking the **worse** of the two per modality. Neither can mask the other: a
+    stale channel is stale whatever its values say, and a lying channel is lying
+    however punctually it arrives.
+    """
+
+    def health(
+        self, frame: FusedSensorFrame[PayloadT]
+    ) -> Mapping[SensorModality, StreamHealth]:
+        """Return per-modality health derived from cross-checking the frame.
+
+        Args:
+            frame: The fused frame for this tick.
+
+        Returns:
+            Health for the modalities this monitor has an opinion about. A
+            modality it omits is **not** an assertion of health -- the pipeline
+            keeps L1's staleness verdict for anything absent from this mapping,
+            so a monitor that can only judge position says nothing about a
+            camera rather than clearing it.
         """
         ...

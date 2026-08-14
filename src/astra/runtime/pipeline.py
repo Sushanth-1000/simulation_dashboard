@@ -67,7 +67,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from astra.contracts.assurance import GateVerdict, SafetyVerdict
 from astra.contracts.audit import DecisionRecord
@@ -98,6 +98,7 @@ if TYPE_CHECKING:
     from astra.kernel.units import MetresPerSecond, Probability, Seconds
     from astra.layers.l1_sensing.bus import SharedSensorBus
     from astra.layers.l2_estimation.filter import DualRateUKF
+    from astra.layers.l2_estimation.measurement import IntegrityMonitor
     from astra.layers.l3_trust.mondrian import MondrianCalibration
     from astra.layers.l3_trust.trust import ConformalTrustModule
     from astra.layers.l4_proposer.proposer import CmdpProposer
@@ -280,6 +281,7 @@ class GovernancePipeline[PayloadT]:
         "_degradation",
         "_estimator",
         "_failsafe",
+        "_integrity",
         "_physical_gate",
         "_proposal_reader",
         "_proposal_writer",
@@ -324,6 +326,7 @@ class GovernancePipeline[PayloadT]:
         shadow_calibration: MondrianCalibration | None = None,
         shadow_failsafe: FailSafeStateMachine | None = None,
         ablation: str = "NONE",
+        integrity: IntegrityMonitor[PayloadT] | None = None,
     ) -> None:
         """Assemble the pipeline from already-constructed layers.
 
@@ -331,6 +334,11 @@ class GovernancePipeline[PayloadT]:
             run: The run these ticks belong to.
             config_hash: The frozen configuration's hash, stamped on every
                 record so each number is attributable to an operating point.
+            integrity: An adapter-supplied cross-modality monitor, or ``None``.
+                It is the producer of ``StreamHealth.FAULTED`` -- the value L1
+                reserves for a *lying* stream and cannot decide itself. ``None``
+                leaves health exactly as L1 determined it, which is what every
+                caller predating ADR-0026 gets.
             sensor_bus: L1.
             estimator: L2.
             trust_module: L3.
@@ -394,6 +402,7 @@ class GovernancePipeline[PayloadT]:
         self._run = run
         self._config_hash = config_hash
         self._sensor_bus = sensor_bus
+        self._integrity = integrity
         self._estimator = estimator
         self._trust_module = trust_module
         self._proposer = proposer
@@ -440,7 +449,7 @@ class GovernancePipeline[PayloadT]:
 
         try:
             frame = self._sensor_bus.acquire(tick)
-            frame_health = tuple(self._sensor_bus.health(frame).items())
+            frame_health = self._frame_health(frame)
             state = self._estimate(frame, tick)
             innovation = self._estimator.latest_innovation()
             # Read once and threaded to both consumers and the record. Calling
@@ -815,6 +824,58 @@ class GovernancePipeline[PayloadT]:
             shadow_quantile=shadow_quantile,
             shadow_would_veto=would_veto,
             shadow_failsafe=shadow_state,
+        )
+
+    #: Health values ordered worst-last, so a merge can take a maximum.
+    _HEALTH_SEVERITY: Final = (
+        StreamHealth.HEALTHY,
+        StreamHealth.DEGRADED,
+        StreamHealth.FAULTED,
+        StreamHealth.ABSENT,
+    )
+
+    def _frame_health(
+        self, frame: FusedSensorFrame[PayloadT]
+    ) -> tuple[tuple[SensorModality, StreamHealth], ...]:
+        """Return per-modality health, merging staleness with integrity.
+
+        L1 decides ``HEALTHY`` and ``DEGRADED`` from **freshness**. It cannot
+        decide ``FAULTED``, and says so in its own docstring: a monitor that
+        knows what a reading *should* have been is required, and *"a stale
+        stream and a lying stream are different faults and are deliberately not
+        collapsed"*.
+
+        When an adapter supplies an :class:`IntegrityMonitor`, its verdict is
+        merged here by taking the **worse** of the two per modality. Neither can
+        mask the other -- a stale channel is stale whatever its values say, and
+        a lying channel is lying however punctually it arrives -- and a modality
+        the monitor omits keeps L1's verdict rather than being cleared by
+        silence.
+
+        This is the composition root, which is the only place that legitimately
+        sees both. L1 acquires no knowledge of cross-modality checking and the
+        monitor acquires none of staleness.
+
+        Args:
+            frame: The fused frame for this tick.
+
+        Returns:
+            One pair per modality, ordered as the sensor bus ordered them.
+        """
+        staleness = self._sensor_bus.health(frame)
+        if self._integrity is None:
+            return tuple(staleness.items())
+        integrity = self._integrity.health(frame)
+        return tuple(
+            (
+                modality,
+                max(
+                    health,
+                    integrity.get(modality, health),
+                    key=self._HEALTH_SEVERITY.index,
+                ),
+            )
+            for modality, health in staleness.items()
         )
 
     def _reanchor(self, issued: IssuedCommand | None) -> None:
