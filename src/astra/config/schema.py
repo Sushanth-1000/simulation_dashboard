@@ -128,9 +128,24 @@ class EstimationSettings(_Section):
         slow_rate_hz: The slow filter's rate. 1 Hz in deployment, 0.1 Hz in the
             prototype -- both are configuration, not a contradiction between the
             documents (finding R-5).
-        innovation_gate_gamma: The Mahalanobis threshold above which the
-            innovation monitor raises a sensor fault. **No default**: it is one
-            of the empirically determined safety thresholds of A-4.
+        innovation_gate_gamma: The Mahalanobis threshold above which an
+            innovation is flagged as anomalous. **No default**: it is one of the
+            empirically determined safety thresholds of A-4.
+
+            **It does not raise a fault, and this docstring said it did until
+            11 August 2026.** The flag reaches exactly one consumer -- L3's
+            classifier, which switches the Mondrian context class to
+            ``DEGRADED_SENSOR`` -- so it changes which calibration window L6
+            compares against and nothing else. The measurement is **not**
+            rejected: ``update_fast`` fuses it first and computes the flag from
+            the residual afterwards.
+
+            Measured at the shipped value of 7.5, the flag fires on **one tick
+            in every arm of the fault study including the control** -- tick 0,
+            the plant's deliberate 1 m initial offset -- and is silent on every
+            injected fault but the 25-sigma noise burst (E-105). It is a
+            gross-outlier check, and every fault in that study is designed to be
+            self-consistent.
         fast_process_noise: Diagonal of the fast filter's process noise ``Q_f``,
             one variance per field of
             :data:`~astra.kernel.constants.FAST_STATE_FIELDS`. **No default**:

@@ -1,4 +1,4 @@
-"""Can a second estimate, built only from commands, see a lie the sensors tell?
+"""Two candidate answers to a lying sensor, both measured, both refuted.
 
 The problem this exists for
 ----------------------------
@@ -137,23 +137,85 @@ load-bearing**: it is the mitigation for the shared-estimate common cause and is
 not removable. The idea was refuted by a feedback loop that exists to fix the
 very defect this monitor was built to attack.
 
-What the refutation points at
--------------------------------
-Integration is what kills it, so the surviving idea is a check that does not
-integrate: compare the **position channel against the acceleration channel**
-directly. Under a position drift the IMU is honest and reports a vehicle that is
-genuinely turning, while the position reading says the vehicle has not moved in
-the lane. That is a cross-channel inconsistency available *without* propagating
-anything, and it does not pass through FB1.
+What the refutation pointed at, and what happened to it
+--------------------------------------------------------
+Integration is what kills the parity monitor, so the surviving idea was a check
+that does not integrate: compare the **position channel against the acceleration
+channel** directly. Under a position drift the IMU is honest and reports a
+vehicle that is genuinely turning, while the position reading says the vehicle
+has not moved in the lane. A cross-channel inconsistency, available *without*
+propagating anything, not passing through FB1.
 
-It is a different monitor and it has **not** been measured. Recorded here rather
-than in a comment, because the negative result is what identifies it.
+It was built and measured the same day. See the second verdict below.
+
+The second verdict: cross-channel consistency, also refuted
+-------------------------------------------------------------
+Measured 11 August 2026, same command, same seed, over the fault study's six
+scenarios and its control:
+
+================  =======  =========  ===========  =======
+scenario          clean    faulted    |y| there    ratio
+================  =======  =========  ===========  =======
+control           0.1492   0.0572     0.0211       0.38x
+imu_dropout       0.1492   0.1204     0.0123       0.81x
+position_bias     0.1492   **0.6177** 0.5407       **4.14x**
+position_drift    0.1492   0.1474     0.1066       **0.99x**
+speed_stuck       0.1492   0.0573     0.0217       0.38x
+speed_bias        0.1492   0.1349     0.2437       0.90x
+lateral_noise     0.1492   0.0621     0.1414       0.42x
+================  =======  =========  ===========  =======
+
+**It catches the bias and is blind to the drift.** ``position_bias`` separates at
+4.14x, and ``position_drift`` -- the fault this candidate was designed for --
+sits at **0.99x**, indistinguishable from a clean run.
+
+And the bias detection is weaker than it looks: ``|y| there`` is **0.5407**, so
+the position estimate had moved too. The premise was *"sustained turn while the
+estimate says we are on centre"*, and that is not what happened. What the test
+actually saw was a large single correction, which L6 already partly notices
+(vetoes 3 -> 12, E-51).
+
+Why the drift beats this one too
+----------------------------------
+A drift of 1 cm per tick needs a *tiny* corrective lateral acceleration to hold
+against -- comparable to the accelerations nominal lane-keeping produces anyway.
+The corrective response to a fault slower than the sensor noise is itself inside
+the noise. That is not a property of this test; it is what "slower than the
+noise" means.
+
+The conclusion these three refutations support together
+---------------------------------------------------------
+Three independent mechanisms have now been measured against the same fault and
+all three are silent on it:
+
+1. **The innovation sequence** (P2.7 option B). A 1 cm/tick drift against a
+   0.1 m sigma never leaves the filter's expected band (E-53).
+2. **Analytical redundancy** (this module, above). The two estimates were never
+   independent -- FB1 couples them -- and the residual accumulates 2.2x to 4.0x
+   faster than the fault (E-94, E-95).
+3. **Cross-channel consistency** (this section). The corrective response is
+   inside the nominal band, for the same reason as (1).
+
+Each fails for a reason that traces to one root: **a self-consistent lie slower
+than the sensor noise cannot be distinguished from truth by any function of a
+single sensor chain.** Every quantity in the record is downstream of the same
+measurement, and no rearrangement of downstream quantities creates information
+that was never upstream.
+
+**So redundancy is not the convenient answer, it is the only one**, and this is
+the argument for it rather than an assertion. A second sensor that can disagree
+is a second information source; everything tried here is a re-derivation. The
+reference plant publishes one ground truth to all five modalities and is
+therefore structurally incapable of settling it, which is what Phase 7 is for and
+the honest reason it exists.
+
 """
 
 from __future__ import annotations
 
 import argparse
 import math
+import statistics
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -172,7 +234,18 @@ if TYPE_CHECKING:
 
     from astra.contracts.audit import DecisionRecord
 
-__all__ = ["WINDOW", "ParityMonitor", "ParityReading", "evaluate_parity", "render", "sweep"]
+__all__ = [
+    "CROSS_SETTLE",
+    "CROSS_WINDOW",
+    "WINDOW",
+    "CrossChannelReading",
+    "ParityMonitor",
+    "ParityReading",
+    "cross_channel",
+    "evaluate_parity",
+    "render",
+    "sweep",
+]
 
 WINDOW = 100
 """Ticks between re-anchorings. Five seconds at 20 Hz.
@@ -437,6 +510,118 @@ def render(readings: Sequence[ParityReading]) -> list[str]:
         ]
     )
     return lines
+
+
+# --------------------------------------------------------------------------- #
+# Candidate two: cross-channel consistency, which does not integrate
+# --------------------------------------------------------------------------- #
+
+CROSS_SETTLE = 50
+"""First tick the cross-channel test counts, excluding the startup correction.
+
+Distinct from :data:`_CRUISE_FROM`, and the distinction cost one wrong run. That
+one is 200, sized for a *clean* 800-tick sweep. Here the fault opens at 200, so
+using it would leave the clean half empty and report a separation of ``0.00x``
+for every arm -- which is what the first attempt did, uniformly enough to look
+like a real result rather than an empty range.
+"""
+
+CROSS_WINDOW = 40
+"""Ticks per window for the cross-channel test. Two seconds at 20 Hz.
+
+Short, deliberately. The whole point of this candidate is that it does **not**
+accumulate, so the window need only be long enough to average out per-tick
+sensor noise -- not long enough for a signal to build. A longer window would
+reintroduce exactly the failure that refuted the parity monitor above.
+"""
+
+
+@dataclass(frozen=True, slots=True)
+class CrossChannelReading:
+    """How far the acceleration channel disagreed with the position channel.
+
+    Attributes:
+        name: Which arm.
+        clean_peak: Largest windowed ``|mean a_lat|`` before the fault opened.
+        fault_peak: Largest after it opened.
+        position_at_peak: ``|mean position_y|`` in the window that produced
+            ``fault_peak``. **The premise depends on this being small**: the test
+            is "sustained turn while the estimate says we are on centre", so a
+            large value means the estimate moved too and the inconsistency being
+            looked for is not the one that occurred.
+        separation: ``fault_peak / clean_peak``.
+
+    """
+
+    name: str
+    clean_peak: float
+    fault_peak: float
+    position_at_peak: float
+    separation: float
+
+
+def cross_channel(
+    states: Sequence[tuple[int, float, float]],
+    *,
+    opened_at: int,
+    settle_from: int = CROSS_SETTLE,
+    window: int = CROSS_WINDOW,
+) -> CrossChannelReading:
+    """Measure sustained lateral acceleration against reported lane position.
+
+    **The premise.** On a straight road, sustained one-sided lateral
+    acceleration while the position estimate reads *on centre* is physically
+    contradictory: a vehicle really turning does not stay in its lane. So the
+    combination is evidence that the position reference is moving -- that the
+    channel is lying -- and it is available **without integrating anything**,
+    which is what refuted the parity monitor.
+
+    **The limitation, stated before the result.** It assumes a straight road. On
+    a curve, sustained lateral acceleration is what correct driving looks like,
+    so a deployment would need road curvature as an input. This plant has no
+    curvature, which is what makes the measurement possible here and means the
+    result does not transfer unchanged.
+
+    Args:
+        states: ``(tick, position_y, lateral_acceleration)`` per tick, filtered.
+        opened_at: The tick the fault opened.
+        settle_from: First tick counted, excluding the startup correction.
+        window: Ticks per window.
+
+    Returns:
+        The reading, clean half beside faulted half.
+    """
+
+    def peaks(low: int, high: int) -> list[tuple[float, float]]:
+        found: list[tuple[float, float]] = []
+        for start in range(low, high - window, window):
+            chunk = [
+                (position, lateral)
+                for tick, position, lateral in states
+                if start <= tick < start + window
+            ]
+            if len(chunk) == window:
+                found.append(
+                    (
+                        abs(statistics.fmean(lateral for _, lateral in chunk)),
+                        abs(statistics.fmean(position for position, _ in chunk)),
+                    )
+                )
+        return found
+
+    last = states[-1][0] + 1 if states else 0
+    clean = peaks(settle_from, opened_at)
+    faulted = peaks(opened_at, last)
+    clean_peak = max((lateral for lateral, _ in clean), default=0.0)
+    fault_peak = max((lateral for lateral, _ in faulted), default=0.0)
+    position = next((pos for lat, pos in faulted if lat == fault_peak), 0.0)
+    return CrossChannelReading(
+        name="",
+        clean_peak=clean_peak,
+        fault_peak=fault_peak,
+        position_at_peak=position,
+        separation=fault_peak / clean_peak if clean_peak else 0.0,
+    )
 
 
 def sweep(*, ticks: int, seed: int, policy_path: Path, windows: Sequence[int]) -> list[str]:

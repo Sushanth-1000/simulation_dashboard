@@ -1072,6 +1072,29 @@ acceleration channel** directly. Under a position drift the IMU honestly reports
 a turning vehicle while the position reading says nothing moved. Cross-channel,
 no propagation, does not pass through FB1. Not built, not measured.
 
+### Options B', E and F, all tried and all refuted -- 11 Aug 2026
+
+Four candidates have now been measured against the slow drift. **All four are
+silent on it**, and the pattern is the finding:
+
+| | candidate | result |
+|---|---|---|
+| **B** | the innovation sequence | 1 cm/tick against a 0.1 m sigma never leaves the filter's band (E-53) |
+| **B'** | the innovation *gate*'s own flag, fed to the integrity counter | fires on tick 0 of **every** arm including the control, and on no fault but the noise burst (E-105). Refuted before it was built |
+| **E** | analytical redundancy -- a command-only second estimate | the two estimates were never independent; FB1 couples them, and the residual accumulates 2.2-4.0x faster than the fault (E-94, E-95) |
+| **F** | cross-channel consistency, position against acceleration | catches the *bias* at 4.14x and the drift at **0.99x** (E-106) |
+
+**The root is shared.** A self-consistent lie slower than the sensor noise cannot
+be distinguished from truth by any function of a single sensor chain: every
+quantity on the record is downstream of the same measurement, and no
+rearrangement of downstream quantities creates information that was never
+upstream (E-107).
+
+**So option D -- redundancy and a cross-check -- is not the convenient answer,
+it is the only one**, and this is now an argument rather than an assertion. It
+remains unmeasurable here because the reference plant publishes one ground truth
+to all five modalities. Phase 7, and this is the honest reason Phase 7 exists.
+
 **Two thirds of OD-9 remain open and the register says so.** `StreamHealth` is
 computed from staleness, so `BIAS`, `DRIFT` and `STUCK_AT` — which keep the
 stream perfectly fresh — are invisible to it, and **no gate sees the fault even
