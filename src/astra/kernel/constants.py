@@ -136,7 +136,7 @@ RCS_DIMENSION: Final = len(RCS_FIELDS)
 # after the schema has moved on. A version field is the cheapest possible
 # insurance against an unreadable evidence archive.
 
-AUDIT_SCHEMA_VERSION: Final = 7
+AUDIT_SCHEMA_VERSION: Final = 8
 """Schema version stamped on every audit record. Increment on any field change.
 
 Version 2 (ADR-0016) widened the verdict vocabulary: a gate verdict may now read
@@ -197,7 +197,21 @@ an arbitration record most wants to ask was unanswerable from the archive
 Third time this shape has appeared: ``fast_innovation`` at version 3, and
 ``previous_digest`` at version 5 were both quantities the pipeline had and the
 evidence did not. A version-6 reader loses the field and is back to not being
-able to answer the question, which is the benign direction."""
+able to answer the question, which is the benign direction.
+
+Version 8 (11 August 2026) adds ``integrity_counter`` to the fail-safe snapshot,
+and it is the **fourth** instance of that shape in five versions. ADR-0024 gave
+the machine two counters four days earlier and argued they must be reported
+separately -- *"one integer cannot say which happened"* -- and the field went
+onto the snapshot and not onto the record. So every archive between schema 6 and
+8 carries that argument's conclusion and none of its evidence: a DEGRADED
+posture with no way to tell whether the gates refused or a sensor went dark
+(OD-16).
+
+Found by the tool built to *read* the evidence, which is the same way OD-14 was
+found one version earlier. A pipeline that computes a number is not a pipeline
+whose evidence has it, and the only reliable way to notice is to try to use the
+archive for something."""
 
 CONFIG_SCHEMA_VERSION: Final = 1
 """Schema version required in every configuration file. Rejected if mismatched."""

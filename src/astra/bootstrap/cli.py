@@ -54,6 +54,7 @@ from astra.kernel.constants import (
     FEEDBACK_LOOP_COUNT,
 )
 from astra.kernel.errors import AstraError
+from astra.observability.explain import explain_tick, find_tick, read_records
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -314,6 +315,39 @@ def _command_invariants_list(arguments: argparse.Namespace) -> int:
     return _EXIT_OK
 
 
+def _command_explain(arguments: argparse.Namespace) -> int:
+    """Reconstruct one tick's decision from an audit log.
+
+    The forensic question after an incident is *why did it do that?*, and until
+    now the answer lived in whoever still remembered the architecture. This
+    answers it from the archive alone -- which is what assumption A-10 means by
+    explainability: **decision provenance**, the inputs a decision was taken on,
+    recorded beside it.
+
+    Args:
+        arguments: Parsed arguments carrying ``log`` and ``tick``.
+
+    Returns:
+        Zero, or one if the log is unreadable or the tick is absent.
+    """
+    try:
+        records = list(read_records(arguments.log))
+    except (OSError, ValueError) as error:
+        print(f"  {error}")
+        return 1
+
+    record = find_tick(records, arguments.tick)
+    if record is None:
+        ticks = [entry["tick"] for entry in records if isinstance(entry.get("tick"), int)]
+        span = f"{min(ticks)}-{max(ticks)}" if ticks else "empty"
+        print(f"  tick {arguments.tick} is not in this log (it covers {span})")
+        return 1
+
+    for line in explain_tick(record):
+        print(line)
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """Construct the argument parser.
 
@@ -356,6 +390,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--verbose", "-v", action="store_true", help="include rationale and consequence"
     )
     invariants_list.set_defaults(handler=_command_invariants_list)
+
+    explain = subparsers.add_parser(
+        "explain",
+        help="reconstruct one tick's decision from an audit log",
+    )
+    explain.add_argument("log", type=Path, help="a JSONL audit log, or a directory holding one")
+    explain.add_argument("tick", type=int, help="the control tick to explain")
+    explain.set_defaults(handler=_command_explain)
 
     version = subparsers.add_parser("version", help="print the package version")
     version.set_defaults(handler=_command_version)

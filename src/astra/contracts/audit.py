@@ -131,6 +131,13 @@ def _render_failsafe(snapshot: FailSafeSnapshot) -> dict[str, JsonValue]:
     return {
         "state": snapshot.state.value,
         "ood_counter": snapshot.ood_counter,
+        # Added at schema 8. ADR-0024 gave the machine two counters and argued
+        # that they must be reported separately, because "the gates refused
+        # forty commands" and "a sensor was dark for forty ticks" need different
+        # responses and one integer cannot say which happened. The field was put
+        # on the snapshot and **not on the record**, so the archive carried the
+        # argument's conclusion and none of its evidence (OD-16).
+        "integrity_counter": snapshot.integrity_counter,
         "speed_cap_mps": None if snapshot.speed_cap is None else float(snapshot.speed_cap),
         "lane_change_permitted": snapshot.lane_change_permitted,
         "human_intervention_requested": snapshot.human_intervention_requested,

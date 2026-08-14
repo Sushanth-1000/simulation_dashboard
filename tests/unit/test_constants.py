@@ -199,7 +199,7 @@ def test_the_fast_state_supplies_the_lateral_acceleration_the_shield_bounds() ->
         # Pinned rather than merely bounded, so that a schema change has to be a
         # decision someone made here as well as there. This pin has now fired
         # five times for that reason and did its job every time.
-        (AUDIT_SCHEMA_VERSION, 7),
+        (AUDIT_SCHEMA_VERSION, 8),
         (CONFIG_SCHEMA_VERSION, 1),
     ],
 )
