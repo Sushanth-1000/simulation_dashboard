@@ -141,6 +141,16 @@ def _render_failsafe(snapshot: FailSafeSnapshot) -> dict[str, JsonValue]:
         "speed_cap_mps": None if snapshot.speed_cap is None else float(snapshot.speed_cap),
         "lane_change_permitted": snapshot.lane_change_permitted,
         "human_intervention_requested": snapshot.human_intervention_requested,
+        # Added at schema 9, ADR-0029. The second axis: `state` records how bad
+        # things were getting, this records what was broken. A row carrying only
+        # the first cannot answer the question a technician actually opens the
+        # log with -- "which function did the vehicle stop offering, and when?"
+        #
+        # An empty list is ambiguous by construction and the snapshot's docstring
+        # says so: it means either nothing was withdrawn or the profile declared
+        # no capabilities. The active profile disambiguates, and the run manifest
+        # already records which profile was loaded.
+        "withdrawn_capabilities": list(snapshot.withdrawn_capabilities),
     }
 
 

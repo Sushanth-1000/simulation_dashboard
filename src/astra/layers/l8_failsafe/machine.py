@@ -169,6 +169,7 @@ class FailSafeStateMachine:
         "_settings",
         "_state",
         "_tick",
+        "_withdrawn",
     )
 
     def __init__(self, settings: FailSafeSettings) -> None:
@@ -186,6 +187,7 @@ class FailSafeStateMachine:
         self._integrity = _COUNTER_FLOOR
         self._tick: TickId | None = None
         self._human_intervention_requested = False
+        self._withdrawn: tuple[str, ...] = ()
 
     def observe(
         self,
@@ -222,11 +224,73 @@ class FailSafeStateMachine:
         """
         self._counter = self._advanced_counter(blocking=verdict.is_blocking, exploring=exploring)
         self._integrity = self._advanced_integrity(frame_health=frame_health)
+        self._withdrawn = self._withdrawn_capabilities(frame_health=frame_health)
         self._state = self._next_state()
         self._tick = tick
         if self._state is FailSafeState.HALT:
             self._human_intervention_requested = True
         return self.snapshot
+
+    def _withdrawn_capabilities(
+        self, *, frame_health: Sequence[tuple[SensorModality, StreamHealth]]
+    ) -> tuple[str, ...]:
+        """Return the autonomy functions this frame's sensor health withdraws.
+
+        **The second axis.** Everything else in this machine answers *how bad is
+        this getting* and answers it with a severity level. This answers *what is
+        broken* and answers it with a set of lost functions. ADR-0029 is the
+        record of why one integer could not do both: before it, losing a camera
+        either stopped the vehicle or did nothing, and could not do the one
+        thing a camera failure actually calls for -- stop offering lane changes
+        and keep driving.
+
+        **Deliberately not filtered by ``critical_modalities``, and that is the
+        whole point.** The critical set decides whether a modality may change the
+        *posture*. This decides which *functions* it carries. A camera can be
+        non-critical -- never a reason to slow down -- and still be the only
+        thing a lane change depends on. Filtering here would re-couple the two
+        axes and reproduce OD-18 one level down.
+
+        **No counter, no hysteresis, and that asymmetry with the two counters is
+        deliberate.** A counter exists to distinguish a glitch from a fault
+        because escalating the *posture* on one bad frame would spend the
+        vehicle's life in DEGRADED. Withdrawing a capability has no comparable
+        cost: the vehicle keeps driving and declines one function. Paying a
+        detection delay to avoid a cheap action would be the wrong trade, and it
+        would mean a lane change could be *granted* during the ticks a camera
+        had already gone dark.
+
+        **Restoration is symmetric today and probably should not stay that
+        way.** A modality that flaps between healthy and stale will flap the
+        capability with it. The fix is a restore debounce -- withdraw at once,
+        restore after N clean ticks, because the two errors do not cost the same
+        -- but N is an operating point and no flap rate has been measured on this
+        platform. Inventing one would be the same unfalsifiable number that got
+        weighted counters rejected in ADR-0028. The field is not added until a
+        measurement asks for it.
+
+        Args:
+            frame_health: Per-modality health for this tick. Empty means the
+                caller has no sensor bus; nothing is withdrawn, which is what a
+                caller with no sensors means and what every test written against
+                the verdict half of this machine relies on.
+
+        Returns:
+            The withdrawn capability names in name order, so that two runs with
+            the same health produce byte-identical audit rows. The order comes
+            from the settings, which sort the pairs at load precisely so that
+            nothing downstream has to re-sort to be deterministic.
+        """
+        unhealthy = {
+            modality for modality, health in frame_health if health is not StreamHealth.HEALTHY
+        }
+        if not unhealthy:
+            return ()
+        return tuple(
+            name
+            for name, required in self._settings.capabilities
+            if unhealthy.intersection(required)
+        )
 
     def _advanced_integrity(
         self, *, frame_health: Sequence[tuple[SensorModality, StreamHealth]]
@@ -469,6 +533,14 @@ class FailSafeStateMachine:
             lane_change_permitted=self._state is FailSafeState.NOMINAL,
             human_intervention_requested=self._human_intervention_requested,
             integrity_counter=self._integrity,
+            withdrawn_capabilities=self._withdrawn,
+            # Reported beside `lane_change_permitted`, not folded into it. L8
+            # would have to know that the string "lane_change" names the
+            # capability behind that field, and a layer that knows what a lane
+            # is has lost NFR5. Composition -- posture AND capability, an
+            # intersection that can only subtract -- belongs to the domain
+            # adapter that reads the names. OD-11 wall 4 is where the automotive
+            # field itself goes, and the two merge there (ADR-0029).
         )
 
     @property
@@ -485,6 +557,11 @@ class FailSafeStateMachine:
     def integrity_counter(self) -> int:
         """Return the current sensor-integrity counter."""
         return self._integrity
+
+    @property
+    def withdrawn_capabilities(self) -> tuple[str, ...]:
+        """Return the capabilities the last frame's sensor health withdrew."""
+        return self._withdrawn
 
     @property
     def speed_cap(self) -> MetresPerSecond | None:
@@ -518,6 +595,16 @@ class FailSafeStateMachine:
         whose IMU is still dead should watch it escalate again from zero and see
         the counter climb -- the log then shows a second, independent
         escalation, which is the truth.
+
+        **The withdrawn capabilities are deliberately not cleared.** A reset
+        clears what the *machine* decided; it cannot clear what the *sensors*
+        reported. The counters are accumulated state and belong to the machine,
+        so zeroing them is the machine forgetting its own history. The withdrawn
+        set is not state at all -- it is a pure function of the last frame's
+        health -- and setting it empty here would assert that every sensor is
+        healthy, which a reset has no way to know and no authority to say. An
+        operator who resets a vehicle whose camera is still dark should still
+        find lane changes withdrawn, and will.
         """
         self._state = FailSafeState.NOMINAL
         self._counter = _COUNTER_FLOOR

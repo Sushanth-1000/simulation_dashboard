@@ -196,10 +196,20 @@ def test_the_fast_state_supplies_the_lateral_acceleration_the_shield_bounds() ->
         # searched the knowledge base with, and archived nowhere -- so a record
         # could say SAFE_EXPLORATION and could not say what context produced it
         # (OD-14). Third time this shape has appeared, after v3 and v5.
+        # Audit v8: the snapshot's `integrity_counter` reaches the *record*. v6
+        # put it on the snapshot and stopped there, so the archive carried
+        # ADR-0024's conclusion and none of its evidence (OD-16). Found by the
+        # explainer rather than by a test, which is why the explainer exists.
+        # Audit v9: the fail-safe snapshot carries `withdrawn_capabilities`.
+        # ADR-0029 gave the machine a second *axis*: `state` records how bad
+        # things were getting, this records what was broken, and the two are
+        # independent -- a v9 row can read NOMINAL with lane changes withdrawn.
+        # A v8 archive cannot express that, and a missing list there means
+        # nobody asked rather than nothing was withdrawn.
         # Pinned rather than merely bounded, so that a schema change has to be a
         # decision someone made here as well as there. This pin has now fired
-        # five times for that reason and did its job every time.
-        (AUDIT_SCHEMA_VERSION, 8),
+        # six times for that reason and did its job every time.
+        (AUDIT_SCHEMA_VERSION, 9),
         (CONFIG_SCHEMA_VERSION, 1),
     ],
 )

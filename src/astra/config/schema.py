@@ -36,6 +36,7 @@ configuration.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -517,6 +518,41 @@ class FailSafeSettings(_Section):
             channels by median tolerates one; a deployment with one channel
             per quantity tolerates none, and setting one there would mean
             ignoring the only sensor it has (ADR-0027).
+        capabilities: What each autonomy function requires, as
+            ``{name: modalities}``. A function is **withdrawn** for as long as
+            any modality it requires is worse than ``HEALTHY``.
+
+            **This is the second axis, and it is orthogonal to everything above
+            it.** The thresholds and ``critical_modalities`` answer *how bad is
+            this getting* with a severity level; this answers *what is broken*
+            with a set of lost functions. One integer cannot hold both, and
+            ADR-0029 is the record of finding that out: before it, a camera
+            fault could stop the vehicle or do nothing at all, and could not do
+            the one useful thing -- stop offering lane changes and drive on.
+
+            The two axes compose by **intersection**: a capability is available
+            only where the posture allows it *and* its sensors support it.
+            Withdrawal can therefore only ever subtract. A capability set that
+            could *grant* something the posture forbids would be a fourth gate
+            with veto-override authority, which SI-3 forbids.
+
+            Being orthogonal to ``critical_modalities`` is the point. A camera
+            may be non-critical -- never a reason to slow down -- *and* required
+            by ``lane_change``, so losing it withdraws lane changes and leaves
+            the vehicle driving. Neither field alone can express that.
+
+            The names are **opaque to L8**, which is what keeps NFR5: the layer
+            knows that capabilities exist and get withdrawn, never what a lane
+            is. Only a domain adapter reads the names.
+
+            **Defaults to empty**, and that is not an A-4 exception. An empty
+            ``critical_modalities`` would disable a counter that already
+            escalates, so it is a fail-open claim and is refused. An empty
+            ``capabilities`` withdraws nothing, which is precisely the behaviour
+            shipped before this field existed -- an absence of a claim rather
+            than a weak one. ``benchmarks/commissioning.py`` prints the
+            resulting degradation table, so a deployment that declared none can
+            see that it declared none.
 
     **Why there are two sets of thresholds, and why the second set is tighter.**
     The ``ood_*`` thresholds answer *"how long should sustained refusal be
@@ -543,6 +579,74 @@ class FailSafeSettings(_Section):
     integrity_threshold_halt: PositiveInt
     integrity_tolerated_faults: NonNegativeInt
     critical_modalities: tuple[SensorModality, ...]
+    capabilities: tuple[tuple[str, tuple[SensorModality, ...]], ...] = ()
+
+    @field_validator("capabilities", mode="before")
+    @classmethod
+    def _capabilities_are_sorted_pairs(cls, value: object) -> object:
+        """Normalise the TOML table into sorted name/requirement pairs.
+
+        The file declares a table because ``lane_change = ["CAMERA"]`` is what a
+        safety engineer can read, and the readability of that table is half the
+        point of the feature. The field stores **pairs** because a ``dict`` on a
+        frozen settings model is mutable through the attribute, and because
+        pydantic can serialise neither it nor a ``mappingproxy`` -- the config
+        hash that pins a run to its operating point is computed by serialising
+        this model, so an unserialisable field would have taken the provenance
+        record down with it.
+
+        Sorting makes the hash independent of the order the keys happen to
+        appear in the file. Two profiles that declare the same capabilities
+        differently ordered are the same operating point and must hash alike.
+
+        Args:
+            value: Whatever the loader produced -- a table from TOML, or pairs
+                from a caller constructing settings directly.
+
+        Returns:
+            Sorted pairs, or the value untouched when it is not a mapping.
+        """
+        if isinstance(value, Mapping):
+            return tuple(sorted((str(name), tuple(required)) for name, required in value.items()))
+        return value
+
+    @field_validator("capabilities")
+    @classmethod
+    def _every_capability_requires_a_modality(
+        cls, value: tuple[tuple[str, tuple[SensorModality, ...]], ...]
+    ) -> tuple[tuple[str, tuple[SensorModality, ...]], ...]:
+        """Validate that no capability declares an empty requirement.
+
+        A capability requiring nothing can never be withdrawn: the derivation
+        intersects its requirement with the unhealthy set, and an empty
+        requirement intersects nothing. It would sit in the commissioning table
+        looking like a modelled function and would survive the loss of every
+        sensor on the vehicle.
+
+        That is the same fail-open shape as an empty ``critical_modalities`` and
+        it is refused for the same reason -- a capability nobody can withdraw is
+        indistinguishable, in the record, from one that was never at risk.
+
+        Args:
+            value: The declared capability requirements.
+
+        Returns:
+            The value, unchanged.
+
+        Raises:
+            ValueError: If any capability requires no modality, or is unnamed.
+        """
+        for name, required in value:
+            if not name.strip():
+                message = "failsafe.capabilities contains an unnamed capability"
+                raise ValueError(message)
+            if not required:
+                message = (
+                    f"failsafe.capabilities[{name!r}] requires no modality; "
+                    "a capability that requires nothing can never be withdrawn"
+                )
+                raise ValueError(message)
+        return value
 
     @field_validator("critical_modalities")
     @classmethod

@@ -266,6 +266,26 @@ class FailSafeSnapshot:
 
             It defaults to zero so that a snapshot constructed by a caller with
             no sensor bus is not asserting a fault it never looked for.
+        withdrawn_capabilities: The autonomy functions unavailable this tick
+            because a modality they require is not ``HEALTHY``, sorted by name.
+
+            **A second axis, not a second severity.** ``state`` says how bad
+            things are getting; this says *what is broken*, and the two are
+            independent -- a vehicle can be NOMINAL with lane changes withdrawn
+            (a non-critical camera is dark) or DEGRADED with every capability
+            intact (the gates are refusing commands and every sensor is fine).
+            Collapsing them into one field would lose exactly the distinction a
+            driver and a technician each need. See ADR-0029.
+
+            Withdrawal is **subtractive only**: this list can remove a function
+            the posture would have allowed and can never restore one the posture
+            forbids. Consumers must therefore intersect, never override.
+
+            Empty means either that nothing is withdrawn or that the deployment
+            declared no capabilities at all. Those are different situations and
+            this field cannot distinguish them -- ``failsafe.capabilities`` in
+            the active profile is what says which, and
+            ``benchmarks/commissioning.py`` prints it.
     """
 
     tick: TickId
@@ -275,6 +295,7 @@ class FailSafeSnapshot:
     lane_change_permitted: bool = True
     human_intervention_requested: bool = False
     integrity_counter: int = 0
+    withdrawn_capabilities: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         """Validate the counter and the speed cap.

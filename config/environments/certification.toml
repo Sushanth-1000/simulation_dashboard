@@ -140,6 +140,22 @@ environment = "certification"
 # left out is still recorded; it stops being a reason to act (ADR-0028).
 # critical_modalities =
 
+# The second axis (ADR-0029). critical_modalities above decides whether a sensor
+# may change the POSTURE; this decides which FUNCTIONS it carries, and the two
+# are orthogonal -- a camera can be no reason to slow down and still be the only
+# thing a lane change depends on. Composition is an intersection that can only
+# subtract, so nothing declared here can grant what the posture forbids.
+#
+# Unlike every other value in this file, an EMPTY declaration is admissible: it
+# withdraws nothing, which is exactly the behaviour shipped before the field
+# existed. It is left blank here anyway, because a certification profile that
+# models no per-function dependency should have to say so deliberately rather
+# than inherit silence. Run `benchmarks/commissioning.py` against the completed
+# profile: it prints, per modality, what its loss withdraws and where the
+# posture lands, and flags any modality whose loss does nothing at all.
+# [failsafe.capabilities]
+# lane_change =
+
 [arbitration]
 # τ, the calibration admissibility threshold, and δ_CDI, the divergence limit
 # above which a staged calibration switch rolls back.

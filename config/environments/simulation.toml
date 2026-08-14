@@ -131,6 +131,30 @@ integrity_tolerated_faults = 0
 # and every audit record. It simply stops being a reason to slow down or stop.
 critical_modalities = ["CAMERA", "LIDAR", "IMU", "GPS", "RADAR"]
 
+# What each autonomy function needs, and therefore what is withdrawn when a
+# sensor goes unhealthy. THE SECOND AXIS (ADR-0029): critical_modalities above
+# decides whether a sensor may change the POSTURE; this decides which FUNCTIONS
+# it carries. They are orthogonal on purpose -- a camera can be no reason at all
+# to slow down and still be the only thing a lane change depends on.
+#
+# Composition is an INTERSECTION and can only ever subtract: a function is
+# offered where the posture allows it AND its sensors support it. Nothing here
+# can grant what the posture forbids, which is SI-3 held by construction.
+#
+# Declaring a requirement is the SAFE direction of error, and that is why these
+# are filled in while critical_modalities deliberately is not narrowed. Naming a
+# modality non-critical RELAXES -- it removes a protection, so it needs proof
+# (ADR-0028, which is why every modality above is still listed). Naming a
+# modality REQUIRED restricts: get it wrong and the vehicle declines a function
+# it could have kept. Design intent is enough to restrict; only relaxing needs
+# evidence.
+[failsafe.capabilities]
+lane_change = ["CAMERA", "RADAR"]
+lane_keeping = ["CAMERA"]
+adaptive_cruise = ["RADAR", "IMU"]
+obstacle_avoidance = ["LIDAR", "RADAR"]
+route_following = ["GPS"]
+
 [arbitration]
 trust_threshold_tau = 0.70
 divergence_limit_delta = 0.20

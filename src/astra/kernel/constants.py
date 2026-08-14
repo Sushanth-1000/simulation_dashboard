@@ -136,7 +136,7 @@ RCS_DIMENSION: Final = len(RCS_FIELDS)
 # after the schema has moved on. A version field is the cheapest possible
 # insurance against an unreadable evidence archive.
 
-AUDIT_SCHEMA_VERSION: Final = 8
+AUDIT_SCHEMA_VERSION: Final = 9
 """Schema version stamped on every audit record. Increment on any field change.
 
 Version 2 (ADR-0016) widened the verdict vocabulary: a gate verdict may now read
