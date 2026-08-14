@@ -101,6 +101,7 @@ uv run python -m benchmarks.platform_transfer
 uv run python -m benchmarks.parity
 uv run python -m benchmarks.commissioning
 uv run python -m benchmarks.redundancy
+uv run astra explain var/soak/<name>/audit 250
 make verify-install
 ```
 
@@ -118,7 +119,7 @@ regressing is a failed command rather than a table someone has to re-read.
 
 | # | Claim | Value | Produced by | Date |
 |:--:|---|---|---|:--:|
-| E-1 | Quality gate is green | **2,924 tests + 5 strict xfail**, `ruff` + `mypy --strict` over **160** files + **12** import contracts, 0 broken | `make check` | 11 Aug |
+| E-1 | Quality gate is green | **2,953 tests + 5 strict xfail**, `ruff` + `mypy --strict` over **160** files + **12** import contracts, 0 broken | `make check` | 11 Aug |
 | E-2 | The closed loop is stable over a long run | **All ten soak criteria pass over 100,000 ticks** | `python -m benchmarks.soak --ticks 100000 --window 1000` | 5 Aug |
 | E-3 | A command is issued on every tick | **100,000 of 100,000**, and 400,000 of 400,000 across the four runs of the day | as E-2 | 5 Aug |
 | E-4 | The proposer's commands are accepted | `PROPOSED` on **99,997** ticks; **3** vetoed, all answered by the rate limiter. Veto rate 3×10⁻⁵, which the console rounds to 0.0% — the JSON is authoritative | as E-2, `summary.json` | 5 Aug |
@@ -233,6 +234,9 @@ regressing is a failed command rather than a table someone has to re-read.
 | E-120 | **OD-16: the integrity counter was never written to the log** | ADR-0024 gave L8 two counters and argued they must be reported separately — *"one integer cannot say which happened"* — and the field went onto `FailSafeSnapshot` and **not onto the audit record**. So every archive between schema 6 and 8 carries that argument's conclusion and none of its evidence: a DEGRADED posture with no way to tell whether the gates refused or a sensor went dark. **Fourth instance of one shape in five schema versions**, after `fast_innovation` (v3), `previous_digest` (v5) and the arbitration signature (v7). Closed at schema **7 → 8** | `astra explain <log> <tick>` on a pre-fix archive | 11 Aug |
 | E-121 | **`astra explain` reconstructs one tick's decision from the archive alone** | Sensors, estimate, per-gate verdict with its evidence, posture with **which counter caused it**, arbitration with the context signature, and the issued command with why it differs from the proposal. On the IMU-dropout run at t250 it reports `fail-safe HALT / ood counter 0 / integrity counter 40` and the line **"escalated on SENSOR HEALTH, not on any veto"** — which is the sentence ADR-0024's whole argument rests on and which the archive could not support until E-120 was fixed. This is A-10's definition of explainability given a reader | `uv run astra explain var/explain-run 250` | 11 Aug |
 | E-122 | It refuses to infer, and the refusal caught its own first bug | An absent field reads as **not recorded**, never as a plausible default. The first version read a missing `integrity_counter` as zero and therefore reported *"both counters equal"* on a HALT caused entirely by sensor health — an inference dressed as a finding. It now says which counter escalated **cannot be told** from a pre-schema-8 archive, and names why. Same rule as the dashboard's, and for the same reason (E-79): the most alarming thing an explanation can do is sound complete | as E-121 | 11 Aug |
+| E-123 | **OD-17: the 95% coverage gate is an aggregate, and a module shipped at 10%** | `astra explain` — a forensic tool a safety case would lean on — landed with **no tests at all**, at **10.3%** coverage, and `make check` was **green**. 94 uncovered statements against a codebase of several thousand moved the aggregate by less than a tenth of a point. The gate said *"95% coverage"* and meant *"95% on average, and nothing about the thing you just wrote"* | `pytest --cov=astra.observability.explain` on the shipping commit | 11 Aug |
+| E-124 | The floor fires on exactly the case that created it | `make coverage-floor` fails any file below **80%**, excluding `__main__.py` by name rather than by pattern. Replayed against `explain.py` at its shipped 10.3%: **exit code 1**, the file named. Against the tree today: **every file at or above 80%**, so it costs nothing to keep. The floor sits far *below* the 95% aggregate deliberately — its job is to catch a module with **no** tests, not to chase the last branches out of covered code, and a floor near the aggregate would fail three healthy files and be switched off within a week | `make coverage-floor` | 11 Aug |
+| E-125 | The explainer's own coverage, after | **10.3% → 95.2%**, 29 tests. Most assert **absence**: that a missing field stays missing, because the positive cases are easy and would pass on a module that also invents things. One test is the module's own first bug — an absent `integrity_counter` read as zero, reporting *"both counters equal"* on a HALT caused entirely by sensor health | `pytest tests/unit/test_explain.py` | 11 Aug |
 
 † **Historical, not reproducible from the current tree.** These three measured the
 elastic-weight-consolidation penalty, which [ADR-0019](adr/0019-one-twin-head-per-context.md)

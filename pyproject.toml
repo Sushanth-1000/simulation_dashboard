@@ -188,7 +188,7 @@ extend-exclude = [".venv", "build", "dist"]
 # off the runtime import graph, not because they belong to somebody else.
 # Without this they sort as third-party packages and the import block reads as
 # though the pipeline depended on an external trainer.
-known-first-party = ["astra", "benchmarks", "demo", "training"]
+known-first-party = ["astra", "benchmarks", "demo", "tools", "training"]
 
 [tool.ruff.lint]
 select = [
@@ -252,6 +252,8 @@ ignore = [
 "benchmarks/**" = ["T20", "S311", "INP001"]
 # The demo reports to a human at a terminal, like the CLI and the benchmarks.
 "demo/**" = ["T20", "S311", "INP001"]
+# Build tooling reports to a human at a terminal and is not importable either.
+"tools/**" = ["T20", "INP001"]
 # Training scripts report to a human at a terminal for the same reason
 # benchmarks do, and are standalone rather than importable. S311: the corpus
 # sampler is a data generator, not a security control. PLR0913: a training entry

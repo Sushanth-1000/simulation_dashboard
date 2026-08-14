@@ -143,7 +143,17 @@ coverage: ## Write an HTML coverage report to htmlcov/
 doctor: ## Report on this installation, as `astra doctor` does
 	$(RUN) astra doctor
 
-check: blobsize lockfile format-check lint typecheck contracts test ## The full quality gate, exactly as CI runs it
+coverage-floor: ## Refuse any single module far below the aggregate gate
+	@# The 95% gate is an AGGREGATE, so a new module can ship at 10% and pass,
+	@# carried by everything around it. That happened on 11 August 2026:
+	@# `astra explain` landed with no tests at all, at 10.3%, and the gate was
+	@# green -- the aggregate moved by less than a tenth of a point. See
+	@# tools/coverage_floor.py for why the floor sits well below the gate.
+	$(RUN) pytest --cov=astra --cov-report=json:.coverage.json -q > /dev/null
+	$(RUN) python tools/coverage_floor.py .coverage.json
+
+
+check: blobsize lockfile format-check lint typecheck contracts test coverage-floor ## The full quality gate, exactly as CI runs it
 	@echo ""
 	@echo "  quality gate: PASSED"
 
