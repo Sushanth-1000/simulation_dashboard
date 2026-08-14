@@ -191,10 +191,15 @@ def test_the_fast_state_supplies_the_lateral_acceleration_the_shield_bounds() ->
         # which (ADR-0024, OD-9). A v5 archive showing NOMINAL through a sensor
         # fault is *correct about the machine that wrote it* and must not be
         # compared against a v6 archive as the same system.
+        # Audit v7: the arbitration decision carries the `signature` RCM
+        # actually decided on. It was computed every cold-path evaluation,
+        # searched the knowledge base with, and archived nowhere -- so a record
+        # could say SAFE_EXPLORATION and could not say what context produced it
+        # (OD-14). Third time this shape has appeared, after v3 and v5.
         # Pinned rather than merely bounded, so that a schema change has to be a
         # decision someone made here as well as there. This pin has now fired
-        # four times for that reason and did its job every time.
-        (AUDIT_SCHEMA_VERSION, 6),
+        # five times for that reason and did its job every time.
+        (AUDIT_SCHEMA_VERSION, 7),
         (CONFIG_SCHEMA_VERSION, 1),
     ],
 )

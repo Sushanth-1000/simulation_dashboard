@@ -416,6 +416,25 @@ class ArbitrationDecision:
             negative when the risk term dominates.
         calibration_divergence_index: The CDI during shadow execution, in
             ``[0, 1]``, or ``None`` when no switch is in progress.
+        signature: **The context this decision was taken about.**
+
+            Optional only so that a caller constructing a decision by hand --
+            every test that predates this field -- is not forced to invent a
+            signature it does not have. The arbitrator always supplies it.
+
+            **Until 11 August 2026 this was not recorded anywhere.** RCM built a
+            signature each cold-path evaluation, searched the knowledge base
+            with it, decided on it, and returned a decision that did not carry
+            it. The evidence log could therefore say *"SAFE_EXPLORATION, trust
+            0.62"* and could **not** say what context produced that, so the one
+            question a reader most wants to ask -- *why did RCM decide that?* --
+            was unanswerable from the archive.
+
+            That is the same shape as E-54, where ``fast_innovation`` was
+            computed every tick, consumed by two layers, and archived nowhere.
+            It also contradicts assumption A-10, which defines explainability
+            for this project as **decision provenance**: the inputs a decision
+            was taken on, recorded beside it.
     """
 
     tick: TickId
@@ -424,6 +443,7 @@ class ArbitrationDecision:
     candidate_profile: ProfileId | None = None
     trust_score: float | None = None
     calibration_divergence_index: Probability | None = None
+    signature: RuntimeContextSignature | None = None
 
     def __post_init__(self) -> None:
         """Validate the decision's numeric fields and cross-field consistency.

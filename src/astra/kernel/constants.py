@@ -136,7 +136,7 @@ RCS_DIMENSION: Final = len(RCS_FIELDS)
 # after the schema has moved on. A version field is the cheapest possible
 # insurance against an unreadable evidence archive.
 
-AUDIT_SCHEMA_VERSION: Final = 6
+AUDIT_SCHEMA_VERSION: Final = 7
 """Schema version stamped on every audit record. Increment on any field change.
 
 Version 2 (ADR-0016) widened the verdict vocabulary: a gate verdict may now read
@@ -184,7 +184,20 @@ could not escalate on sensor health at all, so a version-5 archive showing
 NOMINAL throughout a sensor fault is **correct about what that machine did** and
 must not be compared against a version-6 archive as though the two were the same
 system. That is precisely the OD-9 evidence (E-46), and the version field is
-what keeps it from being quietly re-interpreted."""
+what keeps it from being quietly re-interpreted.
+
+Version 7 (11 August 2026) adds ``signature`` to the arbitration decision: the
+five-component runtime context signature RCM actually decided on. **It was
+computed every cold-path evaluation, searched the knowledge base with, decided
+on, and archived nowhere** -- so a record could say ``SAFE_EXPLORATION, trust
+0.62`` and could not say what context produced it. The one question a reader of
+an arbitration record most wants to ask was unanswerable from the archive
+(OD-14).
+
+Third time this shape has appeared: ``fast_innovation`` at version 3, and
+``previous_digest`` at version 5 were both quantities the pipeline had and the
+evidence did not. A version-6 reader loses the field and is back to not being
+able to answer the question, which is the benign direction."""
 
 CONFIG_SCHEMA_VERSION: Final = 1
 """Schema version required in every configuration file. Rejected if mismatched."""

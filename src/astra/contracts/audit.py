@@ -151,6 +151,15 @@ def _render_arbitration(decision: ArbitrationDecision) -> dict[str, JsonValue]:
             if decision.calibration_divergence_index is None
             else float(decision.calibration_divergence_index)
         ),
+        # The context the decision was taken about. Rendered as a bare vector
+        # ordered per RCS_FIELDS rather than as named keys, because the ordering
+        # is already fixed by contract -- a profile's stored centroid is a bare
+        # vector too, and a reader that pairs them must use the same order.
+        "signature": (
+            None
+            if decision.signature is None
+            else [float(component) for component in decision.signature.components]
+        ),
     }
 
 

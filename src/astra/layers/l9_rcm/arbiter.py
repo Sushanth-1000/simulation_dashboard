@@ -475,18 +475,29 @@ class RuntimeCalibrationManager:
                 tick=tick,
                 outcome=ArbitrationOutcome.SAFE_EXPLORATION,
                 active_profile=active_id,
+                signature=signature,
             )
 
         best = admissible[0]
         if best.profile.profile_id == active_id:
             self._shadow = None
             return ArbitrationDecision(
-                tick=tick, outcome=ArbitrationOutcome.CONTINUE, active_profile=active_id
+                tick=tick,
+                outcome=ArbitrationOutcome.CONTINUE,
+                active_profile=active_id,
+                signature=signature,
             )
 
         if self._shadow is None:
             self._shadow = ShadowExecution()
-            return self._staged(tick, active_id, best.profile.profile_id, best.trust_score, None)
+            return self._staged(
+                tick=tick,
+                active=active_id,
+                candidate=best.profile.profile_id,
+                score=best.trust_score,
+                index=None,
+                signature=signature,
+            )
 
         index = self._shadow.divergence_index
         if self._shadow.has_cleared(divergence_limit):
@@ -499,6 +510,7 @@ class RuntimeCalibrationManager:
                 candidate_profile=best.profile.profile_id,
                 trust_score=best.trust_score,
                 calibration_divergence_index=Probability(index),
+                signature=signature,
             )
 
         if self._shadow.sample_count >= SHADOW_PATIENCE:
@@ -510,19 +522,27 @@ class RuntimeCalibrationManager:
                 candidate_profile=best.profile.profile_id,
                 trust_score=best.trust_score,
                 calibration_divergence_index=Probability(index),
+                signature=signature,
             )
 
         return self._staged(
-            tick, active_id, best.profile.profile_id, best.trust_score, Probability(index)
+            tick=tick,
+            active=active_id,
+            candidate=best.profile.profile_id,
+            score=best.trust_score,
+            index=Probability(index),
+            signature=signature,
         )
 
     @staticmethod
     def _staged(
+        *,
         tick: TickId,
         active: object,
         candidate: object,
         score: float,
         index: Probability | None,
+        signature: RuntimeContextSignature,
     ) -> ArbitrationDecision:
         """Build a SHADOW_EXECUTION decision.
 
@@ -533,6 +553,7 @@ class RuntimeCalibrationManager:
             score: The candidate's ``T(c)``.
             index: The divergence index so far, or ``None`` on the first tick of
                 the staging period, when no comparison has been made.
+            signature: The context this decision was taken about.
 
         Returns:
             The decision.
@@ -544,6 +565,7 @@ class RuntimeCalibrationManager:
             candidate_profile=candidate,  # type: ignore[arg-type]
             trust_score=score,
             calibration_divergence_index=index,
+            signature=signature,
         )
 
     def _rate_limited(
