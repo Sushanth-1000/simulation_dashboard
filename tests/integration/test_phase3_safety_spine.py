@@ -76,6 +76,13 @@ def _failsafe_settings() -> FailSafeSettings:
         integrity_threshold_limp=15,
         integrity_threshold_halt=40,
         integrity_tolerated_faults=0,
+        critical_modalities=(
+            SensorModality.CAMERA,
+            SensorModality.LIDAR,
+            SensorModality.IMU,
+            SensorModality.GPS,
+            SensorModality.RADAR,
+        ),
     )
 
 

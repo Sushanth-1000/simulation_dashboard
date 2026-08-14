@@ -48,6 +48,7 @@ from astra.kernel.constants import (
     SLOW_STATE_DIMENSION,
     SLOW_STATE_FIELDS,
 )
+from astra.kernel.enums import SensorModality
 from astra.kernel.units import (
     Degrees,
     Hertz,
@@ -488,6 +489,22 @@ class FailSafeSettings(_Section):
             above this enters DEGRADED. **No default** (A-4).
         integrity_threshold_limp: ``phi-2``. Enters LIMP. **No default** (A-4).
         integrity_threshold_halt: ``phi-3``. Enters HALT. **No default** (A-4).
+        critical_modalities: The modalities whose health drives the integrity
+            counter. A modality **outside** this set is still recorded in every
+            frame-health map and every audit record -- it is simply not counted
+            as a reason to change the vehicle's posture.
+
+            **No default** (A-4), because naming a modality non-critical is a
+            safety claim: that nothing the safety argument depends on reads it.
+            Get it wrong and the vehicle drives on a dead sensor it needed.
+
+            **Every shipped profile lists all five**, which is exactly the
+            behaviour before this field existed. The prototype deliberately does
+            **not** use the escape hatch it provides: its extractor happens to
+            read only the IMU, so declaring the other four non-critical would be
+            *true of this build* -- and true only because of OD-15, which is a
+            defect to fix rather than a property to encode in a safety file
+            (ADR-0028).
         integrity_tolerated_faults: How many modalities may be unhealthy
             *simultaneously* before the integrity counter rises. **No
             default** (A-4), and **zero is the only value a deployment
@@ -525,6 +542,37 @@ class FailSafeSettings(_Section):
     integrity_threshold_limp: PositiveInt
     integrity_threshold_halt: PositiveInt
     integrity_tolerated_faults: NonNegativeInt
+    critical_modalities: tuple[SensorModality, ...]
+
+    @field_validator("critical_modalities")
+    @classmethod
+    def _at_least_one_modality_is_critical(
+        cls, value: tuple[SensorModality, ...]
+    ) -> tuple[SensorModality, ...]:
+        """Validate that the critical set is not empty.
+
+        An empty set silently disables the sensor-integrity counter: nothing
+        would ever be counted, the machine would never escalate on sensor
+        health, and every run would look healthy. That is a fail-open mode
+        reachable by deleting a line from a TOML file, which is precisely the
+        failure ``extra="forbid"`` and A-4 exist to prevent elsewhere.
+
+        Args:
+            value: The declared critical modalities.
+
+        Returns:
+            The value, unchanged.
+
+        Raises:
+            ValueError: If the set is empty.
+        """
+        if not value:
+            message = (
+                "failsafe.critical_modalities must name at least one modality; "
+                "an empty set disables the integrity counter entirely"
+            )
+            raise ValueError(message)
+        return value
 
     @field_validator("integrity_threshold_halt")
     @classmethod

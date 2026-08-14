@@ -118,6 +118,19 @@ integrity_threshold_halt = 40
 # fusion, and this deployment has nothing that does (ADR-0027).
 integrity_tolerated_faults = 0
 
+# Which modalities' health may change the vehicle's posture. ALL FIVE, which is
+# exactly the behaviour before this field existed.
+#
+# The escape hatch is deliberately not used here. This prototype's extractor
+# happens to read only the IMU, so declaring the other four non-critical would
+# be true *of this build* -- and true only because of OD-15, five modalities
+# carrying one measurement. That is a defect to fix, not a property to write
+# into a safety file (ADR-0028).
+#
+# A modality left out of this list is still RECORDED in every frame-health map
+# and every audit record. It simply stops being a reason to slow down or stop.
+critical_modalities = ["CAMERA", "LIDAR", "IMU", "GPS", "RADAR"]
+
 [arbitration]
 trust_threshold_tau = 0.70
 divergence_limit_delta = 0.20

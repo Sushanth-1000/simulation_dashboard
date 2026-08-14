@@ -133,6 +133,12 @@ environment = "certification"
 # liar from the fusion. Both halves are required; either alone is not
 # redundancy (ADR-0027).
 # integrity_tolerated_faults =
+#
+# And which modalities' health may change the posture at all. Naming a modality
+# non-critical asserts that nothing the safety argument depends on reads it --
+# get it wrong and the vehicle drives on a dead sensor it needed. A modality
+# left out is still recorded; it stops being a reason to act (ADR-0028).
+# critical_modalities =
 
 [arbitration]
 # τ, the calibration admissibility threshold, and δ_CDI, the divergence limit

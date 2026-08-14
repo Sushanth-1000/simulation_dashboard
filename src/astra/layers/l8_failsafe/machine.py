@@ -247,8 +247,21 @@ class FailSafeStateMachine:
         truth. A vehicle exploring a tunnel with a dead IMU is in more trouble
         than one doing either alone, not less.
 
-        **A quorum, not any modality -- and this line is the successor ADR-0024
-        called for.** That record said: *"any modality, not a quorum ... when
+        **Only the modalities the deployment calls critical, and a quorum of
+        those.** Two decisions, taken four days apart, both because the first
+        version of this line was too blunt.
+
+        *Which modalities count* -- ADR-0028. This counted **every** modality
+        until 11 August, so a camera failure halted the vehicle exactly as an
+        IMU failure did, measured, even though the estimator does not read the
+        camera. A nuisance stop caused by a component that was not contributing.
+        ``critical_modalities`` is the deployment's declaration of which sensors
+        the safety argument depends on; a modality outside it is still
+        **recorded** in the frame health and every audit record, and simply does
+        not move this counter.
+
+        *How many may fail* -- ADR-0027, and this line is the successor
+        ADR-0024 That record said: *"any modality, not a quorum ... when
         redundancy exists this is the line that should become a vote, and it
         needs its own decision record when it does."* Redundancy arrived with
         ADR-0026 and the prediction came true immediately: one faulted channel
@@ -286,7 +299,12 @@ class FailSafeStateMachine:
         Returns:
             The new counter, in ``[0, integrity_threshold_halt]``.
         """
-        unhealthy = sum(1 for _, health in frame_health if health is not StreamHealth.HEALTHY)
+        critical = self._settings.critical_modalities
+        unhealthy = sum(
+            1
+            for modality, health in frame_health
+            if health is not StreamHealth.HEALTHY and modality in critical
+        )
         if unhealthy <= self._settings.integrity_tolerated_faults:
             return max(_COUNTER_FLOOR, self._integrity - 1)
         return min(self._settings.integrity_threshold_halt, self._integrity + 1)

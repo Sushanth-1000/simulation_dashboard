@@ -56,7 +56,7 @@ import pytest
 
 from astra.config.schema import FailSafeSettings
 from astra.contracts.assurance import FailSafeSnapshot, GateVerdict, SafetyVerdict
-from astra.kernel.enums import FailSafeState, GateId, Verdict
+from astra.kernel.enums import FailSafeState, GateId, SensorModality, Verdict
 from astra.kernel.identifiers import TickId
 from astra.kernel.units import MetresPerSecond
 from astra.layers.l8_failsafe.machine import FailSafeStateMachine
@@ -73,6 +73,13 @@ SETTINGS = FailSafeSettings(
     integrity_threshold_limp=15,
     integrity_threshold_halt=40,
     integrity_tolerated_faults=0,
+    critical_modalities=(
+        SensorModality.CAMERA,
+        SensorModality.LIDAR,
+        SensorModality.IMU,
+        SensorModality.GPS,
+        SensorModality.RADAR,
+    ),
 )
 
 

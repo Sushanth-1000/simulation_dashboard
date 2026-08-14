@@ -43,6 +43,7 @@ is also recorded in the source, the module docstring is named — the reader who
 | [0025](0025-the-vehicle-proposes-calibration-work-never-a-calibration.md) | The vehicle proposes calibration *work*, never a calibration | `benchmarks/envelope.py`, `src/astra/contracts/governance.py` (`ArbitrationDecision.signature`) |
 | [0026](0026-faulted-gets-a-producer-and-the-counter-needs-a-quorum.md) | `FAULTED` gets a producer, and the counter now needs a quorum | `src/astra/layers/l2_estimation/measurement.py` (`IntegrityMonitor`), `training/redundant.py` |
 | [0027](0027-the-integrity-counter-rises-on-a-lost-quorum.md) | The integrity counter rises on a lost quorum, not on any bad channel | `src/astra/layers/l8_failsafe/machine.py`, `src/astra/config/schema.py` |
+| [0028](0028-the-deployment-declares-which-sensors-are-critical.md) | The deployment declares which sensors are safety-critical | `src/astra/layers/l8_failsafe/machine.py`, `src/astra/config/schema.py` |
 
 ## Format
 

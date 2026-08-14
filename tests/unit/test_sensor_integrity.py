@@ -45,6 +45,7 @@ whose scope is not asserted is a mechanism whose scope will be overstated.
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from astra.config.schema import FailSafeSettings
 from astra.contracts.assurance import GateVerdict, SafetyVerdict
@@ -62,6 +63,13 @@ SETTINGS = FailSafeSettings(
     integrity_threshold_limp=15,
     integrity_threshold_halt=40,
     integrity_tolerated_faults=0,
+    critical_modalities=(
+        SensorModality.CAMERA,
+        SensorModality.LIDAR,
+        SensorModality.IMU,
+        SensorModality.GPS,
+        SensorModality.RADAR,
+    ),
 )
 
 HEALTHY = ((SensorModality.IMU, StreamHealth.HEALTHY), (SensorModality.GPS, StreamHealth.HEALTHY))
@@ -437,3 +445,83 @@ def test_the_counter_recovers_when_the_frame_falls_back_inside_tolerance() -> No
     drive(machine, frame(faulted=1))
 
     assert machine.integrity_counter == 0
+
+
+# --------------------------------------------------------------------------- #
+# Which modalities count — ADR-0028
+# --------------------------------------------------------------------------- #
+
+
+def caring_about(*modalities: SensorModality) -> FailSafeStateMachine:
+    """Return a machine that treats only ``modalities`` as safety-critical."""
+    return FailSafeStateMachine(SETTINGS.model_copy(update={"critical_modalities": modalities}))
+
+
+def one_dead(modality: SensorModality) -> tuple[tuple[SensorModality, StreamHealth], ...]:
+    """Return a five-modality frame with exactly one channel absent."""
+    return tuple(
+        (candidate, StreamHealth.ABSENT if candidate is modality else StreamHealth.HEALTHY)
+        for candidate in SensorModality
+    )
+
+
+def test_declaring_every_modality_critical_is_the_previous_behaviour() -> None:
+    # The compatibility claim, and it is why every shipped profile lists all
+    # five: the change must move no number in the evidence pack.
+    machine = caring_about(*SensorModality)
+
+    drive(machine, one_dead(SensorModality.CAMERA))
+
+    assert machine.state is FailSafeState.HALT
+
+
+def test_a_non_critical_modality_failing_does_not_change_the_posture() -> None:
+    """The defect, directly.
+
+    Measured on 11 August: a camera failure HALTed the vehicle in two seconds,
+    identically to an IMU failure, although the extractor does not read the
+    camera. A nuisance stop caused by a component that was not contributing.
+    """
+    machine = caring_about(SensorModality.IMU)
+
+    drive(machine, one_dead(SensorModality.CAMERA))
+
+    assert machine.state is FailSafeState.NOMINAL
+    assert machine.integrity_counter == 0
+
+
+def test_a_critical_modality_failing_still_stops_the_vehicle() -> None:
+    # The control. Without it, the test above would pass on a machine that had
+    # stopped escalating on sensor health altogether -- which is far worse than
+    # the nuisance stop it is meant to remove.
+    machine = caring_about(SensorModality.IMU)
+
+    drive(machine, one_dead(SensorModality.IMU))
+
+    assert machine.state is FailSafeState.HALT
+
+
+def test_a_non_critical_failure_is_still_recorded() -> None:
+    """Not counted is not the same as not seen.
+
+    The frame-health map is evidence and the counter is a decision. Suppressing
+    the first to change the second would hide a real failure from a technician
+    reading the log, which is the inversion this register has filed twice.
+    """
+    health = one_dead(SensorModality.RADAR)
+    machine = caring_about(SensorModality.IMU)
+
+    drive(machine, health)
+
+    assert dict(health)[SensorModality.RADAR] is StreamHealth.ABSENT
+    assert machine.state is FailSafeState.NOMINAL
+
+
+def test_an_empty_critical_set_is_refused_by_the_schema() -> None:
+    # An empty set silently disables the integrity counter: nothing is ever
+    # counted, nothing ever escalates, and every run looks healthy. A fail-open
+    # mode reachable by deleting one line from a TOML file.
+    with pytest.raises(ValidationError):
+        SETTINGS.model_copy(update={"critical_modalities": ()}).model_validate(
+            SETTINGS.model_dump() | {"critical_modalities": []}
+        )
