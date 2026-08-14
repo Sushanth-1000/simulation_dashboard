@@ -205,6 +205,17 @@ refutation is worth more than the attempt would have been.**
 | **What it found** | The faulted channel separates at **5.3x** and is **identified** rather than merely detected, at +41 and +28 ticks against a departure at +73. And a caveat worth more than the headline: the good channels are perturbed too -- 2.4x on LIDAR under an IMU fault, because with three channels the median itself moves -- so the honest margin is **2.2x over the next channel**, not 5.3x over the control |
 | **What it exposed** | **OD-15.** Five sensor modalities carrying one measurement, which is why every cross-check had nothing to check against. It sharpens D-3: the three gates were known to share L2's estimate, and this says the *modalities feeding L2* were never distinct either |
 
+### D-12f · The integrity counter rises on a lost quorum — [ADR-0027](adr/0027-the-integrity-counter-rises-on-a-lost-quorum.md)
+
+**The successor ADR-0024 named, written when its trigger arrived.**
+
+| | |
+|---|---|
+| **Forced by** | ADR-0026's first run. One faulted channel of three HALTed a vehicle driving at **0.042 m** on the other two with a working median (E-116) — a recoverable fault converted into a stop. ADR-0024 had written the trigger down: *"any modality, not a quorum ... when redundancy exists this is the line that should become a vote, and it needs its own decision record when it does"* |
+| **Alternatives** | (a) **A constant in the layer** — rejected, it is platform knowledge and NFR5 forbids it there. (b) **Have the monitor report DEGRADED while a quorum survives** — tempting because it needs no L8 change, and rejected twice over: L8 treats anything not HEALTHY as unhealthy so it moves the problem rather than fixing it, and downgrading a channel's *reported health* to obtain a downstream behaviour is the inversion this register has filed twice. (c) **A frame-level trustworthy boolean from the monitor** — cleanest in the abstract, rejected as premature: it hides the severity decision in an adapter where configuration review cannot see it. (d) **A second threshold, tolerated-but-degraded** — deferred with reasons. (e) **Count unhealthy modalities against a configured tolerance** |
+| **Why this one** | L8 counts; the **deployment declares**. How many lying channels a vehicle can absorb is a property of its sensor set, which is exactly the platform knowledge NFR5 keeps out of the layers, and putting it in configuration puts the claim in a file a safety engineer signs. At zero — what every shipped profile sets — it is bit-identical to the old rule, so the change carries no regression risk it has not measured |
+| **Gave up** | **Losing fault tolerance does not change the posture.** At tolerance 1 the first faulted channel leaves the vehicle one fault from a stop and the machine says NOMINAL. Defensible — the vehicle is fine — and a real reduction in margin that only the health map records. **And a wrong tolerance is a serious wrong number nothing can check**: set to 1 on a vehicle with one publisher per quantity, the system ignores its only sensor, which is worse than the defect this fixes. It also counts *modalities* rather than *quantities*, so uneven redundancy must be declared at its weakest |
+
 ---
 
 ## Part 3 · Decisions about how the project works

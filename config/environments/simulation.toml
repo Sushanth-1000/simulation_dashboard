@@ -111,6 +111,13 @@ integrity_threshold_degraded = 5
 integrity_threshold_limp = 15
 integrity_threshold_halt = 40
 
+# How many modalities may be unhealthy at once before the integrity counter
+# rises. ZERO, because this profile has one publisher per modality and no
+# cross-check -- there is nothing to fall back on, so one lying channel is one
+# too many. Raising it is a claim that something excludes the liar from the
+# fusion, and this deployment has nothing that does (ADR-0027).
+integrity_tolerated_faults = 0
+
 [arbitration]
 trust_threshold_tau = 0.70
 divergence_limit_delta = 0.20

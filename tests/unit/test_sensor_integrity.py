@@ -61,6 +61,7 @@ SETTINGS = FailSafeSettings(
     integrity_threshold_degraded=5,
     integrity_threshold_limp=15,
     integrity_threshold_halt=40,
+    integrity_tolerated_faults=0,
 )
 
 HEALTHY = ((SensorModality.IMU, StreamHealth.HEALTHY), (SensorModality.GPS, StreamHealth.HEALTHY))
@@ -352,3 +353,87 @@ def test_reset_clears_both_counters() -> None:
     assert after is FailSafeState.NOMINAL
     assert fsm.ood_counter == 0
     assert fsm.integrity_counter == 0
+
+
+# --------------------------------------------------------------------------- #
+# The quorum — ADR-0027, the successor ADR-0024 named
+# --------------------------------------------------------------------------- #
+
+
+def tolerating(faults: int) -> FailSafeStateMachine:
+    """Return a machine that declares it can absorb ``faults`` bad channels."""
+    return FailSafeStateMachine(SETTINGS.model_copy(update={"integrity_tolerated_faults": faults}))
+
+
+def frame(*, faulted: int) -> tuple[tuple[SensorModality, StreamHealth], ...]:
+    """Return a three-channel frame with ``faulted`` of them lying."""
+    channels = (SensorModality.IMU, SensorModality.GPS, SensorModality.LIDAR)
+    return tuple(
+        (channel, StreamHealth.FAULTED if index < faulted else StreamHealth.HEALTHY)
+        for index, channel in enumerate(channels)
+    )
+
+
+def drive(
+    machine: FailSafeStateMachine, health: tuple[tuple[SensorModality, StreamHealth], ...]
+) -> None:
+    """Hold a frame health for long enough to reach any threshold."""
+    for tick in range(60):
+        machine.observe(tick=TickId(tick), verdict=passing(tick), frame_health=health)
+
+
+def test_tolerating_nothing_is_exactly_the_previous_behaviour() -> None:
+    # ADR-0027 must be a no-op at zero, because every shipped profile sets zero
+    # and the whole suite has to keep passing. One unhealthy channel already
+    # exceeds zero, so the arithmetic collapses to "any modality".
+    machine = tolerating(0)
+
+    drive(machine, frame(faulted=1))
+
+    assert machine.state is FailSafeState.HALT
+
+
+def test_a_tolerated_fault_does_not_escalate() -> None:
+    # The defect ADR-0026 exposed: a vehicle driving at 0.042 m on two good
+    # channels, with a working median, was being HALTed by the third.
+    machine = tolerating(1)
+
+    drive(machine, frame(faulted=1))
+
+    assert machine.state is FailSafeState.NOMINAL
+    assert machine.integrity_counter == 0
+
+
+def test_losing_the_quorum_still_halts() -> None:
+    # The other half, and the one that makes the first half safe. Tolerating one
+    # fault must not become tolerating any number of them.
+    machine = tolerating(1)
+
+    drive(machine, frame(faulted=2))
+
+    assert machine.state is FailSafeState.HALT
+
+
+def test_a_healthy_frame_never_escalates_at_any_tolerance() -> None:
+    for tolerance in (0, 1, 2):
+        machine = tolerating(tolerance)
+
+        drive(machine, frame(faulted=0))
+
+        assert machine.state is FailSafeState.NOMINAL
+        assert machine.integrity_counter == 0
+
+
+def test_the_counter_recovers_when_the_frame_falls_back_inside_tolerance() -> None:
+    machine = tolerating(1)
+    drive(machine, frame(faulted=2))
+    halted: FailSafeState = machine.state
+    assert halted is FailSafeState.HALT
+
+    # HALT is latching by design, so recovery needs the explicit reset. What is
+    # asserted here is that the *counter* walks back, which is what would
+    # de-escalate a DEGRADED or LIMP posture.
+    machine.reset()
+    drive(machine, frame(faulted=1))
+
+    assert machine.integrity_counter == 0

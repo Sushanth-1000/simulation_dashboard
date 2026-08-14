@@ -126,6 +126,13 @@ environment = "certification"
 # integrity_threshold_degraded =
 # integrity_threshold_limp =
 # integrity_threshold_halt =
+#
+# And how many modalities may be unhealthy at once before the counter rises.
+# Zero unless the sensor set carries enough independent measurements of each
+# quantity to keep working with one of them lying, AND something excludes the
+# liar from the fusion. Both halves are required; either alone is not
+# redundancy (ADR-0027).
+# integrity_tolerated_faults =
 
 [arbitration]
 # τ, the calibration admissibility threshold, and δ_CDI, the divergence limit

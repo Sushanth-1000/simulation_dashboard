@@ -72,6 +72,7 @@ SETTINGS = FailSafeSettings(
     integrity_threshold_degraded=5,
     integrity_threshold_limp=15,
     integrity_threshold_halt=40,
+    integrity_tolerated_faults=0,
 )
 
 

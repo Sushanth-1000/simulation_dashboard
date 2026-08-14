@@ -87,6 +87,7 @@ type UnitInterval = Annotated[float, Field(ge=0.0, le=1.0)]
 type PositiveFloat = Annotated[float, Field(gt=0.0)]
 type NonNegativeFloat = Annotated[float, Field(ge=0.0)]
 type PositiveInt = Annotated[int, Field(gt=0)]
+type NonNegativeInt = Annotated[int, Field(ge=0)]
 
 
 class _Section(BaseModel):
@@ -487,6 +488,18 @@ class FailSafeSettings(_Section):
             above this enters DEGRADED. **No default** (A-4).
         integrity_threshold_limp: ``phi-2``. Enters LIMP. **No default** (A-4).
         integrity_threshold_halt: ``phi-3``. Enters HALT. **No default** (A-4).
+        integrity_tolerated_faults: How many modalities may be unhealthy
+            *simultaneously* before the integrity counter rises. **No
+            default** (A-4), and **zero is the only value a deployment
+            without redundancy may set**.
+
+            Raising it above zero is a *claim*: that the sensor set carries
+            enough independent measurements of each quantity to keep working
+            with that many of them lying, and that something excludes the
+            liar from the fusion. A deployment fusing three position
+            channels by median tolerates one; a deployment with one channel
+            per quantity tolerates none, and setting one there would mean
+            ignoring the only sensor it has (ADR-0027).
 
     **Why there are two sets of thresholds, and why the second set is tighter.**
     The ``ood_*`` thresholds answer *"how long should sustained refusal be
@@ -511,6 +524,7 @@ class FailSafeSettings(_Section):
     integrity_threshold_degraded: PositiveInt
     integrity_threshold_limp: PositiveInt
     integrity_threshold_halt: PositiveInt
+    integrity_tolerated_faults: NonNegativeInt
 
     @field_validator("integrity_threshold_halt")
     @classmethod

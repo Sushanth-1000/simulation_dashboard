@@ -65,6 +65,7 @@ CERTIFICATION_MISSING_FIELDS = frozenset(
         "failsafe.integrity_threshold_degraded",
         "failsafe.integrity_threshold_limp",
         "failsafe.integrity_threshold_halt",
+        "failsafe.integrity_tolerated_faults",
         "arbitration.trust_threshold_tau",
         "arbitration.divergence_limit_delta",
     }
@@ -139,6 +140,7 @@ limp_speed_cap_kmh = 20.0
 integrity_threshold_degraded = 2
 integrity_threshold_limp = 4
 integrity_threshold_halt = 8
+integrity_tolerated_faults = 0
 
 [arbitration]
 trust_threshold_tau = 0.60
@@ -262,6 +264,7 @@ def test_constructing_astra_settings_without_the_gate_section_fails() -> None:
                     "integrity_threshold_degraded": 2,
                     "integrity_threshold_limp": 4,
                     "integrity_threshold_halt": 8,
+                    "integrity_tolerated_faults": 0,
                 },
                 "arbitration": {"trust_threshold_tau": 0.6, "divergence_limit_delta": 0.25},
             }
@@ -613,6 +616,7 @@ def test_strictly_increasing_fail_safe_thresholds_are_accepted() -> None:
         integrity_threshold_degraded=2,
         integrity_threshold_limp=4,
         integrity_threshold_halt=8,
+        integrity_tolerated_faults=0,
     )
 
     assert failsafe.ood_threshold_degraded < failsafe.ood_threshold_limp
@@ -640,6 +644,7 @@ def test_out_of_order_fail_safe_thresholds_are_refused(degraded: int, limp: int,
             integrity_threshold_degraded=2,
             integrity_threshold_limp=4,
             integrity_threshold_halt=8,
+            integrity_tolerated_faults=0,
         )
 
 

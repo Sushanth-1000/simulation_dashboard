@@ -247,11 +247,26 @@ class FailSafeStateMachine:
         truth. A vehicle exploring a tunnel with a dead IMU is in more trouble
         than one doing either alone, not less.
 
-        **Any modality, not a quorum.** A single unhealthy channel is enough,
-        because the modalities are not redundant in this build -- there is one
-        publisher per modality and no cross-check to fall back on. When
-        redundancy exists (Phase 7, and P2.7 option D) this is the line that
-        should become a vote, and it needs its own decision record when it does.
+        **A quorum, not any modality -- and this line is the successor ADR-0024
+        called for.** That record said: *"any modality, not a quorum ... when
+        redundancy exists this is the line that should become a vote, and it
+        needs its own decision record when it does."* Redundancy arrived with
+        ADR-0026 and the prediction came true immediately: one faulted channel
+        of three HALTed a vehicle driving at 0.042 m on the other two (E-116).
+
+        So the counter rises when the number of unhealthy modalities **exceeds
+        what the deployment has declared it can absorb**, and
+        ``integrity_tolerated_faults`` is that declaration. At **zero** -- the
+        value every shipped profile sets, and the only honest one without
+        redundancy -- this is bit-identical to counting "any modality", because
+        one unhealthy channel already exceeds zero.
+
+        **The threshold is configuration and not a constant on purpose.** How
+        many lying channels a vehicle can absorb is a property of *its sensor
+        set*, which is exactly the kind of platform knowledge NFR5 keeps out of
+        the layers. L8 counts; the deployment declares. Raising it above zero is
+        a claim that something excludes the liar from the fusion, and it belongs
+        in a file a safety engineer signs (ADR-0027).
 
         **Scope, stated because silence would overclaim it.** ``StreamHealth``
         is computed from *staleness*: a modality that stops publishing goes
@@ -271,8 +286,8 @@ class FailSafeStateMachine:
         Returns:
             The new counter, in ``[0, integrity_threshold_halt]``.
         """
-        unhealthy = any(health is not StreamHealth.HEALTHY for _, health in frame_health)
-        if not unhealthy:
+        unhealthy = sum(1 for _, health in frame_health if health is not StreamHealth.HEALTHY)
+        if unhealthy <= self._settings.integrity_tolerated_faults:
             return max(_COUNTER_FLOOR, self._integrity - 1)
         return min(self._settings.integrity_threshold_halt, self._integrity + 1)
 

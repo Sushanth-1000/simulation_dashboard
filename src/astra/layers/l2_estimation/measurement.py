@@ -331,9 +331,7 @@ class IntegrityMonitor[PayloadT](Protocol):
     however punctually it arrives.
     """
 
-    def health(
-        self, frame: FusedSensorFrame[PayloadT]
-    ) -> Mapping[SensorModality, StreamHealth]:
+    def health(self, frame: FusedSensorFrame[PayloadT]) -> Mapping[SensorModality, StreamHealth]:
         """Return per-modality health derived from cross-checking the frame.
 
         Args:
