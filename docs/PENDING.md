@@ -1091,9 +1091,39 @@ rearrangement of downstream quantities creates information that was never
 upstream (E-107).
 
 **So option D -- redundancy and a cross-check -- is not the convenient answer,
-it is the only one**, and this is now an argument rather than an assertion. It
-remains unmeasurable here because the reference plant publishes one ground truth
-to all five modalities. Phase 7, and this is the honest reason Phase 7 exists.
+it is the only one**, and this is now an argument rather than an assertion.
+
+### Option D, measured -- and it was never a Phase 7 blocker
+
+*"Unmeasurable here, because the plant publishes one ground truth to all five
+modalities"* was written into three refutations. It was true and it was **half
+the story**: two facts made it true and **both live in the test harness**, not
+in the architecture (OD-15, E-108). `FusedSensorFrame` already carries
+per-modality samples and `MeasurementExtractor` is an injectable port, so
+**nothing in `src/` changed** to run this.
+
+Three dissimilar position channels, the drift injected into **one**, residual
+against the median (E-109 - E-112):
+
+| arm | IMU | GPS | LIDAR |
+|---|--:|--:|--:|
+| control | 0.8x | 1.1x | 1.3x |
+| drift on IMU | **5.3x** | 1.1x | 2.4x |
+| drift on GPS | 0.7x | **4.4x** | 1.5x |
+
+**The faulted channel is identified, not merely detected** -- with three channels
+the largest residual names the liar. Detected at **+41** and **+28 ticks**
+against a departure that begins at +73.
+
+Two honest caveats. The good channels are perturbed too -- LIDAR reaches 2.4x
+under an IMU fault, because with three channels the median itself moves -- so
+**the margin to quote is 2.2x over the next channel, not 5.3x over the control**.
+And the pipeline is still *driven* by one channel: redundancy is measured beside
+the vehicle rather than by it. Wiring it needs its own decision record.
+
+**What Phase 7 is still for**, unchanged: real sensor models with real failure
+modes, real imagery for the adversarial scenario, and a plant this project did
+not author, so the numbers stop being self-referential.
 
 **Two thirds of OD-9 remain open and the register says so.** `StreamHealth` is
 computed from staleness, so `BIAS`, `DRIFT` and `STUCK_AT` — which keep the

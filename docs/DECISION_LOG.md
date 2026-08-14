@@ -194,6 +194,17 @@ refutation is worth more than the attempt would have been.**
 | **Gave up** | **It proposes work, not capability.** Nothing improves until a human runs a calibration, so anyone measuring "contexts certified per week" finds it does nothing alone. That is the design. Three filter thresholds that are arguable and untuned, because there is no population to tune against. Coherence checked per component, not jointly, so a diagonal drift through signature space would pass. And a forged log is a forged request, the same residual the threat model already carries |
 | **What it exposed** | **OD-14.** The arbitration record carried the outcome and the trust score but *not the signature RCM decided on*, so the log could say `SAFE_EXPLORATION` and not say what context that was. Found by trying to **use** the evidence rather than by reviewing it, a fifth distinct instrument, and it is the third instance of one shape after `fast_innovation` and `previous_digest`: a quantity the pipeline computes, consumes, and archives nowhere |
 
+### D-12e · Redundancy, measured -- and the blocker was thirty lines of harness
+
+| | |
+|---|---|
+| **Forced by** | Four refuted candidates and one shared root: a self-consistent lie slower than the sensor noise cannot be distinguished from truth by any function of a **single sensor chain**. The only remaining move is to put new information in |
+| **Alternatives** | (a) **Wait for Phase 7**, which is what three refutations said and what I repeated. (b) Bound the consequence instead of detecting the cause -- cap how far the estimate may move without corroboration; still open and cheaper than it looks. (c) **Check whether the blocker was real**, and it was not |
+| **Why this one** | *"Unmeasurable here"* rested on two facts that both live in the **test harness**: one payload published to five modalities, and an extractor reading one of them. `FusedSensorFrame` already carries per-modality samples and `MeasurementExtractor` is an injectable port, so nothing in `src/` had to change. **A constraint cited three times turned out to be a property of thirty lines nobody had questioned** |
+| **Gave up** | Nothing shipped into the pipeline, and that is deliberate: redundancy is measured **beside** the vehicle, not by it. Wiring it is a further decision. The measurement also inherits the plant's honesty limits -- the channels differ by noise draw and sigma, not by physics, so this shows the *information exists*, not that a real sensor suite would behave this way |
+| **What it found** | The faulted channel separates at **5.3x** and is **identified** rather than merely detected, at +41 and +28 ticks against a departure at +73. And a caveat worth more than the headline: the good channels are perturbed too -- 2.4x on LIDAR under an IMU fault, because with three channels the median itself moves -- so the honest margin is **2.2x over the next channel**, not 5.3x over the control |
+| **What it exposed** | **OD-15.** Five sensor modalities carrying one measurement, which is why every cross-check had nothing to check against. It sharpens D-3: the three gates were known to share L2's estimate, and this says the *modalities feeding L2* were never distinct either |
+
 ---
 
 ## Part 3 · Decisions about how the project works
