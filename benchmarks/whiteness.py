@@ -103,7 +103,7 @@ _DEFAULT_TICKS: Final = 400
 _DEFAULT_OPEN_AT: Final = 200
 _DEFAULT_SEED: Final = 20260731
 _DEFAULT_POLICY: Final = Path("var/policy/synthetic.pt")
-_DEFAULT_OUTPUT: Final = Path("artifacts/whiteness")
+_DEFAULT_OUTPUT: Final = Path("var/whiteness")
 
 COMPONENTS: Final = ("position_y", "speed", "lateral_acceleration")
 """The fast measurement's layout, from the closed loop's extractor."""

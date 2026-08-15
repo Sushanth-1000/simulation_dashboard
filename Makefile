@@ -46,7 +46,7 @@ endef
 export BARE_IMPORT_CHECK
 
 .DEFAULT_GOAL := help
-.PHONY: help install format format-check lint typecheck contracts test test-fast coverage check clean doctor lockfile verify-install
+.PHONY: help install format format-check lint typecheck contracts test test-fast coverage check clean doctor lockfile verify-install artifacts artifacts-check
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -152,6 +152,30 @@ coverage-floor: ## Refuse any single module far below the aggregate gate
 	$(RUN) pytest --cov=astra --cov-report=json:.coverage.json -q > /dev/null
 	$(RUN) python tools/coverage_floor.py .coverage.json
 
+
+artifacts-check: ## Refuse an evidence run whose artefacts are absent or do not drive
+	@# Presence is not the check -- DRIVING is. On 15 August a benchmark fell
+	@# back to a policy that left the vehicle stationary with every tick vetoed,
+	@# and published a retraction of a correct finding off the result (E-143,
+	@# E-144). A missing artefact raises; a non-driving one produces numbers.
+	$(RUN) python -m tools.check_artifacts
+
+artifacts: ## Regenerate the twin, the calibration corpus and the policy, in order
+	@# ORDER IS LOAD-BEARING. The corpus is generated *through* the twin and the
+	@# policy is trained against both, so running these out of order produces a
+	@# mismatched set that loads cleanly and measures nothing.
+	@#
+	@# This is the command that did not exist until 15 August 2026. The steps
+	@# lived only in a status document from 31 July and nothing regenerated or
+	@# verified them. `var/` is gitignored by design, so a CLEAN CHECKOUT has no
+	@# artefacts at all while every [M-syn] row is measured through all three.
+	@#
+	@# The policy is the long pole -- 48 rounds x 16,384 steps. Expect this to
+	@# run for hours, and run it before you need it rather than during a demo.
+	$(RUN) python training/train_twin.py
+	$(RUN) python training/generate_calibration.py
+	$(RUN) python -m training.train_policy
+	@$(MAKE) --no-print-directory artifacts-check
 
 check: blobsize lockfile format-check lint typecheck contracts test coverage-floor ## The full quality gate, exactly as CI runs it
 	@echo ""

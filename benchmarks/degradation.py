@@ -79,7 +79,7 @@ _DEFAULT_TICKS: Final = 60
 so a critical modality has time to reach its terminal posture. A shorter window
 would report the posture on the way to somewhere else."""
 
-_DEFAULT_OUTPUT: Final = Path("artifacts/degradation")
+_DEFAULT_OUTPUT: Final = Path("var/degradation")
 
 
 @dataclass(frozen=True, slots=True)

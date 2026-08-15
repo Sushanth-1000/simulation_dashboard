@@ -258,6 +258,65 @@ make coverage    # HTML report; open htmlcov/index.html
 
 ---
 
+## The trained artefacts, and why a check runs before every evidence run
+
+Three artefacts sit under `var/`, which is **gitignored**: a clean checkout has
+none of them, and every `[M-syn]` row in [`EVIDENCE.md`](EVIDENCE.md) is measured
+through all three.
+
+| artefact | path | built by |
+|---|---|---|
+| PINN twin | `var/twin/synthetic.pt` | `training/train_twin.py` |
+| calibration corpus | `var/calibration/synthetic.json` | `training/generate_calibration.py` |
+| proposer policy | `var/policy/synthetic.pt` | `python -m training.train_policy` |
+
+```bash
+make artifacts
+```
+
+**The order is load-bearing.** The corpus is generated *through* the twin and the
+policy is trained against both, so running them out of order produces a
+mismatched set that loads cleanly and measures nothing. The policy is the long
+pole — 48 rounds × 16,384 steps — so run it before you need it, not during a
+demo.
+
+### `make artifacts-check`, and the afternoon that produced it
+
+```bash
+make artifacts-check
+```
+
+Presence is not the check. **Driving is the check.**
+
+On 15 August 2026 a new benchmark defaulted to a policy path that did not exist,
+fell back silently to the placeholder proposer, and measured a vehicle with
+**400 of 400 ticks vetoed and a final speed of zero**. It reported that a
+detector separated a fault 7.35×, and a correct conclusion (E-107) was retracted
+on the strength of it. The arithmetic was right; the configuration was
+meaningless, because the mechanism under test *is* the closed loop, and the loop
+was open. Four hours later the retraction was withdrawn (E-143).
+
+An artefact that loads and yields a car that never moves is **worse than a
+missing one**: a missing one raises, and this one produces numbers.
+
+So `tools/check_artifacts.py` runs a short closed loop and refuses if every tick
+was vetoed or the vehicle never left rest. It runs at the end of `make artifacts`
+and should be run before any evidence run. It is deliberately *not* part of
+`make check` — the quality gate must pass on a clean checkout, which by design
+has no artefacts at all.
+
+### If you are adding a benchmark
+
+Two rules, both bought at the same cost:
+
+1. **Default to `var/`.** Every training script, every benchmark output and every
+   artefact path uses it. Two benchmarks written on 15 August invented an
+   `artifacts/` convention and that is how the wrong path went unnoticed.
+2. **Refuse an open loop.** If your benchmark measures a closed-loop property,
+   assert the vehicle actually drove — see `StationaryVehicleError` in
+   `benchmarks/whiteness.py`. Two comparisons, and it is the difference between
+   a finding and a retraction.
+
 ## Pre-commit
 
 ```bash
