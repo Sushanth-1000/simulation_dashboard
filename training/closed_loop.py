@@ -133,6 +133,30 @@ Every failure the soak reported downstream of that -- the veto latch, the
 statistical gate refusing every correction, the fail-safe machine reaching HALT --
 begins here. See ``docs/SOAK_REPORT.md``.
 """
+DEFAULT_CHANNEL_SIGMAS: dict[SensorModality, float] = {
+    SensorModality.IMU: POSITION_SIGMA,
+    SensorModality.GPS: POSITION_SIGMA * 2.0,
+    SensorModality.LIDAR: POSITION_SIGMA * 0.6,
+}
+"""The three position channels the vehicle is driven from, and their noise.
+
+**Deliberately unequal.** Identical sigmas model identical sensors, and
+identical sensors share a failure mode -- which is the assumption that makes a
+redundancy argument worthless. A vehicle carrying three copies of one part has
+one part.
+
+Three, not two: a median needs three to have a middle, and with two channels a
+disagreement identifies that *something* is wrong without saying which. With
+three the largest residual names the liar, which is what
+``training/redundant.py``'s monitor reports and what produced ``FAULTED`` for the
+first time in this project's life (E-114).
+
+Owned here rather than in ``benchmarks/redundancy.py``, where they lived until
+15 August 2026. The benchmark imports them now: the plant is this module's, and
+two definitions that must agree, in modules only one of which is on the driven
+path, is how they stop agreeing.
+"""
+
 FRICTION_SIGMA = 4e-4
 _FRICTION_SIGMA = FRICTION_SIGMA
 FRICTION = 0.85
@@ -600,6 +624,38 @@ def _sample(
     )
 
 
+def _resolved_sensing(
+    supplied: RedundantSensing | None, *, single_channel: bool, seed: int
+) -> RedundantSensing | None:
+    """Return the sensing a run should be driven from.
+
+    **Redundancy is the driven path from 15 August 2026 (OD-15, ADR-0033).**
+    Until then the default was one channel: :func:`_publish_state` computed one
+    payload and published it byte-identical to all five modalities, and the
+    extractor read the IMU alone. Five modalities, one sensor -- so every
+    cross-check that could catch a lying channel had nothing to check against,
+    and redundancy was measured *beside* the vehicle rather than *by* it.
+
+    ``single_channel=True`` is how a caller asks for the old behaviour, and it
+    has to say so. A default that read ``redundant=None`` and silently meant
+    *"one sensor"* is how the defect survived as long as it did: nothing at the
+    call site was false, it simply never mentioned the thing that mattered.
+
+    Args:
+        supplied: What the caller asked for, or ``None`` for the default.
+        single_channel: Whether the caller wants the pre-ADR-0033 behaviour.
+        seed: The run seed, so the channels' noise is reproducible.
+
+    Returns:
+        The sensing to drive from, or ``None`` for one channel.
+    """
+    if supplied is not None:
+        return supplied
+    if single_channel:
+        return None
+    return RedundantSensing.build(sigmas=DEFAULT_CHANNEL_SIGMAS, seed=seed)
+
+
 def drive_closed_loop(
     *,
     policy: Policy | None,
@@ -614,6 +670,7 @@ def drive_closed_loop(
     ablation: AblationProfile | None = None,
     on_assembled: Callable[[AssembledPipeline[Any]], None] | None = None,
     redundant: RedundantSensing | None = None,
+    single_channel: bool = False,
 ) -> ClosedLoopResult:
     """Run the pipeline against the plant, feeding issued commands back in.
 
@@ -643,6 +700,10 @@ def drive_closed_loop(
             A disarmed gate is still constructed and still writes a verdict;
             it simply cannot block, and every decision record says which
             layers were disarmed (ADR-0021).
+        single_channel: Drive from the IMU alone, as every run before
+            15 August 2026 did. Named rather than expressed as
+            ``redundant=None``, because the thing being asked for is *"one
+            sensor"* and a caller should have to write that down.
         redundant: Independent per-modality readings, and an optional drift in
             one of them. ``None`` publishes one payload to every modality.
         fault: Sensor faults to inject, with their ground truth. ``None`` -- the
@@ -671,6 +732,8 @@ def drive_closed_loop(
     # The adapter is the natural owner of the constants and this module is
     # the natural owner of the plant, and one of the two has to give.
     from training.redundant import RedundantExtractor, ResidualMonitor  # noqa: PLC0415
+
+    redundant = _resolved_sensing(redundant, single_channel=single_channel, seed=seed)
 
     resolved = load_settings(environment=ENVIRONMENT, include_environment_variables=False)
     settings = resolved.settings

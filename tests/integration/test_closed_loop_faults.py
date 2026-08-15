@@ -191,7 +191,24 @@ def test_a_position_bias_arrives_at_the_estimator(
     biased_mean = sum(biased_errors) / len(biased_errors)
 
     assert abs(clean_mean) < 0.1  # the clean estimator tracks the truth
-    assert biased_mean - clean_mean == pytest.approx(BIAS_METRES, abs=0.25)
+
+    # **Inverted on 15 August 2026 by ADR-0033, and this is the best result the
+    # redundancy work produced.** This asserted that the full 1.0 m bias
+    # *arrives* at the estimator -- which it did, for as long as the vehicle was
+    # driven from one channel. With three channels fused by median, a bias in
+    # one is outvoted by the two that are honest and never reaches the filter at
+    # all. Measured over the same window:
+    #
+    #                     peak estimator error   final |deviation|
+    #     single channel              1.1805 m             0.8387 m
+    #     redundant                   0.1323 m             0.0168 m
+    #
+    # 0.0168 m is the **clean run's** figure to four decimals: under redundancy
+    # the biased arm and the healthy arm are indistinguishable, which is what
+    # outvoting a liar looks like when it works.
+    assert biased_mean - clean_mean == pytest.approx(0.0, abs=0.1), (
+        "a bias in one of three channels must not reach the estimator"
+    )
 
 
 def test_the_estimator_is_untouched_before_the_fault_opens(
@@ -350,12 +367,26 @@ def test_not_one_gate_fires_while_it_happens(
         and sample.record.safety_verdict.is_blocking
     ]
 
-    assert not faulted_late, "not one gate fires while the IMU is frozen"
-    assert clean_late, "and the healthy run does veto in the same window"
-    assert dropped[1].vetoed < clean[1].vetoed
-    # Every veto in either arm is the jerk bound reacting to the startup
-    # transient or to control effort -- never to the fault.
-    assert set(dropped[1].reasons) <= set(clean[1].reasons)
+    # **Rewritten again on 15 August 2026, hours after the note above, when
+    # ADR-0033 made redundancy the driven path.** Under three channels a dark
+    # IMU no longer leaves the verdict trace untouched: measured, 17 vetoes in
+    # the fault window against the clean run's 0, first at tick 229.
+    #
+    # **Read that carefully, because it is not "a gate detects the fault".**
+    # Every one of those vetoes is `LATERAL_JERK_EXCEEDS_LIMIT` -- the jerk
+    # bound reacting to the control effort that follows losing a channel, not a
+    # gate identifying a sensor as dishonest. What identifies the sensor is
+    # still the integrity counter, and it is still the only thing that does.
+    #
+    # So the claim this test carries is narrower than "Core-B can now see it":
+    # the trace *differs*, and the difference is a consequence rather than a
+    # detection.
+    assert faulted_late, "losing a channel now disturbs the verdict trace"
+    assert not clean_late, "and the healthy run is quiet in the same window"
+    assert set(dropped[1].reasons) == {"PHYSICAL:LATERAL_JERK_EXCEEDS_LIMIT"}, (
+        "every veto is the jerk bound reacting to control effort, not a gate "
+        "identifying a dishonest sensor"
+    )
 
 
 def test_the_posture_escalates_on_sensor_health_rather_than_on_a_verdict(
@@ -379,9 +410,16 @@ def test_the_posture_escalates_on_sensor_health_rather_than_on_a_verdict(
     # The faulted arm escalates, and the integrity counter is what did it.
     assert {snapshot.state.value for snapshot in faulted} != {"NOMINAL"}
     assert max(snapshot.integrity_counter for snapshot in faulted) > 0
-    assert max(snapshot.ood_counter for snapshot in faulted) == max(
-        snapshot.ood_counter for snapshot in control
-    )
+    # Was `==`: "the OOD counter never moves under this fault". ADR-0033 made
+    # that false -- losing a channel provokes control effort, the jerk bound
+    # fires, and the OOD counter reaches 3 against the clean run's 1.
+    #
+    # The claim the test exists for survives intact and is asserted below: the
+    # *integrity* counter runs to its ceiling while the OOD counter barely
+    # stirs, so a reader can still tell "a sensor went dark" from "the gates
+    # refused". A ratio of 40 to 3 says that as clearly as 40 to 0 did.
+    assert max(snapshot.ood_counter for snapshot in faulted) < 10
+    assert max(snapshot.integrity_counter for snapshot in faulted) >= 40
 
 
 def test_the_vehicle_still_receives_a_command_with_the_imu_frozen(

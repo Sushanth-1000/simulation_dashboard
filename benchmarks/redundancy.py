@@ -69,7 +69,7 @@ from typing import TYPE_CHECKING, Any
 
 from astra.kernel.enums import SensorModality
 from astra.layers.l4_proposer.learned import LearnedPolicy
-from training.closed_loop import POSITION_SIGMA
+from training.closed_loop import DEFAULT_CHANNEL_SIGMAS
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -107,11 +107,9 @@ make the redundancy look better than it is.
 #: sensors, which is the redundancy that fails in the field: two devices from
 #: one batch drift the same way at the same temperature, and common-mode failure
 #: is exactly what dissimilarity buys protection against.
-SIGMAS: dict[SensorModality, float] = {
-    SensorModality.IMU: POSITION_SIGMA,
-    SensorModality.GPS: POSITION_SIGMA * 2.0,
-    SensorModality.LIDAR: POSITION_SIGMA * 0.6,
-}
+SIGMAS = DEFAULT_CHANNEL_SIGMAS
+"""Re-exported. Defined in ``training.closed_loop`` from 15 August 2026, because
+that is the module that drives the vehicle with them (ADR-0033)."""
 
 
 @dataclass(frozen=True, slots=True)

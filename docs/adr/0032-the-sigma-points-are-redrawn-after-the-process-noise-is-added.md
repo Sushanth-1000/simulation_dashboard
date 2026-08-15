@@ -154,6 +154,15 @@ that is false.
   recorded with the old values, and loosening a safety-adjacent bound is exactly
   the move that needs to stay visible.
 - **The corpus regenerated here was produced by the corrected filter against a
-  twin and policy that were not.** The policy was retrained afterwards; a full
-  twin → corpus → policy regeneration in that order is still outstanding, and
-  until it runs the three artefacts are not a matched set.
+  twin that predates it.** A full twin → corpus → policy regeneration in that
+  order ran later the same day under
+  [ADR-0033](0033-redundancy-is-the-driven-path-not-a-measurement-beside-it.md).
+- **Correction, same day.** This record originally said the policy was retrained
+  to match the corrected filter. It was retrained and it **changed nothing**:
+  `training/train_policy.py` trains against `SyntheticDrivingEnv` directly — the
+  bare plant, with no pipeline, no UKF and no sensor bus — so the proposer never
+  observes the filter and cannot be mismatched to it. Retraining produced a
+  **bit-identical checkpoint**, `sha256:ac5b91bc…`, before and after.
+  That is worth knowing for a larger reason than bookkeeping: **the policy is
+  trained on ground truth and deployed against an estimate.** Nothing in this
+  register covers that skew yet.

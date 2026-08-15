@@ -48,6 +48,7 @@ is also recorded in the source, the module docstring is named — the reader who
 | [0030](0030-the-health-level-caps-how-far-the-posture-may-escalate.md) | The health level caps how far the posture may escalate | `src/astra/layers/l8_failsafe/machine.py`, `src/astra/config/schema.py` |
 | [0031](0031-decay-measures-the-duty-cycle-the-counter-cancels-out.md) | Decay measures the duty cycle the counter cancels out | `src/astra/layers/l8_failsafe/machine.py`, `src/astra/kernel/enums.py` |
 | [0032](0032-the-sigma-points-are-redrawn-after-the-process-noise-is-added.md) | The sigma points are redrawn after the process noise is added | `src/astra/layers/l2_estimation/unscented.py` |
+| [0033](0033-redundancy-is-the-driven-path-not-a-measurement-beside-it.md) | Redundancy is the driven path, not a measurement beside it | `training/closed_loop.py`, `training/redundant.py` |
 
 ## Format
 
