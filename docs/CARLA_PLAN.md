@@ -94,27 +94,141 @@ a retraction.
 
 ---
 
-## 3 · The order, and why it is not negotiable
+## 3 · The data-split protocol, instantiated for CARLA
 
-[`DATA_SPLIT_PROTOCOL.md`](DATA_SPLIT_PROTOCOL.md) governs, and it splits at
-**segment** level, never tick level. The order below is that document applied.
+[`DATA_SPLIT_PROTOCOL.md`](DATA_SPLIT_PROTOCOL.md) is written for **comma2k19** —
+a fixed corpus of logged drives, where the risk is *accidental overlap* and the
+remedy is splitting by drive with a recorded seed.
 
-| # | step | produces | must not touch |
+**CARLA is a generator, and that inverts the risk.** You cannot accidentally
+reuse a segment, because you can always make more. What you can do — easily,
+invisibly, and with the best intentions — is **generate TEST again after seeing
+the result**. Nothing in the data catches it. Nothing in the code catches it. The
+numbers stay plausible and the guarantee quietly stops being true.
+
+So the protocol's three sets carry over unchanged, and one rule is added at the
+top.
+
+### 3.0 · Declare the partition before generating anything
+
+**Commit the route manifest and the seed to git before the first frame is
+rendered.** In a fixed dataset the partition is a bookkeeping step; in a
+simulator it is *the entire integrity of the result*, and it is the only thing
+standing between this work and an unfalsifiable claim.
+
+`var/carla/partition.json` — committed, not gitignored, unlike every other
+artefact:
+
+```json
+{
+  "seed": 20260816,
+  "town": "Town04",
+  "train":     [{"route": "hw-loop-a", "weather": "ClearNoon",   "traffic_seed": 11}, ...],
+  "calibrate": [{"route": "hw-loop-b", "weather": "ClearSunset", "traffic_seed": 21}, ...],
+  "test":      [{"route": "hw-loop-c", "weather": "WetCloudyNight", "traffic_seed": 31}, ...]
+}
+```
+
+### 3.1 · The partition unit is a **route × weather × traffic seed**
+
+Not ticks — §2 of the protocol forbids that and the reason is stronger here, not
+weaker: consecutive CARLA ticks are as autocorrelated as consecutive real ones.
+
+Not laps of the same route either. Two laps of `hw-loop-a` in `ClearNoon` differ
+only by traffic, and putting one in CALIBRATE and the other in TEST is a
+tick-level split wearing a costume. **The road geometry itself must differ**, and
+Town04 has enough distinct highway and urban stretches to make three disjoint
+route sets.
+
+### 3.2 · Shares, and why they are not 60/20/20
+
+The protocol's 60/20/20 exists because comma2k19 is finite. CARLA is not, so the
+constraint moves from *"how do I divide 33 hours"* to *"how much of each class do
+I need"*, which §3.3 answers directly. Suggested starting point:
+
+| set | routes | ≈ duration | purpose |
+|---|--:|--:|---|
+| **TRAIN** | 6 | ≈ 60 min | Fit the L5 twin on CARLA dynamics — suspension, tyre slip, drivetrain lag, none of which the bicycle model has |
+| **CALIBRATE** | 4 | ≈ 40 min | The Mondrian corpus and the MMD reference. **Sized by §3.3, not by a percentage** |
+| **TEST** | 4 | ≈ 40 min | The seven-phase drive. Touched **once** |
+
+Generate more TRAIN if the twin underfits — it costs nothing and contaminates
+nothing. **Do not generate more TEST.**
+
+### 3.3 · The per-class sufficiency check, and the blocker it exposes
+
+`minimum_calibration_samples = 500`, and `generate_calibration.py` targets
+**1,000 per class**. At 20 Hz that is **50 seconds of ticks classified into that
+class** — trivially achievable, *if the class is reachable at all*.
+
+**One is not, and CARLA is what makes it fixable.** `RAIN_NIGHT` is undecidable
+by L3's classifier: precipitation and ambient light are not in the fast state
+vector, and the classifier's own docstring refuses to guess from a friction proxy
+it cannot see. It names the two ways out — widen the classifier's inputs to the
+slow state, or **source weather from an adapter**.
+
+**The CARLA adapter is that adapter.** Weather is a settable simulator parameter,
+so it can be published as a sensor modality and reach the classifier honestly.
+
+This is a **blocker on the demo, not a nicety.** The seven-phase drive has a
+`rain/night` phase. Run it without this fix and every wet-night tick classifies
+as `HIGHWAY_CLEAR`, gets compared against a dry population, and produces degraded
+coverage that **looks like a gate failure and is actually a classifier gap** — an
+inversion of exactly the kind this register exists to catch, walked into
+deliberately.
+
+So: **fix the classifier before generating CALIBRATE**, or drop the rain/night
+phase from the drive and say why. Not both, and not neither.
+
+### 3.4 · Order of operations
+
+The protocol's five steps, with the CARLA-specific gates:
+
+| # | step | records | gate before proceeding |
 |---|---|---|---|
-| 1 | Adapter + driver, against a **stationary** actor | the seams work | any metric |
-| 2 | **TRAIN** segments | a CARLA-fitted twin | CALIBRATE, TEST |
-| 3 | **CALIBRATE** segments | the Mondrian corpus, MMD reference | TEST |
-| 4 | Per-class sufficiency check | ≥500 samples per reachable class | TEST |
-| 5 | **TEST** — the evidence run | every `[M-ext]` row | — |
+| 0 | Commit `partition.json` | the seed, the routes | it is **in git**, before any frame is rendered |
+| 0b | Fix the `RAIN_NIGHT` classifier input, or drop the phase | an ADR either way | §3.3 decided, not deferred |
+| 1 | Generate TRAIN | route manifest digest | the run guard (§2.4): the vehicle actually drove |
+| 2 | Fit the twin on TRAIN **only** | weights digest | — |
+| 3 | Generate the corpus from CALIBRATE, twin from step 2, FB1 on | corpus SHA-256 | — |
+| 4 | **Per-class sufficiency** | counts per class | **abort if any reachable class is short** |
+| 5 | Run TEST **once** | the evidence pack | steps 0–4 recorded and unchanged |
 
-**Step 5 happens once.** A TEST set looked at twice is a validation set, and the
-protocol says so. Every temptation to "just re-run with a tweak" after seeing the
-numbers is the thing that discipline exists to refuse.
+**Any change to step 2 invalidates step 3.** The protocol says this project has
+paid for that lesson three times. **It is now four:** on 15 August the corrected
+innovation covariance (ADR-0032) put 400 of 400 ticks into a veto until the
+corpus was regenerated (E-148), and `make artifacts-check` is what caught it.
 
-**Step 4 is the one people skip.** `RAIN_NIGHT` is already unreachable on the
-synthetic classifier — it needs an input the fast state vector does not carry —
-and a class with no calibration samples means L6 abstains there permanently.
-Better to know before the evidence run than to explain it after.
+### 3.5 · Make TEST-once mechanical, not a promise
+
+In a fixed dataset, re-running TEST leaves a trace. In a simulator it leaves
+none — which makes "we only looked once" an assertion a reviewer must simply
+believe.
+
+**Make it checkable.** The evidence run stamps the TEST manifest's digest into
+the run record and into `var/carla/test-runs.log`, append-only. A second
+evidence run against the same digest **refuses**, and says so, exactly as
+`artifacts-check` refuses a policy that does not drive.
+
+It is not tamper-proof — anyone can delete the log — and that is not the point.
+The point is that re-running TEST becomes a **deliberate act someone has to
+perform on purpose**, rather than a thing that happens because a number looked
+disappointing on a Friday. That is the same standard `extra="forbid"` sets for
+configuration and strict `xfail` sets for known-false claims: the discipline
+lives in the tooling rather than in somebody remembering it.
+
+### 3.6 · What invalidates the split
+
+Regenerate from the step named, not from the top:
+
+| change | invalidates from |
+|---|---|
+| the CARLA adapter's sensor model | **step 1** — TRAIN itself |
+| the twin's architecture or training | step 2 |
+| the filter, `Q`, or the feedback wiring | step 3 — the corpus stops describing the system |
+| the classifier's inputs (§3.3) | step 3 — class membership changed |
+| a threshold in `carla.toml` | nothing; thresholds are read at run time |
+| **nothing at all** | step 3 anyway, **and check** — OD-8 is the case where no wiring moved and the corpus simply stopped describing the system (E-41, E-159) |
 
 ---
 
@@ -199,8 +313,10 @@ so in the row, not in a footnote.
    ADR-0034 already made injectable. If the core has to change, NFR5 was weaker
    than believed and that is the finding.
 2. `lint-imports` still passes: `carla` appears nowhere outside `adapters/`.
-3. TRAIN / CALIBRATE / TEST are disjoint **segments**, recorded in the run
-   manifest, and TEST was run once.
+3. `var/carla/partition.json` was **committed before the first frame was
+   rendered**, TRAIN / CALIBRATE / TEST are disjoint by route, and
+   `var/carla/test-runs.log` contains exactly one entry for the TEST manifest's
+   digest (sections 3.0 and 3.5).
 4. The seven-phase continuous drive completes without the vehicle stopping —
    or it stops and the reason is in the audit log, named, with the posture that
    produced it.
@@ -224,3 +340,9 @@ AGVs that no automotive result can settle.
 **A second real platform.** The adapter proves the seam takes *a* platform. It
 does not prove domain independence, and §7 item 1 is the strongest claim
 available from this work.
+
+**Decide `RAIN_NIGHT` before CALIBRATE, not during.** §3.3 gives two acceptable
+answers — fix the classifier's inputs, or drop the rain/night phase and record
+why. What is not acceptable is generating the corpus first and discovering
+afterwards that a seventh of the demo drive has no population to be judged
+against.
