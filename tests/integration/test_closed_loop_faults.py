@@ -273,11 +273,34 @@ def test_a_frozen_imu_no_longer_walks_the_vehicle_out_of_the_corridor(
     faulted_deviation = dropped[1].final_absolute_deviation_m
     corridor_half_width = 1.75
 
-    assert clean_deviation < 0.1
+    # Was `< 0.1`, re-derived for ADR-0032: the corrected innovation covariance
+    # shrinks the Kalman gain, so the clean run converges more slowly. Measured
+    # **0.1034 m** against the old bound of 0.1 -- 3% over, and the bound is
+    # moved rather than the number explained away, because the cause is
+    # understood and is the same one that moved the policy test above.
+    assert clean_deviation < 0.25
     # Was `> 2.0`, measured at 4.199 m. Now inside the lane it used to leave.
     assert faulted_deviation < corridor_half_width
-    # And still worse than the clean run: the fault is arrested, not absent.
-    assert faulted_deviation > clean_deviation
+
+    # **`faulted_deviation > clean_deviation` was asserted here until 15 August
+    # 2026, and it is now false.** Measured on this seed after ADR-0032:
+    #
+    #     clean    final deviation 0.1034 m, peak estimator error 0.1547 m, phi 0
+    #     dropped  final deviation 0.0973 m, peak estimator error 0.0974 m, phi 40
+    #
+    # The faulted run ends **closer** to the lane centre, with a **smaller**
+    # estimator error. A dropout stops the extractor producing a measurement, so
+    # the filter predicts without correcting and its estimate coasts -- and on
+    # this seed coasting lands nearer the truth than tracking a noisy channel.
+    #
+    # So the trajectory does not distinguish the two runs, in either direction,
+    # and an assertion that it does was reading a coincidence. **The only thing
+    # that separates them is the integrity counter, 40 against 0** -- which is
+    # exactly the claim ADR-0024 was built to support, asserted in
+    # `test_the_posture_escalates_on_sensor_health_rather_than_on_a_verdict`
+    # below rather than smuggled in here through a proxy that happened to
+    # correlate. That the fault is *invisible in the trajectory* is OD-9's whole
+    # point, and this test had been quietly asserting the opposite.
 
 
 def test_not_one_gate_fires_while_it_happens(
@@ -300,8 +323,39 @@ def test_not_one_gate_fires_while_it_happens(
     # L2 at all. The distinction matters for the safety case: Core-B remains
     # blind to a fault the estimator absorbs, and the response comes from
     # elsewhere.
-    assert dropped[1].vetoed == clean[1].vetoed
-    assert dropped[1].reasons == clean[1].reasons
+    # **Sharpened on 15 August 2026 by ADR-0032, and it got worse rather than
+    # better.** This asserted equality -- "the verdict trace under the fault is
+    # identical to the clean run's". With the corrected innovation covariance it
+    # is no longer equal, and the difference runs the wrong way:
+    #
+    #     clean    5 vetoes -- 2 before the fault opens, 3 after (ticks 230, 300, 368)
+    #     dropped  2 vetoes -- 2 before the fault opens, 0 after
+    #
+    # A frozen IMU stops the estimate moving, so the proposer's commands get
+    # *smoother* and the jerk bound is never reached. **The fault makes the
+    # system look healthier to the gates than the healthy run does.** Equality
+    # understated OD-9; this is the stronger statement of the same defect.
+    faulted_late = [
+        sample
+        for sample in dropped[0]
+        if sample.record.tick.value >= FAULT_FIRST
+        and sample.record.safety_verdict is not None
+        and sample.record.safety_verdict.is_blocking
+    ]
+    clean_late = [
+        sample
+        for sample in clean[0]
+        if sample.record.tick.value >= FAULT_FIRST
+        and sample.record.safety_verdict is not None
+        and sample.record.safety_verdict.is_blocking
+    ]
+
+    assert not faulted_late, "not one gate fires while the IMU is frozen"
+    assert clean_late, "and the healthy run does veto in the same window"
+    assert dropped[1].vetoed < clean[1].vetoed
+    # Every veto in either arm is the jerk bound reacting to the startup
+    # transient or to control effort -- never to the fault.
+    assert set(dropped[1].reasons) <= set(clean[1].reasons)
 
 
 def test_the_posture_escalates_on_sensor_health_rather_than_on_a_verdict(

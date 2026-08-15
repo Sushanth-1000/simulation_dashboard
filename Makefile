@@ -172,8 +172,11 @@ artifacts: ## Regenerate the twin, the calibration corpus and the policy, in ord
 	@#
 	@# The policy is the long pole -- 48 rounds x 16,384 steps. Expect this to
 	@# run for hours, and run it before you need it rather than during a demo.
-	$(RUN) python training/train_twin.py
-	$(RUN) python training/generate_calibration.py
+	@# All three as `-m`. `training` is deliberately not installed, so it
+	@# resolves only from the repo root on sys.path -- which `-m` provides and a
+	@# script path does not. Running them by path fails with ModuleNotFoundError.
+	$(RUN) python -m training.train_twin
+	$(RUN) python -m training.generate_calibration
 	$(RUN) python -m training.train_policy
 	@$(MAKE) --no-print-directory artifacts-check
 

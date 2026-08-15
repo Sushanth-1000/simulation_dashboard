@@ -208,7 +208,20 @@ def test_the_vehicle_converges_on_the_lane_centre_and_stays_there(learned: objec
     # A mean over the run would not have caught it either: the drift is slow and
     # the early ticks are near zero. What catches it is where the vehicle ends
     # up.
-    assert learned.final_absolute_deviation_m < 0.05  # type: ignore[attr-defined]
+    #
+    # **Re-derived 15 August 2026 for ADR-0032, and the bound got looser.** The
+    # corrected innovation covariance is larger by exactly the process-noise
+    # term, so the Kalman gain is smaller and the filter trusts each measurement
+    # less. It converges more slowly, and that is the *correct* filter being
+    # less aggressive rather than a regression: the old bound was set against an
+    # over-confident one. Measured 0.0122 m before, **0.1218 m** after.
+    #
+    # 0.25 m is the measured value with roughly 2x margin, and it is still far
+    # inside both the policy's own C1 budget (0.875 m) and the 1.75 m corridor.
+    # Set from the measurement rather than fitted to it -- a threshold pinned at
+    # 0.13 would fail on the next seed and teach whoever hit it to relax it
+    # again.
+    assert learned.final_absolute_deviation_m < 0.25  # type: ignore[attr-defined]
 
 
 def test_both_policies_keep_the_vehicle_moving(placeholder: object) -> None:

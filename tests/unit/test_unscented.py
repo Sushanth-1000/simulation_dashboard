@@ -18,12 +18,17 @@ survive both being wrong in the same way.
 Writing that test found something. The *update* does **not** reproduce the
 linear Kalman filter, because it reuses the sigma points ``predict`` pushed
 through ``fx`` -- whose spread is ``F P F^T``, without the ``Q`` that predict
-added analytically. The innovation covariance is therefore short by ``H Q H^T``,
-and at this project's noise settings that is not a rounding matter: it inflates
-the Mahalanobis distance by up to 22x on one channel. That is OD-10, it is
-inherited from the library rather than introduced by the port, and
-:func:`test_the_innovation_covariance_omits_the_process_noise_term` pins it so
-that changing it has to be a decision.
+added analytically. The innovation covariance was therefore short by
+``H Q H^T`` -- OD-10, inherited from the library rather than introduced by the
+port, and pinned here so that changing it had to be a decision.
+
+**It was changed on 15 August 2026 (ADR-0032)**, and this is the one place the
+port deliberately departs from FilterPy. ``predict`` now redraws the sigma
+points from the ``Q``-inflated covariance, so the update observes a set whose
+spread is the full predicted covariance. Measured in the closed loop, the old
+statistic was inflated **1.34x at the median** and **1.02x at the largest single
+distance** -- the correction is largest where innovations are small and nearly
+absent in the tail, which is where vetoes are decided (E-147).
 
 **Against the recorded numbers**, in the benchmarks. E-68 records that the fault
 study and the comparison harness reproduce every figure they produced under
@@ -169,21 +174,24 @@ def test_the_prediction_step_matches_the_linear_kalman_filter_exactly() -> None:
     )
 
 
-def test_the_innovation_covariance_omits_the_process_noise_term() -> None:
-    """Pin a real characteristic of this formulation, so it cannot change silently.
+def test_the_innovation_covariance_carries_the_process_noise_term() -> None:
+    """The successor to the test that pinned OD-10, and it fired as intended.
 
-    The update reuses the sigma points that ``predict`` pushed through ``fx``,
-    whose spread is ``F P F^T`` -- **without** ``Q``, which ``predict`` adds
-    analytically to the covariance rather than into the points. So the
-    innovation covariance is ``H (F P F^T) H^T + R``, understating the textbook
-    ``H (F P F^T + Q) H^T + R`` by exactly ``H Q H^T``.
+    Until 15 August 2026 this test asserted the **opposite** -- that ``S``
+    equals ``H (F P F^T) H^T + R``, understating the textbook value by exactly
+    ``H Q H^T``. That was FilterPy's behaviour, reproducing it was deliberate
+    (see the module docstring), and it was pinned so that changing it *"has to
+    be a decision rather than a drift"*.
 
-    This is what the library being replaced did, and reproducing it is the
-    point (see the module docstring). It is **not** free: the Mahalanobis
-    distance is inflated in consequence, and at this project's process- and
-    measurement-noise settings that inflation is large. Recorded as OD-10 with
-    the numbers, and asserted here so that changing the formulation has to be a
-    decision rather than a drift.
+    It became a decision. ADR-0032 redraws the sigma points from the
+    ``Q``-inflated covariance at the end of :meth:`predict`, and this test now
+    asserts the textbook identity. The old expectation is kept below as the
+    thing ``S`` must **no longer** equal, because a regression would otherwise
+    read as a passing test with one assertion quietly deleted.
+
+    Both directions are asserted for the same reason the OD-18 tests assert
+    both: a change that only relaxed would be indistinguishable from a filter
+    that had stopped computing ``S`` at all.
     """
     dt = 0.1
     transition = np.array([[1.0, dt], [0.0, 1.0]])
@@ -210,8 +218,8 @@ def test_the_innovation_covariance_omits_the_process_noise_term() -> None:
     without_q = observation @ prior_covariance @ observation.T + measurement_noise
     with_q = observation @ (prior_covariance + process_noise) @ observation.T + measurement_noise
 
-    assert np.allclose(filter_.S, without_q, atol=1e-12)
-    assert not np.allclose(filter_.S, with_q, atol=1e-6)
+    assert np.allclose(filter_.S, with_q, atol=1e-12)
+    assert not np.allclose(filter_.S, without_q, atol=1e-6), "OD-10 would be back"
 
 
 def test_predicting_without_correcting_widens_the_covariance() -> None:

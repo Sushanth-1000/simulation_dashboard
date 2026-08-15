@@ -271,15 +271,45 @@ class UnscentedKalmanFilter:
     def predict(self) -> None:
         """Advance the state through the process model by one timestep.
 
+        **The sigma points are redrawn after the transform, and that is the one
+        place this class deliberately departs from FilterPy** (OD-10, ADR-0032).
+
+        FilterPy leaves ``sigmas_f`` holding the points *propagated through*
+        ``fx``, whose spread is the transform's covariance **before** ``Q`` is
+        added. :meth:`update` then observes that stale set, so the innovation
+        covariance comes out as ``H (P - Q) Hᵀ + R`` -- short by exactly the
+        process-noise term. Every Mahalanobis distance the filter has ever
+        reported was inflated by the shortfall: measured, **1.24x at the
+        median** (E-71).
+
+        A UKF has no ``H`` to add ``H Q Hᵀ`` with -- not having one is the whole
+        point of the sigma-point formulation -- so the term cannot be bolted on.
+        Redrawing from the ``Q``-inflated ``P`` is how the textbook formulation
+        carries it, and it puts the process noise into the measurement sigma set
+        where the transform can find it.
+
+        **It also changes the gain, and that is correct rather than incidental.**
+        The cross-covariance is accumulated from the same points, so it becomes
+        ``P Hᵀ`` with the predicted covariance rather than the pre-noise one --
+        which is what the Kalman gain is defined against. A fix that corrected
+        ``S`` and left the cross-covariance on the old sigma set would have made
+        the two inconsistent.
+
+        Costs a second Cholesky factorisation per tick. On a 5x5 matrix at
+        20 Hz that is not measurable against the sigma-point propagation it
+        already does, and the module docstring's rule applies: this is a
+        deviation from FilterPy, so it is made alone and measured.
+
         Raises:
             LinAlgError: If ``P`` has stopped being positive definite.
                 Deliberately uncaught.
         """
         sigmas = self._points.sigma_points(self.x, self.P)
-        self._sigmas_f = np.array([self._fx(point, self._dt) for point in sigmas], dtype=np.float64)
+        propagated = np.array([self._fx(point, self._dt) for point in sigmas], dtype=np.float64)
         self.x, self.P = unscented_transform(
-            self._sigmas_f, self._mean_weights, self._covariance_weights, self.Q
+            propagated, self._mean_weights, self._covariance_weights, self.Q
         )
+        self._sigmas_f = self._points.sigma_points(self.x, self.P)
 
     def update(
         self,

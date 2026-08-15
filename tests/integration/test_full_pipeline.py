@@ -553,9 +553,14 @@ def test_fb3s_shadow_quantile_diverges_from_the_live_one(tmp_path: Path) -> None
     # covariate-shift detector fires, so the live threshold moves even though the
     # *distribution* under it never does. Asserting staticness here would have
     # been asserting a bug.
+    # 400 ticks, not the 40 this used until 15 August. The mechanism is
+    # unchanged and still diverges; ADR-0032's corrected innovation covariance
+    # makes the score distribution **tighter**, so the shadow's requantilisation
+    # needs about ten times as long to separate from the live threshold.
+    # Measured: silent at 40, 100 and 200 ticks, divergent at 400.
     built, sink, clock, period = _build(tmp_path, shadow_fb2=True)
 
-    outcomes = list(_drive(built, clock, period, _nominal, ticks=40))
+    outcomes = list(_drive(built, clock, period, _nominal, ticks=400))
     sink.flush()
     shadows = [o.shadow for o in outcomes]  # type: ignore[attr-defined]
 
