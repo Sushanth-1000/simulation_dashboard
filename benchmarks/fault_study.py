@@ -54,7 +54,7 @@ from typing import TYPE_CHECKING
 
 from astra.config.loader import load_settings
 from astra.layers.l4_proposer.learned import LearnedPolicy
-from benchmarks.detectors import evaluate
+from benchmarks.detectors import Detection, evaluate
 from benchmarks.parity import ParityReading, evaluate_parity
 from benchmarks.parity import render as render_parity
 from training.closed_loop import (
@@ -173,7 +173,7 @@ class Outcome:
     ticks: int
     faulted_ticks: int
     peak_injected_error: float | None
-    detections: tuple[object, ...] = ()
+    detections: tuple[Detection, ...] = ()
     parity: ParityReading | None = None
 
     def to_payload(self) -> dict[str, object]:
@@ -201,7 +201,7 @@ class Outcome:
                     "fired_ticks": d.fired_ticks,
                     "false_alarm": d.false_alarm,
                 }
-                for d in self.detections  # type: ignore[attr-defined]
+                for d in self.detections
             ],
         }
 
@@ -396,20 +396,20 @@ def render(outcomes: Sequence[Outcome]) -> list[str]:
     lines.append("")
     lines.append("  Shadow detectors -- read the record, change no verdict (P2.7):")
     lines.append("")
-    names = [d.detector for d in control.detections]  # type: ignore[attr-defined]
+    names = [d.detector for d in control.detections]
     header = f"  {'scenario':<16}" + "".join(f"{n:>16}" for n in names)
     lines.append(header)
     lines.append(f"  {'-' * 16}" + "".join(f"{'-' * 15:>16}" for _ in names))
     for outcome in outcomes:
-        cells = []
-        for d in outcome.detections:  # type: ignore[attr-defined]
+        detection_cells = []
+        for d in outcome.detections:
             if d.fired_at is None:
-                cells.append(f"{'silent':>16}")
+                detection_cells.append(f"{'silent':>16}")
             elif d.latency_ticks is None:
-                cells.append(f"{'FALSE ALARM':>16}")
+                detection_cells.append(f"{'FALSE ALARM':>16}")
             else:
-                cells.append(f"{f'+{d.latency_ticks} ticks':>16}")
-        lines.append(f"  {outcome.name:<16}" + "".join(cells))
+                detection_cells.append(f"{f'+{d.latency_ticks} ticks':>16}")
+        lines.append(f"  {outcome.name:<16}" + "".join(detection_cells))
     lines.append("")
     lines.append("  'silent' means the signal did not move at all -- not that a")
     lines.append("  threshold was set too high. That is the finding, not the gap.")
