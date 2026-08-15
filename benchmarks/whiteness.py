@@ -39,17 +39,31 @@ ticks. Whether ``d`` is large enough here, on a filter whose estimate is being
 dragged toward the lie, is precisely the empirical question -- and it is the
 question E-107 answered with an argument rather than a measurement.
 
-The claim under test
----------------------
+The claim under test, and the answer
+--------------------------------------
 E-107 states it: *"a self-consistent lie slower than the sensor noise cannot be
 distinguished from truth by any function of a single sensor chain."* This
-benchmark is an honest attempt to falsify a claim this project made. If the
-CUSUM separates, E-107 is too strong and must be narrowed. If it does not, E-107
-gains its fourth independent confirmation and the argument for redundancy gets
-stronger rather than weaker.
+benchmark set out to falsify it.
 
-Either outcome is worth the run. The one thing that would not be worth it is
-asserting the conclusion again without measuring.
+**It does not. E-107 stands, and this is its fifth confirmation** -- ratio
+**1.03x at every slack from 0.50 down to 0.02**, against a bias that separates
+12.8x to 14.3x in the same sweep (E-143).
+
+The route to that answer is the part worth reading, because for several hours it
+said the opposite. Run against a policy path that did not exist, the harness
+fell back to the placeholder proposer and measured a vehicle with **400 of 400
+ticks vetoed and a final speed of zero**. On that vehicle the sweep reported
+**7.35x** and E-107 was retracted on the strength of it.
+
+The arithmetic was right and the configuration was meaningless. E-107's
+mechanism *is the proposer closing the loop on a corrupted estimate and driving
+the vehicle toward it*; with every command vetoed and the vehicle stationary,
+that feedback does not exist, so the innovation keeps the persistent bias a
+closed loop would absorb. **The false result was the mechanism's absence showing
+up as a signal** -- which makes the corrected measurement stronger evidence for
+E-107 than a plain null would have been, because it also demonstrates *why*.
+
+:class:`StationaryVehicleError` now refuses the configuration that produced it.
 
 The quantity this reads is computed and archived nowhere
 ----------------------------------------------------------
@@ -88,7 +102,7 @@ __all__ = ["ArmReading", "Whiteness", "cusum", "evaluate", "render"]
 _DEFAULT_TICKS: Final = 400
 _DEFAULT_OPEN_AT: Final = 200
 _DEFAULT_SEED: Final = 20260731
-_DEFAULT_POLICY: Final = Path("artifacts/policy/policy.json")
+_DEFAULT_POLICY: Final = Path("var/policy/synthetic.pt")
 _DEFAULT_OUTPUT: Final = Path("artifacts/whiteness")
 
 COMPONENTS: Final = ("position_y", "speed", "lateral_acceleration")
@@ -105,6 +119,9 @@ _MINIMUM_SAMPLES: Final = 2
 _DEGENERATE_VARIANCE: Final = 1e-18
 """A spread at or below this would divide later arms by ~0 and manufacture a
 detection out of arithmetic."""
+
+_STATIONARY_MPS: Final = 1e-6
+"""At or below this the vehicle did not move and the loop is not closed."""
 
 CUSUM_THRESHOLD: Final = 5.0
 """Alarm threshold ``h``, in standard deviations. Chosen before any faulted arm
@@ -210,6 +227,29 @@ def _standard_deviation(samples: Sequence[float]) -> float:
     return math.sqrt(variance) if variance > _DEGENERATE_VARIANCE else 1.0
 
 
+class StationaryVehicleError(RuntimeError):
+    """Raised when the arm under measurement never drove.
+
+    **This guard exists because its absence produced a wrong published result.**
+    On 15 August this benchmark was run with a policy path that did not exist,
+    fell back to the placeholder proposer, and measured a vehicle with every one
+    of 400 ticks vetoed and a final speed of zero. It reported that the
+    innovation sequence separates a slow drift 7.35x, and E-107 was retracted on
+    the strength of it.
+
+    The number was arithmetically correct and meaningless. E-107's mechanism is
+    the *proposer closing the loop on a corrupted estimate and driving the
+    vehicle toward it*; on a stationary all-vetoed vehicle that feedback does
+    not exist, so the innovation keeps the persistent bias the loop would
+    otherwise absorb. Re-run against a policy that drives, the same sweep
+    reports **1.03x at every slack** (E-143).
+
+    A benchmark measuring a closed-loop property must refuse to run when the
+    loop is open. Detecting it costs two comparisons and it was the difference
+    between a finding and a retraction.
+    """
+
+
 def _residuals(
     *,
     fault: FaultInjector | None,
@@ -245,7 +285,7 @@ def _residuals(
     def remember(assembled: Any) -> None:  # noqa: ANN401
         holder["estimator"] = assembled.pipeline._estimator  # noqa: SLF001
 
-    drive_closed_loop(
+    result = drive_closed_loop(
         policy=policy,
         ticks=ticks,
         seed=seed,
@@ -253,6 +293,15 @@ def _residuals(
         observer=capture,
         on_assembled=remember,
     )
+    if result.vetoed >= result.ticks or result.final_speed_mps <= _STATIONARY_MPS:
+        message = (
+            f"the vehicle never drove: {result.vetoed}/{result.ticks} ticks vetoed, "
+            f"final speed {result.final_speed_mps:.4f} m/s. This benchmark measures a "
+            "CLOSED-loop property and the loop is open, so any separation it reported "
+            "would be an artefact -- see StationaryVehicleError and E-143. Check the "
+            "--policy path names a checkpoint that actually drives."
+        )
+        raise StationaryVehicleError(message)
     return collected
 
 
@@ -347,6 +396,10 @@ def render(readings: Sequence[ArmReading]) -> list[str]:
         lines.append("")
     lines.append("-" * 88)
 
+    # The verdict text below is deliberately blunt in both directions. An
+    # earlier version of this benchmark printed a falsification banner off a
+    # stationary vehicle; the guard in `_residuals` now makes that unreachable,
+    # and this text has to stay readable by someone who does not know that.
     control = readings[0]
     control_alarmed = any(c.detected_at is not None for c in control.components)
     drift = next((r for r in readings if r.arm == "position_drift"), None)
