@@ -99,6 +99,7 @@ Tiered by capability, because the answers differ sharply between tiers.
 |:--:|---|---|---|
 | **T0** | **Wrong proposer** | Emits arbitrary commands. No other access | Yes — this is the *design* case, not an attack |
 | **T1** | **Sensor-channel influencer** | Can perturb one sensor channel's values. No code execution | Yes. GPS spoofing, adversarial patches, a compromised sensor ECU, CAN injection |
+| **T1'** | **Multi-channel influencer** | Can perturb **f of n** sensor channels simultaneously and consistently. No code execution | Yes, and more so since 15 August: redundancy is now the driven path, so the channels are a target that did not previously exist. One supplier, one bus, one firmware image or one physical environment reaches several channels at once |
 | **T2** | **Artefact substituter** | Can replace a file on disk before start-up: corpus, twin, configuration | Yes, wherever an attacker reaches the filesystem or the supply chain |
 | **T3** | **Evidence forger** | Can write to the audit log after the fact | Yes, and it is the quietest of the four |
 | **T4** | **Platform-code executor** | Runs code inside Core-B | If reached, nothing in this architecture helps, and this document says so rather than pretending otherwise |
@@ -165,11 +166,78 @@ this document rather than in a footnote. It also means the integrity thresholds
 are an availability/safety operating point, which is part of why they carry no
 default (A-4).
 
+### 5.1b · T1' — Compromise two of three channels and the monitor blames the honest one
+
+**Opened 15 August 2026, when [ADR-0033](adr/0033-redundancy-is-the-driven-path-not-a-measurement-beside-it.md)
+made redundancy the driven path.** Until then the vehicle ran on one channel and
+this adversary had nothing extra to attack. The defence created the surface, which
+is the ordinary way surfaces appear.
+
+**The bound is not a matter of opinion.** Median fusion of `n` channels tolerates
+`f` faults with **n ≥ 2f+1** when the faults are *crash* faults — a channel that
+goes silent or obviously wrong. It requires **n ≥ 3f+1** when they are
+*Byzantine*: coordinated, consistent, and free to say whatever is most damaging.
+The shipped configuration is **n = 3**. So:
+
+| adversary | tolerated today |
+|---|--:|
+| one channel crashes or drifts randomly | **1** |
+| one channel lies coherently, two honest | **1** |
+| **two channels lie coherently and agree** | **0** |
+
+**Two of three is not a degraded case, it is an inversion.** With two compromised
+channels agreeing, *the median is the lie*. `training/redundant.py`'s residual
+monitor computes each channel's disagreement with the median and flags the
+largest — so it flags the **honest** channel, calls it `FAULTED`, and reports it
+by name. The system does not merely fail to detect the attack; it produces
+confident, specific, wrong attribution, and writes it into the evidence log.
+
+That is the worst failure shape this document contains, because every other entry
+here degrades toward silence and this one degrades toward a **false positive that
+looks like a successful detection**.
+
+**Correlation is what makes f = 2 reachable.** The bound assumes independent
+compromise; nothing about three channels on one vehicle is independent. A shared
+supplier, a shared bus, a shared firmware image, a shared power rail, or simply
+*the same fog* reaches several at once. `DEFAULT_CHANNEL_SIGMAS` deliberately
+gives the three unequal noise — identical sensors share a failure mode — but
+unequal noise is not independent compromise.
+
+**And the availability side got cheaper.** Every shipped profile sets
+`integrity_tolerated_faults = 0`, so **one** unhealthy channel is already enough
+to drive the integrity counter to its ceiling and halt the vehicle in two
+seconds. An attacker who can silence a single channel — jam a GPS, blind a
+lidar — now has a two-second denial of service that did not exist when the
+vehicle drove from one sensor and simply carried on. Same trade as §5.1, one
+step larger.
+
+**What would change the answer**, in order of cost: raise `n` to 4 so that
+`n ≥ 3f+1` holds at f = 1 and a single Byzantine channel is survivable; source
+the channels so their compromise is genuinely uncorrelated; and give the monitor
+a tie-break that does not assume the majority is honest — a physical plausibility
+bound per channel, which is the only thing here that does not depend on a vote.
+
+**Not measured.** No two-channel attack has been run. The bound above is
+arithmetic and the attribution inversion is read off the monitor's own rule; both
+are arguments, and this document's own standard is that an argument is weaker
+than a measurement. Running it is the obvious next fault-study arm.
+
 ### 5.2 · T1-B — Neutralise one gate and almost all veto authority goes with it
 
 **Demonstrated, by ablation.** E-59: disarming **L7b** takes the veto count to
 **zero on six of seven scenarios**. L6 contributes **one veto in 2,800 ticks**;
 L7a contributes **zero, everywhere**.
+
+**Sharper as of 15 August 2026, on a rebuilt baseline (E-162 – E-164).** A census
+over the same 2,800 ticks: `STATISTICAL` **VETO 0**, `DETERMINISTIC` **VETO 0**,
+`PHYSICAL` **VETO 149** — all 149 on the single reason code
+`LATERAL_JERK_EXCEEDS_LIMIT`. `ABSTAIN` is **zero for all three**: the two silent
+gates judge every tick and find nothing to object to, rather than declining to
+judge. And L6's silence has a cause an attacker does not need to create — its
+scores sit entirely below the corpus quantile (OD-8), so it *cannot* veto.
+
+For this adversary that is the whole picture: **there is one gate to neutralise,
+not three**, and one of the other two is already neutralised by a defect.
 
 The architecture's security story is *three structurally independent gates*. The
 measured concentration is very far from uniform: on this traffic, one gate

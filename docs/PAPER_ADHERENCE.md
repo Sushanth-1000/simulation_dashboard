@@ -133,10 +133,37 @@ reason-code vocabularies, three failure modes on paper.
   scenarios**. L6 contributes one veto in 2,800 ticks; L7a contributes none
   (E-59).
 
+**Re-measured 15 August 2026, and it is worse than D-10 recorded.** A census over
+the same 2,800 ticks — the clean arm plus all six faults, a suite built to break
+the gates — on a baseline with a corrected innovation covariance and redundant
+driven sensing (E-162):
+
+| gate | PASS | VETO | ABSTAIN |
+|---|--:|--:|--:|
+| `STATISTICAL` (L6) | 2800 | **0** | 0 |
+| `PHYSICAL` (L7b) | 2651 | **149** | 0 |
+| `DETERMINISTIC` (L7a) | 2800 | **0** | 0 |
+
+Every one of L7b's 149 vetoes carries the **same reason code**,
+`LATERAL_JERK_EXCEEDS_LIMIT`. One gate does all the work, on one reason.
+
+**`ABSTAIN` is zero for all three, and that is the finding.** ADR-0016 added
+abstention for a gate that *cannot* judge; silence of that kind is honest and
+the remedy is calibration. These two judge every tick and find nothing to object
+to (E-163).
+
+**L6's zero has a known cause and it is OD-8.** Its live scores sit entirely
+below the corpus quantile they are compared against — 0% overlap, 999 samples
+against 1,000 — so it *cannot* veto (E-159, E-164). A zero veto rate is not
+evidence the proposals were sound; it is the exchangeability violation seen from
+the gate's side.
+
 The paper should not claim independence as established. It can claim the gates
-are *structurally* independent and that a common input has been identified and
-measured — which is a stronger and more defensible sentence than the one
-currently there.
+are *structurally* independent, that a common input has been identified and
+measured, and that **two of the three are not currently load-bearing** — which
+is a stronger and far more defensible position than the one currently there,
+because it is the kind of thing only a project that measured its own would
+know.
 
 ### 2.3 · FB2 and FB3 are described as running; both are refused
 
@@ -240,7 +267,11 @@ is in the paper:
   profile is stamped into every decision record.
 - **A tamper-evident evidence log** (hash-chained), a threat model, and a
   measured test of NFR5 against a warehouse AGV that found four walls.
-- **Thirteen defects, all self-found**, seven of them closed and re-measured.
+- **Twenty-one defects, all self-found**, sixteen closed and re-measured, one
+  reclassified as a refusal that was never a defect, and **not one of them
+  reported by the test suite, `mypy --strict` or the twelve import contracts.**
+  Four were found in a single week by asking the system a question a customer
+  would ask.
   The last two — OD-12 and OD-13 — falsified the architecture's own
   distinguishing sentence: bounded safe exploration *halted* on two platforms
   out of five, having first accelerated past the calibrated platform's top
@@ -251,17 +282,45 @@ is in the paper:
 
 ## 4 · Recommended edits, in priority order
 
+**The paper is not in this repository**, so these are specified rather than
+applied. Each carries the replacement text and the evidence to cite, so applying
+it is transcription rather than judgement.
+
 1. **Fix contribution 1.** Either implement EnbPI or claim Mondrian ICP. Do not
    leave the abstract claiming a method the code does not contain.
-2. **Delete `ensemble_size`** from the configuration schema, and the residual
-   `ewc_lambda` / `adaptation_buffer` references.
+   > *Replace:* "ensemble batch prediction intervals (EnbPI)"
+   > *With:* "Mondrian class-conditional inductive conformal prediction"
+   > Every mention, including the abstract. See §2.1.
+2. ~~**Delete `ensemble_size`**~~ — **DONE 15 August 2026.** Removed from
+   `config/schema.py`, `config/astra.defaults.toml` and the test fixture;
+   nothing read it. `extra="forbid"` now makes a profile still declaring it fail
+   at startup, which is the right loudness for a withdrawn claim. `ewc_lambda`
+   and `adaptation_buffer` were already gone with ADR-0019.
 3. **Mark 1.25 µs and ASIL-D(D)** as analytical bound and design target, in the
    table itself.
+   > *Add to the cell, not a footnote:* "analytical bound, not measured" and
+   > "design target; no assessment has been performed".
+   > A footnote is read after the number has already been believed.
 4. **Remove MPC candidate scoring from Figure 1**, or label it as future work.
-5. **Rewrite the independence claim** to "structurally independent, with a
-   measured common input (OD-9)".
-6. **Correct Figure 1's layer numbering** to L1–L9 as built.
+   No MPC exists in the code. See §2.7.
+5. **Rewrite the independence claim.** This is the one that changed most.
+   > *Replace:* "three independent safety gates"
+   > *With:* "three structurally independent safety gates — distinct
+   > implementations, reason-code vocabularies and failure modes — sharing one
+   > measured common input, the L2 state estimate. We report that a sensor fault
+   > blinds all three simultaneously (OD-9), and that across a 2,800-tick fault
+   > suite two of the three never object while judging every tick (E-162 –
+   > E-164)."
+   > Cite E-46, E-48, E-162, E-163, E-164.
+6. **Correct Figure 1's layer numbering** to L1–L9 as built. The figure labels
+   three different components "Layer 6" (ADR-0001).
 7. **Relabel FB2/FB3** as specified-and-refused, with the measurements.
+   > *Replace:* any present-tense description of FB2 or FB3 running.
+   > *With:* "specified, implemented in shadow, and refused on measurement:
+   > FB2's score falls 40% in an unchanging context (E-39); FB3's veto rate
+   > converges to `significance_epsilon` exactly, because ε of any distribution
+   > lies above its own 1−ε quantile (E-40). Neither is wired."
+   > See §2.3 and ADR-0020.
 
 Items 2, 3, 4 and 6 are corrections. Items 1, 5 and 7 are the paper becoming
 more interesting rather than less: a survey whose prototype refuted two of its

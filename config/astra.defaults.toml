@@ -43,7 +43,6 @@ slow_rate_hz = 1.0
 # L3 — conformal Trust Module
 # --------------------------------------------------------------------------- #
 [trust]
-ensemble_size = 10
 # The validation plan calls for at least 500 calibration samples per context.
 minimum_calibration_samples = 500
 # coverage_level: intentionally absent — safety threshold (A-4).

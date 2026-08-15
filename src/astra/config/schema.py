@@ -237,10 +237,24 @@ class EstimationSettings(_Section):
 class TrustSettings(_Section):
     """L3 -- the conformal Trust Module.
 
+    **There is no `ensemble_size`, and its absence is a decision.** The paper's
+    first stated contribution is EnbPI -- an ensemble of bootstrap models --
+    and this schema carried `ensemble_size: PositiveInt = 10` to match it. **No
+    ensemble was ever built.** L3 and L6 both run Mondrian class-conditional
+    inductive conformal prediction, which is a different method with a different
+    guarantee, and the field was read by nothing: not by the trust module, not
+    by the gate, not by the corpus generator.
+
+    A configuration field nothing reads is worse than a missing one. It reads as
+    a knob a deployment can turn, it appears in every rendered profile, and it
+    tells a reviewer the ensemble exists. Deleted 15 August 2026
+    (`PAPER_ADHERENCE.md` section 4, item 2); `extra="forbid"` means a profile
+    still declaring it now fails at startup rather than being quietly ignored,
+    which is the correct loudness for a claim being withdrawn.
+
     Attributes:
         coverage_level: The conformal coverage ``1 - epsilon`` the Trust Module
             targets. **No default** (A-4).
-        ensemble_size: Number of bootstrap models in the EnbPI ensemble.
         minimum_calibration_samples: Below this many residuals in a context
             class, the class-conditional quantile is not yet meaningful. The
             validation plan calls for at least 500 calibration samples per
@@ -248,7 +262,6 @@ class TrustSettings(_Section):
     """
 
     coverage_level: UnitInterval
-    ensemble_size: PositiveInt = 10
     minimum_calibration_samples: PositiveInt = 500
     calibration_window: PositiveInt = 500
     highway_speed_boundary_kmh: PositiveFloat

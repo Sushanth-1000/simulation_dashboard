@@ -2,6 +2,23 @@
 
 What each phase builds, on what, and what it is not allowed to skip.
 
+> ### Phase markers are stale, 15 August 2026
+>
+> This document still reads as though Phase 4 were ahead. Phases 1–4 are built,
+> Phase 5's statistical gate and Phase 6's arbitration both run, and the work
+> since has been closing defects the running system produced rather than adding
+> layers. **The phase structure is kept because the *ordering argument* in it is
+> still the reason things were built in the order they were** — not as a report
+> of where the project is.
+>
+> For where it actually is, read [`CREDIBILITY_MATRIX.md`](CREDIBILITY_MATRIX.md)
+> — one row per claim, with what each does and does not license. For why each
+> call went the way it did, [`DECISION_LOG.md`](DECISION_LOG.md).
+>
+> The one section still ahead of the code is **Phase 9's CARLA drives**, and it
+> is the section that matters most: every `[M-syn]` row in the matrix becomes
+> `[M-ext]` there or not at all.
+
 Nine phases run from the foundation that exists today to a validated prototype with an evidence
 pack. Each phase ends with a **Phase Engineering Completion Report**. No phase starts before the
 previous one's `make check` is green — not as a matter of taste, but because every phase's exit

@@ -88,7 +88,6 @@ fast_rate_hz = 20.0
 slow_rate_hz = 1.0
 
 [trust]
-ensemble_size = 10
 minimum_calibration_samples = 500
 
 [gate]
