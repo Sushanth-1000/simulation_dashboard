@@ -93,6 +93,7 @@ if TYPE_CHECKING:
     from astra.layers.l2_estimation.measurement import MeasurementExtractor
     from astra.layers.l4_proposer.proposer import Policy
     from astra.observability.audit import JsonlAuditSink
+    from astra.ports.pipeline import CommandProjector
 
 __all__ = [
     "AssembledPipeline",
@@ -585,6 +586,8 @@ def assemble_pipeline[PayloadT](
     ablation: AblationProfile | None = None,
     environment: str = "unknown",
     integrity: IntegrityMonitor[PayloadT] | None = None,
+    space: ActuationSpace | None = None,
+    projector: CommandProjector | None = None,
 ) -> AssembledPipeline[PayloadT]:
     """Construct all ten layers and wire them into a pipeline.
 
@@ -593,6 +596,19 @@ def assemble_pipeline[PayloadT](
         config_hash: The frozen configuration's hash.
         settings: The validated settings.
         clock: The injected time source.
+        space: The platform's actuation channels, their order and their bounds.
+            **Adapter-supplied from 15 August 2026 (OD-11 wall 1, ADR-0034).**
+            Defaults to :func:`automotive_actuation_space` — this composition
+            root is automotive until a second platform exists, and pretending
+            otherwise by making it required would break every caller to prove a
+            point no adapter is yet making. What matters for NFR5 is that a
+            different platform *can* supply one, which it now can.
+        projector: Turns a target lateral acceleration back into a command.
+            **Adapter-supplied from the same date (wall 2).** Defaults to
+            :class:`AutomotiveCommandProjector`, which divides by a steering
+            effectiveness — arithmetic a differential drive has no counterpart
+            for, because it has no steering channel. That is precisely why it
+            had to become injectable rather than better.
         extractor: Turns fused frames into measurements. Adapter-supplied.
         integrity: Cross-modality monitor, adapter-supplied and optional. The
             producer of ``StreamHealth.FAULTED``, which L1 reserves for a
@@ -642,7 +658,39 @@ def assemble_pipeline[PayloadT](
     Returns:
         The assembled pipeline and the handles a driver needs.
     """
-    space = automotive_actuation_space()
+    # Wall 1. This read `space = automotive_actuation_space()` until 15 August
+    # 2026, with no parameter to override it, while the module docstring three
+    # hundred lines above claimed an adapter could supply one. The claim is now
+    # true (ADR-0034).
+    #
+    # **The space and the projector are one decision, not two.** The default
+    # projector inverts a lateral acceleration through STEER_INDEX and the
+    # placeholder policy steers through it, so a caller supplying a two-channel
+    # differential drive and defaulting either gets `steer_index 2 is outside a
+    # 2-channel actuation space` from somewhere deep in construction. Refusing
+    # here says the same thing where it can be acted on -- and refusing beats
+    # defaulting, because there is no sensible projector or fallback controller
+    # for a platform this function has never heard of.
+    #
+    # The policy half was found by writing an honest injection test, not by
+    # review: making the space injectable is not the same as making the root
+    # platform-neutral, and only driving it with a different space says which.
+    if space is not None and (projector is None or policy is None):
+        missing = [
+            name
+            for name, supplied in (("projector", projector), ("policy", policy))
+            if supplied is None
+        ]
+        message = (
+            f"an adapter-supplied actuation space also needs: {', '.join(missing)}. "
+            "Both index a steering channel into the space -- the projector to invert "
+            "a lateral acceleration, the placeholder policy to steer at all -- and "
+            "both defaults assume the automotive layout"
+        )
+        raise ConfigurationError(
+            message, context={"channels": space.dimension, "missing": ", ".join(missing)}
+        )
+    space = automotive_actuation_space() if space is None else space
     tick_period = Seconds(1.0 / settings.estimation.fast_rate_hz)
     slow_period_ticks = max(
         1, round(settings.estimation.fast_rate_hz / settings.estimation.slow_rate_hz)
@@ -793,7 +841,11 @@ def assemble_pipeline[PayloadT](
         profiles=profiles,
         weights=SearchWeights(similarity=0.4, validation=0.3, history=0.2, risk=0.1),
         active=profiles[0],
-        projector=AutomotiveCommandProjector(
+        # Wall 2, and the same story. The default stays automotive because this
+        # root is; the point is that it is now a default rather than a fact.
+        projector=projector
+        if projector is not None
+        else AutomotiveCommandProjector(
             steering_index=STEER_INDEX,
             effectiveness=settings.twin.control_effectiveness[STEER_INDEX],
         ),

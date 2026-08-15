@@ -37,14 +37,30 @@ reason.
 from __future__ import annotations
 
 import inspect
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
 
+from astra.config.loader import load_settings
+from astra.contracts.actuation import ActuationChannel, ActuationSpace
 from astra.kernel.constants import FAST_STATE_FIELDS, SLOW_STATE_FIELDS
 from astra.kernel.enums import ContextClass
+from astra.kernel.errors import ConfigurationError
+from astra.kernel.identifiers import RunId
+from astra.kernel.time import Instant, ManualClock, Timeline
+from astra.layers.l2_estimation.measurement import Measurement
 from astra.layers.l2_estimation.models import fast_transition
-from astra.runtime.assembly import assemble_pipeline
+from astra.layers.l4_proposer.proposer import Policy
+from astra.observability.audit import JsonlAuditSink
+from astra.ports.pipeline import CommandProjector
+from astra.runtime.assembly import (
+    AssembledPipeline,
+    assemble_pipeline,
+    automotive_actuation_space,
+)
 from training.warehouse import (
     AgvSpec,
     DifferentialDriveProjector,
@@ -120,37 +136,159 @@ def test_the_agv_plant_moves_under_its_own_kinematics() -> None:
     assert agv.state[0] > 1.0  # and made progress along it
 
 
+class _NullExtractor:
+    """Produces no measurement. This test never advances a tick."""
+
+    def extract_fast(self, frame: object) -> Measurement | None:
+        del frame
+        return None
+
+    def extract_slow(self, frame: object) -> Measurement | None:
+        del frame
+        return None
+
+
+def _assemble(
+    *,
+    space: ActuationSpace,
+    tmp_path: Path,
+    projector: CommandProjector | None,
+    policy: Policy | None = None,
+) -> AssembledPipeline[Any]:
+    """Build a pipeline with an adapter-supplied actuation space.
+
+    Deliberately minimal: no twin, no corpus, no policy. The question is whether
+    the composition root *adopts* what it was handed, and answering it needs
+    nothing driven.
+    """
+    resolved = load_settings(environment="simulation", include_environment_variables=False)
+    # A fourth coupling, and this one is the configuration layer working. The
+    # effectiveness row maps each command channel to the lateral acceleration it
+    # produces, so its length IS the channel count -- and the loader already
+    # refuses a mismatch with a better message than anything this test could
+    # add. A different platform needs a different profile, which is correct and
+    # is not an NFR5 violation.
+    settings = resolved.settings.model_copy(
+        update={
+            "twin": resolved.settings.twin.model_copy(
+                update={"control_effectiveness": (0.0,) * space.dimension}
+            )
+        }
+    )
+    run = RunId("run-nfr5wall0001")
+    return assemble_pipeline(
+        run=run,
+        config_hash=resolved.hash,
+        settings=settings,
+        clock=ManualClock(Instant(0, Timeline.MANUAL)),
+        extractor=_NullExtractor(),
+        audit_sink=JsonlAuditSink(run=run, directory=tmp_path, fsync_each_record=False),
+        space=space,
+        projector=projector,
+        policy=policy,
+    )
+
+
 # --------------------------------------------------------------------------- #
 # Wall 1 -- the composition root
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "NFR5 wall 1: assemble_pipeline calls automotive_actuation_space() directly "
-        "and takes no parameter for it, so a different platform cannot supply a "
-        "different space. The module docstring three hundred lines above claims it can."
-    ),
-)
 def test_the_actuation_space_can_be_supplied_by_an_adapter() -> None:
+    """Wall 1, down on 15 August 2026 (ADR-0034).
+
+    This was a **strict xfail** until then: ``assemble_pipeline`` called
+    ``automotive_actuation_space()`` directly and took no parameter for it, so a
+    different platform could not supply a different space -- while the module
+    docstring three hundred lines above claimed it could. The strict marker is
+    what turned the fix into a failing test rather than a silent improvement.
+
+    Asserting the *keyword* and its default, not just that some parameter has
+    "space" in its name: the previous assertion would have been satisfied by a
+    parameter called ``workspace``.
+    """
     parameters = inspect.signature(assemble_pipeline).parameters
 
-    assert any("space" in name for name in parameters)
+    assert "space" in parameters
+    assert parameters["space"].kind is inspect.Parameter.KEYWORD_ONLY
+    # Defaulted rather than required. This composition root *is* automotive
+    # until a second platform exists, and making it required would break every
+    # caller to prove a point no adapter is yet making. NFR5 asks that a
+    # different platform **can** supply one.
+    assert parameters["space"].default is None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "NFR5 wall 2: the command projector is not injectable either, and "
-        "AutomotiveCommandProjector divides by a steering effectiveness -- arithmetic "
-        "a differential drive has no counterpart for, because it has no steering channel."
-    ),
-)
 def test_the_command_projector_can_be_supplied_by_an_adapter() -> None:
+    """Wall 2, down the same day and for the same reason.
+
+    ``AutomotiveCommandProjector`` divides by a steering effectiveness --
+    arithmetic a differential drive has no counterpart for, because it has no
+    steering channel. That is precisely why it had to become **injectable**
+    rather than better: no single projector can serve both platforms, and the
+    layer must not know which one it has.
+    """
     parameters = inspect.signature(assemble_pipeline).parameters
 
-    assert any("projector" in name for name in parameters)
+    assert "projector" in parameters
+    assert parameters["projector"].kind is inspect.Parameter.KEYWORD_ONLY
+    assert parameters["projector"].default is None
+
+
+class _WheelProjector:
+    """A differential drive's projector: no steering channel to divide by.
+
+    Both wheels turn the platform, so a target lateral acceleration is a
+    differential between them rather than a division by a steering gain. The
+    arithmetic is irrelevant here -- what matters is that it is *possible to
+    write one at all*, which is what wall 2 denied.
+    """
+
+    def with_lateral_acceleration(
+        self, values: Sequence[float], target: float
+    ) -> tuple[float, ...]:
+        left, right = values
+        return (left - target, right + target)
+
+    def with_speed_cap(
+        self, values: Sequence[float], *, current_speed: float, cap: float
+    ) -> tuple[float, ...]:
+        del current_speed
+        return tuple(min(value, cap) for value in values)
+
+
+class _WheelPolicy:
+    """A differential drive's fallback: both wheels, no steering channel."""
+
+    def act(self, observation: Sequence[float]) -> Sequence[float]:
+        del observation
+        return [0.0, 0.0]
+
+
+def test_a_supplied_space_is_the_one_the_pipeline_uses(tmp_path: Path) -> None:
+    """The seam is real, not decorative.
+
+    A parameter that is accepted and ignored would pass both tests above and
+    leave the wall standing. This drives the composition root with a
+    two-channel space that is not the automotive one and checks the pipeline
+    adopted it -- the difference between *injectable* and *has an injection
+    point*.
+    """
+    supplied = ActuationSpace(
+        (
+            ActuationChannel(name="left_wheel", lower=-1.0, upper=1.0, unit="1"),
+            ActuationChannel(name="right_wheel", lower=-1.0, upper=1.0, unit="1"),
+        )
+    )
+    assert supplied.dimension != automotive_actuation_space().dimension, (
+        "the fixture must differ from the default or this asserts nothing"
+    )
+
+    built = _assemble(
+        space=supplied, tmp_path=tmp_path, projector=_WheelProjector(), policy=_WheelPolicy()
+    )
+
+    assert built.space is supplied
+    assert [channel.name for channel in built.space.channels] == ["left_wheel", "right_wheel"]
 
 
 # --------------------------------------------------------------------------- #
@@ -221,3 +359,28 @@ def test_the_context_classes_are_domain_neutral() -> None:
         for context in ContextClass
         if any(word in context.value.lower() for word in _ROAD_WORDS)
     ]
+
+
+def test_a_supplied_space_without_a_projector_is_refused(tmp_path: Path) -> None:
+    """The two are one decision, and the root says so where it can be acted on.
+
+    The default projector indexes ``STEER_INDEX`` into the space, so a caller
+    supplying a two-channel differential drive and leaving the projector
+    defaulted used to get ``steer_index 2 is outside a 2-channel actuation
+    space`` from deep inside construction. **Refusing beats defaulting**: there
+    is no sensible projector for a platform this function has never heard of,
+    and a wrong one would divide by a steering effectiveness that does not
+    exist.
+
+    Found by the test above rather than by review -- writing an honest
+    injection test turned up a half-injected seam.
+    """
+    supplied = ActuationSpace(
+        (
+            ActuationChannel(name="left_wheel", lower=-1.0, upper=1.0, unit="1"),
+            ActuationChannel(name="right_wheel", lower=-1.0, upper=1.0, unit="1"),
+        )
+    )
+
+    with pytest.raises(ConfigurationError, match="also needs: projector"):
+        _assemble(space=supplied, tmp_path=tmp_path, projector=None, policy=_WheelPolicy())
