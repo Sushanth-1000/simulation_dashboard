@@ -2,6 +2,24 @@
 
 **Prepared** 5 August 2026 · **last revised** 9 August 2026
 **Baseline** `833ce4d` plus the uncommitted soak work
+
+> ### ⚠ Superseded as a status document, 15 August 2026
+>
+> This file is **six days and roughly thirty commits behind the tree**, and it is kept
+> for the *reasoning* in it rather than as a report of what is outstanding. Several
+> items it lists as open are closed (OD-12, OD-13, OD-14, OD-16, OD-17, OD-18), several
+> defects it does not mention have been opened and closed since (OD-19, OD-20, OD-21),
+> and OD-7 has been reclassified as a refusal rather than a defect.
+>
+> **For what is actually outstanding, read
+> [`CREDIBILITY_MATRIX.md`](CREDIBILITY_MATRIX.md)** — the register is maintained per
+> change and this file is not. For *why* each decision went the way it did, read
+> [`DECISION_LOG.md`](DECISION_LOG.md).
+>
+> Not rewritten, because a status document rewritten to match the present tells you
+> nothing about whether the project's judgement was any good at the time. This one
+> records what was believed on 9 August, which is the more useful artefact — the same
+> reason [`adr/README.md`](adr/README.md) forbids editing an accepted record.
 **Companion documents** [`SOAK_REPORT.md`](SOAK_REPORT.md) for the evidence behind
 every finding cited here; [`WORK_PLAN.md`](WORK_PLAN.md) for the phase structure
 this re-orders.
