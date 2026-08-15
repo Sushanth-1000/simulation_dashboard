@@ -49,7 +49,7 @@ from astra.kernel.constants import (
     SLOW_STATE_DIMENSION,
     SLOW_STATE_FIELDS,
 )
-from astra.kernel.enums import SensorModality
+from astra.kernel.enums import FailSafeState, SensorModality, StreamHealth
 from astra.kernel.units import (
     Degrees,
     Hertz,
@@ -580,6 +580,110 @@ class FailSafeSettings(_Section):
     integrity_tolerated_faults: NonNegativeInt
     critical_modalities: tuple[SensorModality, ...]
     capabilities: tuple[tuple[str, tuple[SensorModality, ...]], ...] = ()
+    integrity_ceiling: tuple[tuple[StreamHealth, FailSafeState], ...] = ()
+    decay_window_ticks: PositiveInt = 200
+    decay_service_threshold: float | None = None
+
+    @field_validator("integrity_ceiling", mode="before")
+    @classmethod
+    def _ceiling_is_sorted_pairs(cls, value: object) -> object:
+        """Normalise the TOML table into pairs, ordered by health severity.
+
+        Sorted for the same reason ``capabilities`` is -- the config hash must
+        not depend on the order keys happen to appear in the file -- but sorted
+        by *severity* rather than by name, because that is the order the
+        monotonicity validator reads them in and the order a reader expects.
+
+        Args:
+            value: A table from TOML, or pairs from a direct constructor.
+
+        Returns:
+            Pairs ordered worst-health-last, or the value untouched when it is
+            not a mapping.
+        """
+        if isinstance(value, Mapping):
+            return tuple(
+                sorted(
+                    (
+                        (StreamHealth(str(level)), FailSafeState(str(state)))
+                        for level, state in value.items()
+                    ),
+                    key=lambda pair: pair[0].severity_rank,
+                )
+            )
+        return value
+
+    @field_validator("integrity_ceiling")
+    @classmethod
+    def _ceiling_rises_with_health_severity(
+        cls, value: tuple[tuple[StreamHealth, FailSafeState], ...]
+    ) -> tuple[tuple[StreamHealth, FailSafeState], ...]:
+        """Validate that a worse stream health may not reach a milder posture.
+
+        A `DEGRADED` stream permitted to HALT while an `ABSENT` one is capped at
+        LIMP is incoherent: it says a late reading is more dangerous than no
+        reading at all. It is also the shape a typo makes, because the two
+        values sit on adjacent lines of the same table.
+
+        `HEALTHY` is refused outright. It is not a fault, nothing counts it, and
+        a ceiling for it would be a line of configuration that reads like a
+        safety decision and governs nothing.
+
+        Args:
+            value: The declared ceilings, ordered by health severity.
+
+        Returns:
+            The value, unchanged.
+
+        Raises:
+            ValueError: If `HEALTHY` appears, or the ceilings fall as health
+                worsens.
+        """
+        previous: FailSafeState | None = None
+        for level, ceiling in value:
+            if level is StreamHealth.HEALTHY:
+                message = (
+                    "failsafe.integrity_ceiling must not name HEALTHY; "
+                    "a healthy stream is not a fault and no counter reads it"
+                )
+                raise ValueError(message)
+            if previous is not None and ceiling.severity_rank < previous.severity_rank:
+                message = (
+                    f"failsafe.integrity_ceiling falls as health worsens: {level.value} "
+                    f"may reach {ceiling.value}, milder than the level before it. A worse "
+                    "stream health cannot warrant a milder posture"
+                )
+                raise ValueError(message)
+            previous = ceiling
+        return value
+
+    @field_validator("decay_service_threshold")
+    @classmethod
+    def _service_threshold_is_a_fraction(cls, value: float | None) -> float | None:
+        """Validate that the service threshold is a fraction strictly inside (0, 1].
+
+        The decayed value is the **fraction of recent frames a modality was
+        unhealthy**, so it is bounded in `[0, 1]` by construction. Zero would
+        flag every sensor that ever glitched once and one is unreachable through
+        smoothing, so both ends are refused: a threshold nothing can clear and a
+        threshold everything trips are the same bug wearing different numbers.
+
+        Args:
+            value: The declared threshold, or ``None`` for no service signal.
+
+        Returns:
+            The value, unchanged.
+
+        Raises:
+            ValueError: If the threshold is outside ``(0, 1)``.
+        """
+        if value is not None and not 0.0 < value < 1.0:
+            message = (
+                f"failsafe.decay_service_threshold must be a fraction strictly "
+                f"between 0 and 1, got {value}"
+            )
+            raise ValueError(message)
+        return value
 
     @field_validator("capabilities", mode="before")
     @classmethod

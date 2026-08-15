@@ -131,6 +131,27 @@ integrity_tolerated_faults = 0
 # and every audit record. It simply stops being a reason to slow down or stop.
 critical_modalities = ["CAMERA", "LIDAR", "IMU", "GPS", "RADAR"]
 
+# Sensor decay (ADR-0031). The integrity counter moves +1 unhealthy, -1 healthy,
+# so ANY duty cycle at or below 50% nets to zero and never escalates, however
+# long it runs. Measured over 60 s at 20 Hz: a camera dark on alternate frames
+# spent 600 of 1200 ticks absent and held NOMINAL with the counter peaking at 1
+# (E-135). A sensor dropping a quarter of its frames is failing, and the machine
+# reported perfect health.
+#
+# This window smooths the per-modality unhealth fraction. 200 ticks is 10 s at
+# 20 Hz -- long enough that one dropped frame is ~0.5%, short enough to move
+# within a trip. It is a FILTER CONSTANT, not a safety threshold, which is why
+# it carries a default where the A-4 values above do not.
+decay_window_ticks = 200
+
+# decay_service_threshold is deliberately NOT set. What fraction of dropped
+# frames means "service this" is a property of a particular sensor on a
+# particular vehicle, and this project has measured no such number; inventing
+# one would be the unfalsifiable weight ADR-0028 and ADR-0029 both refused.
+# Unset means decay is measured and reported and flags nothing -- the standing
+# rule that no mechanism gets authority until it has run with none.
+# decay_service_threshold =
+
 # What each autonomy function needs, and therefore what is withdrawn when a
 # sensor goes unhealthy. THE SECOND AXIS (ADR-0029): critical_modalities above
 # decides whether a sensor may change the POSTURE; this decides which FUNCTIONS
@@ -154,6 +175,26 @@ lane_keeping = ["CAMERA"]
 adaptive_cruise = ["RADAR", "IMU"]
 obstacle_avoidance = ["LIDAR", "RADAR"]
 route_following = ["GPS"]
+
+# How far the posture may escalate for each KIND of sensor fault (ADR-0030).
+# L1 tells four health values apart; until 15 August this machine read one bit
+# of them, so a camera arriving LATE stopped the vehicle exactly as a camera
+# that was GONE (E-134).
+#
+# A ceiling is the right instrument here and was the WRONG one for modalities:
+# a ceiling says "how far", and *which sensor* is not a question about how far
+# (ADR-0029 rejected it for that). StreamHealth IS a severity -- literally how
+# far past the staleness budget a stream has fallen -- so mapping it onto how
+# far the posture may go invents no weight. It need only defend "a late reading
+# is less bad than no reading".
+#
+# A level left out is UNCAPPED, not lenient: silence in a safety file is not
+# permission. Validated to rise with severity -- a worse health cannot warrant a
+# milder posture, which is also the shape a typo on adjacent lines makes.
+[failsafe.integrity_ceiling]
+DEGRADED = "LIMP"
+FAULTED = "HALT"
+ABSENT = "HALT"
 
 [arbitration]
 trust_threshold_tau = 0.70

@@ -286,6 +286,31 @@ class FailSafeSnapshot:
             this field cannot distinguish them -- ``failsafe.capabilities`` in
             the active profile is what says which, and
             ``benchmarks/commissioning.py`` prints it.
+        sensor_decay: Per-modality **fraction of recent frames that were not
+            healthy**, smoothed over ``failsafe.decay_window_ticks``, sorted by
+            modality.
+
+            **The one field here that is about the sensor rather than about the
+            vehicle.** Every counter above answers *"am I in trouble now?"* and
+            resets when the trouble passes. This does not: it accumulates the
+            duty cycle of a fault, which is the quantity the integrity counter
+            cancels to zero. A camera dark on alternate frames holds that
+            counter at 1 forever and shows **0.5** here (E-135).
+
+            It has units and a meaning -- *this stream missed a fifth of its
+            frames* -- rather than being a weight someone chose, which is what
+            makes it defensible where a weighted counter was not.
+
+            **It drives nothing.** No posture, no veto, no command. A decaying
+            sensor is a maintenance condition, and a vehicle that stopped for
+            maintenance would re-introduce the nuisance stop OD-18 removed.
+        sensors_needing_service: The modalities whose decay has crossed
+            ``failsafe.decay_service_threshold``, sorted.
+
+            Empty when no threshold is declared, which is the shipped default:
+            what fraction of dropped frames means *service this* is a property
+            of a particular sensor on a particular vehicle, and this project
+            has measured no such number. The mechanism ships reporting only.
     """
 
     tick: TickId
@@ -296,6 +321,8 @@ class FailSafeSnapshot:
     human_intervention_requested: bool = False
     integrity_counter: int = 0
     withdrawn_capabilities: tuple[str, ...] = ()
+    sensor_decay: tuple[tuple[str, float], ...] = ()
+    sensors_needing_service: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         """Validate the counter and the speed cap.

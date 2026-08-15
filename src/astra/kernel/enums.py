@@ -381,6 +381,34 @@ class StreamHealth(StrEnum):
     FAULTED = "FAULTED"
     ABSENT = "ABSENT"
 
+    @property
+    def severity_rank(self) -> int:
+        """Return a monotonically increasing rank, ``0`` for HEALTHY to ``3`` for ABSENT.
+
+        The ordering the pipeline already relied on to merge two health reports
+        by taking the worse, promoted here on 15 August 2026 because a second
+        caller needed it: ``failsafe.integrity_ceiling`` validates that a worse
+        health cannot warrant a milder posture, and that check reads the same
+        order. Two private orderings that must agree, in modules that cannot
+        import each other, is how they stop agreeing.
+
+        Returns:
+            The health's rank in order of increasing severity.
+        """
+        return _HEALTH_RANK[self]
+
+
+_HEALTH_RANK: dict[StreamHealth, int] = {
+    StreamHealth.HEALTHY: 0,
+    StreamHealth.DEGRADED: 1,
+    StreamHealth.FAULTED: 2,
+    StreamHealth.ABSENT: 3,
+}
+"""Ordered worst-last. ``FAULTED`` sits below ``ABSENT`` deliberately: a stream
+that is gone tells the estimator nothing, and one that is lying tells it
+something it can still partly bound. The same order is weighted 1.0 / 0.5 / 0.1
+/ 0.0 by the Runtime Context Signature, and the two must not disagree."""
+
 
 @unique
 class TimingDomain(StrEnum):

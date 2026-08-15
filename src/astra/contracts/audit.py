@@ -151,6 +151,15 @@ def _render_failsafe(snapshot: FailSafeSnapshot) -> dict[str, JsonValue]:
         # no capabilities. The active profile disambiguates, and the run manifest
         # already records which profile was loaded.
         "withdrawn_capabilities": list(snapshot.withdrawn_capabilities),
+        # Added at schema 10, ADR-0031. Every other number in this record resets
+        # when the trouble passes, which is correct for a posture and useless for
+        # a sensor: measured, a camera dark on alternate frames held the
+        # integrity counter at 1 for a full minute (E-135). This is the duty
+        # cycle that counter cancels out, per modality, and it is the only field
+        # here that answers "is this sensor dying?" rather than "am I in trouble
+        # now?". It drives nothing -- it is evidence for a maintenance decision.
+        "sensor_decay": dict(snapshot.sensor_decay),
+        "sensors_needing_service": list(snapshot.sensors_needing_service),
     }
 
 

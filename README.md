@@ -79,7 +79,7 @@ component's PASS.
 | Invariants | 10 declared, **all 10 mechanically enforced**. SI-3 now also covers issuance and abstention ([ADR-0016](docs/adr/0016-exploration-may-not-override-a-deterministic-veto.md)). |
 | Measured | **100 000 ticks, all ten soak criteria pass.** 100 000/100 000 commands issued - proposer accepted on **99 997** ticks - mean lane deviation **0.0332 m** - resident set **+0.2 MiB** - full-tick p99 **9.3 ms** against a 50 ms tick - **0** audit records dropped. Every figure traces to a row in [`docs/EVIDENCE.md`](docs/EVIDENCE.md). |
 | Decision log | [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md) — every decision that could have gone another way, the options weighed, and what each choice gave up. Includes the mistakes |
-| Open defects | **19 in the register - 12 closed, 2 partly closed, 5 open** - every one self-found, none by the test suite. See [`docs/CREDIBILITY_MATRIX.md`](docs/CREDIBILITY_MATRIX.md) |
+| Open defects | **21 in the register - 14 closed, 2 partly closed, 5 open** - every one self-found, none by the test suite. See [`docs/CREDIBILITY_MATRIX.md`](docs/CREDIBILITY_MATRIX.md) |
 | Next | Linux + CARLA for non-synthetic validation, which is also where OD-9's remaining two thirds are answered - see [`docs/PENDING.md`](docs/PENDING.md) |
 
 > ### The limitation that governs every number above

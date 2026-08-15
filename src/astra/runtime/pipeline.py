@@ -67,7 +67,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING
 
 from astra.contracts.assurance import GateVerdict, SafetyVerdict
 from astra.contracts.audit import DecisionRecord
@@ -826,14 +826,6 @@ class GovernancePipeline[PayloadT]:
             shadow_failsafe=shadow_state,
         )
 
-    #: Health values ordered worst-last, so a merge can take a maximum.
-    _HEALTH_SEVERITY: Final = (
-        StreamHealth.HEALTHY,
-        StreamHealth.DEGRADED,
-        StreamHealth.FAULTED,
-        StreamHealth.ABSENT,
-    )
-
     def _frame_health(
         self, frame: FusedSensorFrame[PayloadT]
     ) -> tuple[tuple[SensorModality, StreamHealth], ...]:
@@ -872,7 +864,7 @@ class GovernancePipeline[PayloadT]:
                 max(
                     health,
                     integrity.get(modality, health),
-                    key=self._HEALTH_SEVERITY.index,
+                    key=lambda health: health.severity_rank,
                 ),
             )
             for modality, health in staleness.items()

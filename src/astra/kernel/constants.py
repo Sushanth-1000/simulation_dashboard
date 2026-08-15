@@ -136,7 +136,7 @@ RCS_DIMENSION: Final = len(RCS_FIELDS)
 # after the schema has moved on. A version field is the cheapest possible
 # insurance against an unreadable evidence archive.
 
-AUDIT_SCHEMA_VERSION: Final = 9
+AUDIT_SCHEMA_VERSION: Final = 10
 """Schema version stamped on every audit record. Increment on any field change.
 
 Version 2 (ADR-0016) widened the verdict vocabulary: a gate verdict may now read
@@ -211,7 +211,29 @@ posture with no way to tell whether the gates refused or a sensor went dark
 Found by the tool built to *read* the evidence, which is the same way OD-14 was
 found one version earlier. A pipeline that computes a number is not a pipeline
 whose evidence has it, and the only reliable way to notice is to try to use the
-archive for something."""
+archive for something.
+
+Version 9 (15 August 2026) adds ``withdrawn_capabilities`` to the fail-safe
+snapshot (ADR-0029). The machine gained a second **axis**: ``state`` records how
+bad things were getting, this records *what was broken*, and the two are
+independent -- a version-9 row can read ``NOMINAL`` with lane changes withdrawn,
+which no earlier schema could express. A version-8 reader loses the field, and
+must not read its absence as *nothing was withdrawn*: it means nobody was asked.
+
+Version 10 (15 August 2026) adds ``sensor_decay`` and
+``sensors_needing_service`` (ADR-0031). **Every other number in this record
+resets when the trouble passes**, which is right for a posture and useless for a
+sensor. Measured: a camera dark on alternate frames for a full minute held the
+integrity counter at **1** and the posture at ``NOMINAL``, because that counter
+moves +1 and -1 and any duty cycle at or below 50% nets to zero however long it
+runs (E-135, OD-21). ``sensor_decay`` is the duty cycle that counter cancels
+out, per modality.
+
+The reading direction is benign -- a version-9 reader loses two fields -- but the
+*archive* direction is the point: a fleet's version-9 logs cannot be mined for
+sensor wear at all, because the quantity was never written down. That is the
+fifth instance of the shape at version 3, 5, 7 and 8, and the first where the
+missing quantity was not merely uncomputed but unrepresentable."""
 
 CONFIG_SCHEMA_VERSION: Final = 1
 """Schema version required in every configuration file. Rejected if mismatched."""

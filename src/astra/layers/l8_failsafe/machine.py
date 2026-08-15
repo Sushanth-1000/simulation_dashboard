@@ -163,7 +163,9 @@ class FailSafeStateMachine:
     """
 
     __slots__ = (
+        "_ceiling",
         "_counter",
+        "_decay",
         "_human_intervention_requested",
         "_integrity",
         "_settings",
@@ -188,6 +190,8 @@ class FailSafeStateMachine:
         self._tick: TickId | None = None
         self._human_intervention_requested = False
         self._withdrawn: tuple[str, ...] = ()
+        self._ceiling = FailSafeState.NOMINAL
+        self._decay: dict[SensorModality, float] = {}
 
     def observe(
         self,
@@ -225,11 +229,127 @@ class FailSafeStateMachine:
         self._counter = self._advanced_counter(blocking=verdict.is_blocking, exploring=exploring)
         self._integrity = self._advanced_integrity(frame_health=frame_health)
         self._withdrawn = self._withdrawn_capabilities(frame_health=frame_health)
+        self._ceiling = self._advanced_ceiling(frame_health=frame_health)
+        self._advance_decay(frame_health=frame_health)
         self._state = self._next_state()
         self._tick = tick
         if self._state is FailSafeState.HALT:
             self._human_intervention_requested = True
         return self.snapshot
+
+    def _advanced_ceiling(
+        self, *, frame_health: Sequence[tuple[SensorModality, StreamHealth]]
+    ) -> FailSafeState:
+        """Return the worst posture the current sensor health may justify.
+
+        **The level was being thrown away.** L1 distinguishes four health
+        values and, until 15 August, this machine read one bit of them: anything
+        that was not ``HEALTHY`` escalated identically, so a camera arriving
+        *late* stopped the vehicle exactly as a camera that was *gone* (E-134).
+        That is OD-18's shape one level in -- one response for situations the
+        system had already gone to the trouble of telling apart.
+
+        **Why a ceiling is the right instrument here and was the wrong one for
+        modalities.** ADR-0029 rejected a per-*modality* severity ceiling
+        because modality identity is not a severity: a ceiling says *how far*,
+        and *which sensor* is not a question about how far. ``StreamHealth`` is
+        different. It **is** a severity -- literally how far past the staleness
+        budget a stream has fallen -- so mapping it onto how far the posture may
+        escalate keeps the vocabulary honest. No weight is invented and nothing
+        needs defending beyond *a late reading is less bad than no reading*.
+
+        **It is a high-water mark, not an instantaneous read, and that is a bug
+        this method would otherwise have.** The ceiling caps a counter that
+        persists across ticks. Recomputing it from the current frame alone would
+        mean a modality that recovered lifted the cap while the counter was
+        still elevated -- so a vehicle held at LIMP by a stale camera would
+        **HALT at the moment the camera came back**, punished for recovering.
+        So the ceiling only rises while a fault persists, and resets when the
+        counter reaches its floor, which is the point at which it stops
+        mattering anyway.
+
+        Args:
+            frame_health: Per-modality health for this tick.
+
+        Returns:
+            The current ceiling. ``NOMINAL`` when the counter has fully
+            recovered, which caps nothing because the band is ``NOMINAL`` there
+            too.
+        """
+        ceiling = self._settings.integrity_ceiling
+        if not ceiling:
+            # Undeclared means uncapped, which is the behaviour that shipped
+            # before this field existed and the most conservative reading of it.
+            return FailSafeState.HALT
+
+        critical = self._settings.critical_modalities
+        worst = FailSafeState.NOMINAL
+        for modality, health in frame_health:
+            if health is StreamHealth.HEALTHY or modality not in critical:
+                continue
+            for level, permitted in ceiling:
+                if level is health:
+                    worst = _worse(worst, permitted)
+                    break
+            else:
+                # A level the deployment did not name is uncapped. Silence in a
+                # safety file is not permission to be lenient.
+                worst = FailSafeState.HALT
+
+        if worst is FailSafeState.NOMINAL and self._integrity <= _COUNTER_FLOOR:
+            return FailSafeState.NOMINAL
+        return _worse(self._ceiling, worst)
+
+    def _advance_decay(
+        self, *, frame_health: Sequence[tuple[SensorModality, StreamHealth]]
+    ) -> None:
+        """Update each modality's decayed unhealth fraction.
+
+        **The counter cannot see an intermittent fault, and this is the
+        measurement that says so.** The integrity counter moves ``+1`` on an
+        unhealthy frame and ``-1`` on a healthy one, so *any* duty cycle at or
+        below 50% nets to zero and never escalates -- however long it runs.
+        Measured over a full minute at 20 Hz: a camera dark on alternate frames
+        spent **600 of 1,200 ticks absent** and held ``NOMINAL`` with the
+        counter peaking at **1**; dark 3 frames in 13, it held ``NOMINAL`` with
+        the counter peaking at 3 (E-135). A sensor dropping a quarter of its
+        frames is failing, and the machine reported perfect health.
+
+        The counter is not wrong -- it answers *"am I in trouble now?"* and the
+        answer really is no. It simply cannot answer *"is this sensor dying?"*,
+        because it is memoryless by design: that is the same property that makes
+        recovery automatic, and giving it up would cost more than it bought.
+
+        So this is a **separate, per-modality** exponential average of the
+        unhealth indicator, which converges to exactly the duty cycle the
+        counter cancels out. It is deliberately not a third counter: the
+        quantity it reports is a **fraction of recent frames**, which has units
+        and a meaning a maintenance engineer can act on, rather than an
+        invented weight of the kind ADR-0028 and ADR-0029 both refused.
+
+        **It changes no posture, issues no veto, and gates no command.** A
+        slowly decaying sensor is a *service* condition, not an emergency, and a
+        vehicle that stopped for maintenance would be the nuisance stop OD-18
+        removed, re-introduced through a different door. It reports; the fleet
+        decides. This is the project's standing rule that no mechanism gets
+        authority until it has run with none.
+
+        Args:
+            frame_health: Per-modality health for this tick. A modality absent
+                from the map is not updated rather than treated as healthy: no
+                observation is not evidence of health, and decaying it toward
+                zero would let a stream that stopped being *reported* look like
+                one that recovered.
+        """
+        # Every modality, not only the critical ones. Criticality decides what
+        # may change the posture; nothing about it makes a non-critical sensor's
+        # decay less worth knowing, and a fleet operator servicing a camera
+        # cares whether it is dying regardless of what it is allowed to stop.
+        alpha = 2.0 / (self._settings.decay_window_ticks + 1.0)
+        for modality, health in frame_health:
+            unhealthy = 0.0 if health is StreamHealth.HEALTHY else 1.0
+            previous = self._decay.get(modality, 0.0)
+            self._decay[modality] = previous + alpha * (unhealthy - previous)
 
     def _withdrawn_capabilities(
         self, *, frame_health: Sequence[tuple[SensorModality, StreamHealth]]
@@ -450,9 +570,14 @@ class FailSafeStateMachine:
             return FailSafeState.HALT
 
         settings = self._settings
+        if self._counter >= settings.ood_threshold_halt:
+            return FailSafeState.HALT
         if (
-            self._counter >= settings.ood_threshold_halt
-            or self._integrity >= settings.integrity_threshold_halt
+            self._integrity_band(
+                degraded=settings.integrity_threshold_degraded,
+                limp=settings.integrity_threshold_limp,
+            )
+            is FailSafeState.HALT
         ):
             return FailSafeState.HALT
 
@@ -477,12 +602,35 @@ class FailSafeStateMachine:
                 degraded=settings.ood_threshold_degraded,
                 limp=settings.ood_threshold_limp,
             ),
-            _band(
-                self._integrity,
+            self._integrity_band(
                 degraded=settings.integrity_threshold_degraded,
                 limp=settings.integrity_threshold_limp,
             ),
         )
+
+    def _integrity_band(self, *, degraded: int, limp: int) -> FailSafeState:
+        """Return the integrity counter's band, capped at what the health allows.
+
+        The one place the sensor-integrity counter is turned into a posture, so
+        it is the one place the ceiling has to be applied. Splitting it out of
+        :meth:`_escalated_state` is not tidying: the counter reaches a posture
+        from **three** sites -- escalation, de-escalation, and the HALT check
+        that short-circuits both -- and a cap applied at two of them would be a
+        fail-safe that escalated past its own ceiling on one path.
+
+        Args:
+            degraded: The counter value at or above which DEGRADED applies.
+            limp: The counter value at or above which LIMP applies.
+
+        Returns:
+            The band, never more severe than the current ceiling.
+        """
+        if self._integrity >= self._settings.integrity_threshold_halt:
+            band = FailSafeState.HALT
+        else:
+            band = _band(self._integrity, degraded=degraded, limp=limp)
+        ceiling = self._ceiling
+        return band if band.severity_rank <= ceiling.severity_rank else ceiling
 
     def _de_escalated_state(self) -> FailSafeState:
         """Return the state the counters imply when recovering.
@@ -498,8 +646,7 @@ class FailSafeStateMachine:
                 degraded=settings.ood_threshold_degraded - _HYSTERESIS,
                 limp=settings.ood_threshold_limp - _HYSTERESIS,
             ),
-            _band(
-                self._integrity,
+            self._integrity_band(
                 degraded=settings.integrity_threshold_degraded - _HYSTERESIS,
                 limp=settings.integrity_threshold_limp - _HYSTERESIS,
             ),
@@ -534,6 +681,8 @@ class FailSafeStateMachine:
             human_intervention_requested=self._human_intervention_requested,
             integrity_counter=self._integrity,
             withdrawn_capabilities=self._withdrawn,
+            sensor_decay=self.sensor_decay,
+            sensors_needing_service=self.sensors_needing_service,
             # Reported beside `lane_change_permitted`, not folded into it. L8
             # would have to know that the string "lane_change" names the
             # capability behind that field, and a layer that knows what a lane
@@ -562,6 +711,29 @@ class FailSafeStateMachine:
     def withdrawn_capabilities(self) -> tuple[str, ...]:
         """Return the capabilities the last frame's sensor health withdrew."""
         return self._withdrawn
+
+    @property
+    def sensor_decay(self) -> tuple[tuple[str, float], ...]:
+        """Return each modality's decayed unhealth fraction, sorted by modality."""
+        return tuple(sorted((modality.value, value) for modality, value in self._decay.items()))
+
+    @property
+    def sensors_needing_service(self) -> tuple[str, ...]:
+        """Return the modalities whose decay has crossed the service threshold.
+
+        Empty when no threshold is declared. Reporting every sensor as needing
+        service, or none, are both wrong answers to a question the deployment
+        has not asked -- so the mechanism stays silent until it is.
+
+        Returns:
+            The modality names, sorted, or empty.
+        """
+        threshold = self._settings.decay_service_threshold
+        if threshold is None:
+            return ()
+        return tuple(
+            sorted(modality.value for modality, value in self._decay.items() if value >= threshold)
+        )
 
     @property
     def speed_cap(self) -> MetresPerSecond | None:
@@ -605,8 +777,20 @@ class FailSafeStateMachine:
         healthy, which a reset has no way to know and no authority to say. An
         operator who resets a vehicle whose camera is still dark should still
         find lane changes withdrawn, and will.
+
+        **The decay history is not cleared either, and for a stronger reason.**
+        A reset that zeroed it would let an intermittently failing sensor be
+        forgiven by the very act of dealing with the trouble it caused: halt,
+        reset, halt, reset, and the record shows a healthy fleet. Decay measures
+        the sensor's history, and an operator resetting a vehicle does not make
+        the camera younger.
+
+        **The ceiling *is* cleared**, because it is neither of those things --
+        it is a high-water mark held only to cap a counter that is about to be
+        zeroed, and a ceiling outliving its counter would cap a fresh one.
         """
         self._state = FailSafeState.NOMINAL
         self._counter = _COUNTER_FLOOR
         self._integrity = _COUNTER_FLOOR
+        self._ceiling = FailSafeState.NOMINAL
         self._human_intervention_requested = False

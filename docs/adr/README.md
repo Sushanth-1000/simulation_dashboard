@@ -45,6 +45,8 @@ is also recorded in the source, the module docstring is named — the reader who
 | [0027](0027-the-integrity-counter-rises-on-a-lost-quorum.md) | The integrity counter rises on a lost quorum, not on any bad channel | `src/astra/layers/l8_failsafe/machine.py`, `src/astra/config/schema.py` |
 | [0028](0028-the-deployment-declares-which-sensors-are-critical.md) | The deployment declares which sensors are safety-critical | `src/astra/layers/l8_failsafe/machine.py`, `src/astra/config/schema.py` |
 | [0029](0029-capability-withdrawal-is-a-second-axis-not-a-third-counter.md) | Capability withdrawal is a second axis, not a third counter | `src/astra/layers/l8_failsafe/machine.py`, `benchmarks/degradation.py` |
+| [0030](0030-the-health-level-caps-how-far-the-posture-may-escalate.md) | The health level caps how far the posture may escalate | `src/astra/layers/l8_failsafe/machine.py`, `src/astra/config/schema.py` |
+| [0031](0031-decay-measures-the-duty-cycle-the-counter-cancels-out.md) | Decay measures the duty cycle the counter cancels out | `src/astra/layers/l8_failsafe/machine.py`, `src/astra/kernel/enums.py` |
 
 ## Format
 

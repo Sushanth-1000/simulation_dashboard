@@ -206,10 +206,17 @@ def test_the_fast_state_supplies_the_lateral_acceleration_the_shield_bounds() ->
         # independent -- a v9 row can read NOMINAL with lane changes withdrawn.
         # A v8 archive cannot express that, and a missing list there means
         # nobody asked rather than nothing was withdrawn.
+        # Audit v10: the snapshot carries `sensor_decay` and
+        # `sensors_needing_service`. Every other number in the record resets when
+        # the trouble passes; measured, that makes an intermittent fault
+        # invisible -- a camera dark on alternate frames for a full minute held
+        # the integrity counter at 1 and the posture at NOMINAL (E-135, OD-21).
+        # A v9 archive of a fleet cannot be mined for sensor wear at all, and
+        # absence of the field there means nobody was counting.
         # Pinned rather than merely bounded, so that a schema change has to be a
         # decision someone made here as well as there. This pin has now fired
-        # six times for that reason and did its job every time.
-        (AUDIT_SCHEMA_VERSION, 9),
+        # seven times for that reason and did its job every time.
+        (AUDIT_SCHEMA_VERSION, 10),
         (CONFIG_SCHEMA_VERSION, 1),
     ],
 )
