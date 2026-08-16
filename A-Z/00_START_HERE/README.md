@@ -94,10 +94,10 @@ overstated its own completeness would be a poor start.
 | 16 | FAILED_APPROACHES | **Written** |
 | 17 | DECISION_LOG | **Written** |
 | 18 | CHALLENGE_LOG | **Written** |
-| 19 | TRADEOFFS | *Pass 7* |
-| 20 | ALTERNATIVES | *Pass 7* |
-| 21 | BENEFITS | *Pass 7* |
-| 22 | LIMITATIONS | *Pass 7* |
+| 19 | TRADEOFFS | **Written** |
+| 20 | ALTERNATIVES | **Written** |
+| 21 | BENEFITS | **Written** |
+| 22 | LIMITATIONS | **Written** |
 | 23 | RUNTIME_BEHAVIOR | **Written** |
 | 24 | GLOSSARY | *Pass 8* |
 | 25 | FAQ | *Pass 8* |
