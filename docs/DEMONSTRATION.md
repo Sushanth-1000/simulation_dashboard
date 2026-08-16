@@ -1,36 +1,46 @@
 # ASTRA — Demonstration Plan
 
-**Prepared** 10 August 2026
+**Prepared** 10 August 2026 · **rewritten against a re-verified system**
+16 August 2026
 **For** a technical audience at a company: engineers, a safety lead, possibly a
 research manager. Not a sales meeting.
 **Runs on** one laptop, no GPU, no network.
-**Length** 14 minutes of driving, 25–35 with questions.
+**Length** 16 minutes of driving, 30–40 with questions.
+
+> **Every number in this document was re-measured on 16 August 2026** by running
+> the benchmark, not by reading the row it came from. The command for each is in
+> [`A-Z/00_START_HERE/REPRODUCE.md`](../A-Z/00_START_HERE/REPRODUCE.md). Six
+> figures in the previous version of this plan had been superseded by two ADRs
+> and were still being quoted — see §*What changed*.
 
 ---
 
 ## The one decision that shapes everything below
 
-**Do not demonstrate that the gates catch faults. They mostly do not, and we
-know exactly which ones and why.**
+**Do not open by showing the gates catching a fault. Open by showing what the
+governance does that a gate cannot.**
 
-That sentence is the whole strategy. Every instinct says to open with a fault
-being caught, and every instinct is wrong here, for three reasons:
+That sentence is the whole strategy, and it survived a full re-verification. Every
+instinct says to lead with "watch it catch this", and every instinct is wrong
+here, for three reasons:
 
-1. **It is not true on the current evidence.** Of six injected faults, two put
-   the vehicle outside its corridor with a verdict trace *identical* to the
-   clean run's (E-46, E-47). A demo implying otherwise is a demo that falls
-   apart under the first informed question.
-2. **The room contains someone who will test it.** Safety engineers do not
-   watch demos, they probe them. The first question after any "watch it catch
-   this" is "what does it miss?" — and you want the answer to be a document,
-   not a pause.
-3. **The honest version is the stronger pitch.** Nobody in that room has ever
-   been shown a prototype whose authors built the instrument that found its own
-   worst defect, measured it, and put it on screen. That is the differentiator,
-   and it is not available to a team that hid it.
+1. **On the current evidence, the gates are not the strong part.** Two of three
+   never object at all across 2,800 ticks of a suite built to break them
+   (`E-162`, re-measured today). On one fault the governance measurably *costs*
+   you. A demo implying three vigilant gates falls apart at the first informed
+   question.
+2. **The room contains someone who will test it.** Safety engineers do not watch
+   demos, they probe them. The first question after any "watch it catch this" is
+   *"what does it miss?"* — and you want the answer to be a document, not a pause.
+3. **The honest version is the stronger pitch, and it is now backed by a stronger
+   result.** Since the last version of this plan, redundancy landed on the driven
+   path and produced the best measurement in the project: **a 1 m sensor lie that
+   never reaches the estimator at all.** That is a governance win a gate could
+   never deliver, and it is the new opening.
 
-So the demonstration's argument is: **we can find things.** The architecture is
-the subject; the *method* is the product.
+So the argument is: **the governance does things gates cannot, it degrades in
+steps instead of stopping, it writes down why — and we can find our own defects.**
+The architecture is the subject; the *method* is the product.
 
 ---
 
@@ -40,14 +50,13 @@ Each scene earns the next. Do not reorder.
 
 | # | Scene | Time | What it proves | The line that lands |
 |:--:|---|:--:|---|---|
-| 0 | The nominal drive | 1 min | The thing runs, and every number is traceable | *"Everything on this screen came out of an audit record. Nothing is drawn."* |
-| 1 | **The tunnel** | 4 min | An unrecognised context narrows the envelope instead of stopping | *"Most runtime assurance halts here. This keeps moving, inside a bound it can defend."* |
-| 1b | *(within scene 1)* | — | Calibration promotion is staged, not a config reload | *"It found a better profile and is running both in parallel. Nothing switches until the divergence clears."* |
-| 1c | *(within scene 1)* | — | **That claim was false until yesterday, on a different vehicle, and we found it** | *"We changed the car. It halted at tick 404 — having first accelerated to 23.4 metres per second. Both are closed and both are in the register."* |
-| 2 | **The sensor fault** | 4 min | The gates are blind to it, measured, on screen — **and something else catches it anyway** | *"Every gate is green and will stay green. And yet the vehicle is slowing down. You cannot veto your way out of a lying sensor."* |
-| 3 | **The recovery** | 2 min | The blindness is still there, and no longer decides the outcome | *"Thirty-five metres became seventeen centimetres, and the out-of-distribution counter is zero in both columns."* |
-| 4 | **The ablation** | 2 min | One gate does almost all the work | *"We measured what each gate is worth. Two of them are worth less than we assumed."* |
-| 5 | The register | 1 min | Thirteen defects, all self-found | *"Every one of these was found by us, and five were found this week by instruments we built for the purpose."* |
+| 0 | The nominal drive | 1 min | It runs, and every number is traceable | *"Everything on this screen came out of an audit record. Nothing is drawn."* |
+| **1** | **The lie that never arrives** | **3 min** | **A corrupted sensor is outvoted before the estimator sees it** | *"The biased car and the healthy car are the same car, to four decimal places."* |
+| 2 | **The tunnel** | 3 min | An unrecognised context narrows the envelope instead of stopping | *"Most runtime assurance halts here. This keeps moving, inside a bound it can defend."* |
+| 3 | **The dark sensor** | 4 min | The gates are blind to it — **and something outside them catches it anyway** | *"Every gate is green and will stay green. And yet the vehicle is stopping."* |
+| 4 | **Lose a camera, keep driving** | 2 min | Capability withdrawal: a second axis, not a fifth posture | *"It has stopped offering lane changes. It has not stopped driving."* |
+| 5 | **The ablation, and where we lose** | 2 min | One gate does the work — and on one fault it is the cost | *"We measured what each gate is worth. On one fault, ours is worth less than nothing."* |
+| 6 | The register | 1 min | 21 defects, all self-found, plus a guard that went stale | *"Every one of these was found by us, by instruments we built for the purpose."* |
 
 ---
 
@@ -59,401 +68,405 @@ Each scene earns the next. Do not reorder.
 uv run python -m demo.dashboard
 ```
 
-**Point at, in this order:**
-
-- The three gate panels — L6 statistical, L7b physical, L7a deterministic —
-  lit independently, each with its own reason code.
-- The **estimate against the truth** on one axis, both inside the ±1.75 m
-  corridor, sitting on top of each other.
-- The footer.
-
 **Say:**
 
-> Every value on this page except two is copied straight out of that tick's
-> decision record — the same record that goes into the audit log. The two
-> exceptions are the red line and the true speed: those come from the
-> simulator, because no real vehicle knows where it actually is. They are
-> labelled, and they are on screen for a reason you will see in a minute.
+> Nine layers, twenty ticks a second. The lane deviation you are watching sits
+> around three centimetres and stays there — we have run this for a hundred
+> thousand ticks and it does not drift, the memory does not grow, and the
+> fail-safe never leaves NOMINAL.
+>
+> Everything on this screen came out of an audit record. Nothing here is drawn.
 
-**Why this scene exists.** It buys the right to be believed in scenes 2 and 3.
-An audience that has watched you volunteer *"this number is not something a real
-system would have"* will accept the later numbers without arguing.
+**Have ready if asked:** `python -m benchmarks.soak -n 100000`, ten pass criteria,
+deviation 0.0285 → 0.0287 m across halves, resident set **+0.1 MiB**, per-tick p99
+8.599 → 7.757 ms, `PROPOSED` on **99,958** of 100,000 ticks.
 
-**Do not say** that the run is stable "over 100,000 ticks" while showing a
-400-tick window. That figure is real (E-2) and belongs in the answer to a
-question, not in the narration of a different measurement.
+**Do not oversell this scene.** It is the baseline every later claim is a
+difference from, and it takes one minute.
 
 ---
 
-## Scene 1 — The tunnel, and the thing nothing else does
+## Scene 1 — The lie that never arrives
 
-**This is the architectural argument, and it should come before any fault.**
+**This is the new opening and it is the strongest thing in the deck.** It is a
+table, not an animation. Put it on screen.
 
-**Before pressing anything**, point at the RCM panel. It reads
-**`SHADOW_EXECUTION`**, active profile `urban_clear`, trust score **0.717**
-against a threshold of 0.70.
+```bash
+uv run python -m benchmarks.arms
+```
 
-**Say:**
-
-> Before the tunnel, look at what RCM is already doing. It has found a
-> calibration profile that fits this context better than the active one, and it
-> is running both in parallel — shadow execution. Nothing switches until the
-> divergence index between them clears. A calibration change on a safety system
-> is not a config reload here; it is a staged, measured promotion.
-
-**Do:** press **Enter the tunnel**. It moves the context signature outside every
-certified profile in the knowledge base.
-
-**What appears:**
-
-- RCM's arbitration outcome changes from `SHADOW_EXECUTION` to
-  **`SAFE_EXPLORATION`**.
-- The trust score drops below threshold; **no candidate is admissible at all**.
-- The actuation envelope narrows on screen: **speed capped to half the nearest
-  certified profile's maximum, steering restricted to a ±15° cone, lane changes
-  refused**.
-- **The vehicle keeps driving.** Commands continue to issue on every tick.
-- The fail-safe panel stays **`NOMINAL`** and the **OOD counter stops moving** —
-  it neither climbs nor decays. Say so if anyone is watching that panel; it is
-  the visible half of the fix described below.
+| arm | peak estimator error | final \|deviation\| |
+|---|--:|--:|
+| single channel / clean | 0.1993 m | 0.1034 m |
+| single channel / **1 m bias** | **1.1805 m** | **0.8387 m** |
+| redundant / clean | 0.1323 m | **0.0168 m** |
+| redundant / **1 m bias** | 0.1323 m | **0.0168 m** |
 
 **Say:**
 
-> The vehicle has just entered a context that no certified calibration profile
-> covers. A tunnel — the profile is withheld deliberately, so this path gets
-> exercised rather than assumed.
+> One position sensor is lying by a full metre — two thirds of a lane width —
+> from tick two hundred onward. Read the bottom two rows.
 >
-> And note what I did *not* do: I did not tell it to explore. I moved the
-> context. RCM re-evaluated on its own period, found nothing admissible, and
-> chose this. The button changes the world, not the verdict.
+> They are the same. Not similar; the same, to four decimal places. Under three
+> channels fused by median, the car being lied to and the car being told the
+> truth are **indistinguishable**.
+
+**Then the mechanism, because a number without a mechanism is a demo:**
+
+> A mean would have been dragged by that outlier without bound. A median of three
+> ignores it entirely — it does not average the lie in, it **outvotes** it.
 >
-> Systems in our prior-art table degrade to a stop here, because their
-> certified envelope is where their guarantee lives and outside it they have
-> nothing to say. This narrows the envelope instead: half speed, a fifteen
-> degree steering cone, no lane changes, and every tick of it logged as
-> exploration rather than as normal operation. The vehicle keeps moving inside
-> a bound the system can defend.
+> And it names the liar. With three channels the largest residual identifies
+> *which one* disagreed, and the subtraction cancels the truth term exactly — we
+> verified that to five times ten to the minus seventeen — so the statistic
+> measures sensor disagreement and nothing else. An earlier candidate measured a
+> *quantity* instead, so a hard cornering manoeuvre moved it and it reported the
+> manoeuvre as a fault.
 
-### 1c — What this sentence cost, and it is the strongest thing in the demo
+**Then the limit, unprompted — this is the pattern for the whole demo:**
 
-**Say this next, unprompted. It is three sentences of setup for the best moment
-in the twelve minutes.**
-
-> That sentence was false until yesterday, on our own system, and we found it by
-> changing the vehicle.
-
-**Then give it:**
-
-> Everything you are watching — the twin, the calibration corpus, the trained
-> policy — is fitted to one set of vehicle physics. So we asked the obvious
-> question: what happens on a *different* vehicle? Not a different road. A
-> different car. Weaker brakes, less steering bite. Nothing else changed, same
-> seed, same command.
+> Two honest constraints on that.
 >
-> Two things happened, and each was hiding the other.
+> **One liar, not two.** For Byzantine faults you need `n ≥ 3f+1`. We have three
+> channels, so we tolerate **zero** coordinated liars — and it does not merely
+> fail there, it **inverts**: two channels agreeing on a lie make the lie the
+> median, and the monitor then accuses the honest channel by name, in the
+> evidence log. It is in our threat model as T1-prime. Every other entry in that
+> model degrades toward silence; this one degrades toward a confident wrong
+> accusation.
 >
-> **First, it halted.** The twin mispredicts on a platform it was never fitted
-> to, so two gates veto — correctly. RCM sees no matching profile and declares
-> safe exploration — correctly. And the fail-safe machine counts those same
-> vetoes, escalates through degraded and limp, and reaches HALT, which is
-> terminal. One condition with two owners, and the terminal answer won. Six
-> hundred ticks: the weak-braking car stopped dead at tick 404, at zero metres
-> per second, with the arbitrator on that same tick still reporting that it was
-> safely exploring.
+> **And the bound assumes independent compromise.** A shared supplier, a shared
+> bus, a shared firmware image — or simply the same fog — breaks the assumption
+> before it breaks the arithmetic.
+
+**Why this scene goes first now.** Until 15 August this was the thing we told
+audiences we *could not* measure, because the reference plant published one
+ground truth to every modality and was structurally incapable of disagreeing with
+itself. Fixing that took an ADR and produced the project's best number. **Say
+that** — it is a story about method, and method is what you are selling.
+
+---
+
+## Scene 2 — The tunnel
+
+**Do:** press **Tunnel**. Visibility drops to 0.05, complexity to 0.95 — outside
+every certified centroid.
+
+**What appears:** context goes `UNCLASSIFIED`, arbitration flips to
+`SAFE_EXPLORATION`, the envelope narrows, **and the vehicle keeps driving.**
+
+**Say:**
+
+> No certified profile matches this. Most runtime assurance architectures stop
+> here — that is the safe default and it is what a simplex architecture does.
 >
-> **Second — and this is why we did not just fix the first one — it was never
-> bounded.** Before it halted, that car reached 23.4 metres per second. The
-> calibrated one holds 14.3. The envelope computes a speed cap and it was
-> enforced against nothing: it narrowed the *channel* bounds, which limit how
-> much throttle you may command on one tick, and bound the resulting speed not
-> at all. Had we shipped the first fix alone, we would have replaced a car that
-> stops with a car that accelerates without limit, and reported it as a fix.
+> This one narrows the envelope instead: half the nearest certified speed, a
+> fifteen-degree steering cone, no lane changes. It is still driving, inside a
+> bound it can state.
 
-**Then the close, and slow down for it:**
+**Then the objection, before they raise it:**
 
-> Both are closed. The counter freezes while another layer owns the same
-> condition — and every gate still vetoes, every veto still stops the command;
-> what is suspended is escalation to a terminal state, not anyone's authority.
-> The cap now goes through the same seam that made the fail-safe cap real six
-> weeks ago, so a capped command is stamped as one. That car now runs the full
-> six hundred ticks, nominal, at 16.7 metres per second across a hundred and
-> five capped ticks — half the highway profile's maximum, plus one tick of
-> integration.
+> The obvious objection is that we have just described *operating outside
+> certification*, and that is exactly right — so the question is which hazard you
+> prefer. A stopped vehicle in live traffic is not a safe state. And a defence
+> that fires too readily gets switched off by operators, at which point it
+> protects nothing.
 >
-> It is ADR-0023 and defects twelve and thirteen in our register. We found them
-> on Monday by passing one different number to a function that had always
-> accepted it.
+> What we did **not** do is weaken the veto. ADR-0023 froze the out-of-distribution
+> *counter* during exploration, not the gates. Every gate still vetoes, and every
+> veto still stops the command reaching an actuator. SI-3 is exactly as it was.
 
-**Have ready, if asked to see it:**
+**The scar behind that ADR — tell it, it is short and it lands:**
+
+> We learned that by changing the car. On a platform the twin was never fitted
+> to, the vehicle correctly declared exploration — and the OOD counter climbed
+> underneath it and **halted the vehicle anyway**, on two platforms out of five,
+> at ticks 398 and 404. One event escalated twice, defeating the architecture's
+> distinguishing behaviour using its own fail-safe machine.
+>
+> Re-run this morning: **no platform halts, every one is still moving.**
 
 ```bash
 uv run python -m benchmarks.platform_transfer
 ```
 
-Five platforms, 600 ticks each, about ninety seconds. It **exits non-zero if any
-platform halts or stops**, so the defect regressing is a failed command rather
-than a table someone has to re-read. To show the defect itself, check out the
-three source files at `HEAD~1` and run it again — that is exactly how the
-control-arm figures were taken (E-83, E-84).
-
-**Why this belongs in scene 1 rather than in scene 5's register.** Scene 5 lists
-defects; this one *demonstrates the method that finds them*, on the very claim
-the scene exists to make. It also pre-empts the sharpest question in the room —
-*"you have shown it works on your simulator; what happens on a real vehicle?"* —
-by answering a version of it that was actually run.
-
-**Then say the limit, unprompted:**
-
-> What this shows is the *mechanism* — the envelope narrows, it widens again on
-> the way out, and no tick fails to issue a command. It does not show that the
-> vehicle drives *well* in a tunnel, or on the weak-braking car. That needs a
-> real simulator and a trained policy, and it is Phase 7.
->
-> And one more thing we would rather say than have you find: freezing that
-> counter means a fault the *gates* can see, arising while exploring, will not
-> escalate the posture. That is a real cost and it is written into the ADR as an
-> accepted risk. It used to be a larger one — the record said whoever closes our
-> worst defect has to come back to it, and when we did, three days later, we
-> gave the machine a second counter that does **not** freeze. You will see that
-> one in scene 2.
-
-**Why unprompted matters.** Saying the limit before they ask converts a
-weakness into a demonstration of calibration. Saying it after they ask converts
-it into a concession.
+**One row on that table deserves your honesty.** `sharp_steer` finishes **53.756 m**
+off the lane at LIMP, still driving, and the benchmark counts it as a pass because
+its rule tests posture, motion and speed cap — **not lane position**. If they read
+the table, get there first: *"that row is either a missing exit criterion or a
+platform this vehicle should refuse, and we have not decided which."*
 
 ---
 
-## Scene 2 — The sensor fault, and our worst open defect
+## Scene 3 — The dark sensor
 
-**Do:** press **IMU dropout**. Then stop talking for about five seconds and let
-them watch.
+**Do:** press **IMU dropout**. Then stop talking for five seconds and let them
+watch.
 
 **What appears:**
 
-- The blue estimate line stays flat near the centre.
-- The red truth line begins to separate from it.
-- **The gate panel stays green.** All three. `NOMINAL` on every one. The OOD
-  counter does not move, and it never will.
-- **The fail-safe panel escalates anyway** — DEGRADED, then LIMP, then a
-  commanded stop — driven by a counter that no gate feeds.
+- The blue estimate line stays flat near the centre; the red truth line separates.
+- **The gate panel stays green.** All three. It never moves.
+- **The fail-safe panel escalates anyway** — DEGRADED, then LIMP — driven by a
+  counter no gate feeds. The vehicle slows and comes to rest.
 
-**Say, while the lines are separating and before the posture moves:**
+**Say, while the lines separate and before the posture moves:**
 
-> Watch the two lines. And watch the gate panel while you do, because it is
-> going to stay green for the whole of this.
->
-> Every gate is green. Every gate will *stay* green. The verdict trace for these
-> ticks is byte-for-byte indistinguishable from the clean run you just watched —
-> same three vetoes, same reason codes, same everything.
+> Watch the two lines, and watch the gate panel while you do, because it is going
+> to stay green for the whole of this. The verdict trace for these ticks is
+> indistinguishable from the clean run you just watched.
 
-**Then, as the posture escalates:**
+**Then, as the posture moves:**
 
-> And yet the vehicle is slowing down. Nothing refused a command. Something else
+> And yet the vehicle is stopping. Nothing refused a command. Something else
 > noticed.
 
-**Then give the mechanism, because the mechanism is the impressive part:**
+**Then the mechanism — the impressive part:**
 
-> This is not a missing check. The bound exists — we added it specifically to
-> catch a lane departure. It reads the position estimate, and the controller
-> closes its loop on the same estimate, so the controller is *actively driving
-> the corrupted number to the value the monitor considers safe*. A sensor fault
-> blinds the monitor and the thing it monitors at the same time, through the
-> same channel.
+> This is not a missing check. The corridor bound exists; we added it
+> specifically to catch a lane departure. It reads the position estimate — and
+> the controller closes its loop on the same estimate, so the controller is
+> *actively driving the corrupted number toward the value the monitor considers
+> safe*. A sensor fault blinds the monitor and the thing it monitors at the same
+> time, through the same channel.
 >
 > We call it OD-9. We found it on the first fault we ever injected, about an hour
-> after the injector worked. Two days ago that was the end of the story: the
-> vehicle went **4.199 metres off a 1.75 metre lane** while the corridor bound
-> read **two centimetres**, and nothing anywhere reacted.
+> after the injector worked.
 
-**Then the sentence the fix turned on. Slow down for it — it is the best line in
-the deck, and it is a negative result:**
+**Then the sentence the fix turned on. Slow down — it is the best line in the
+deck, and it is a negative result:**
 
 > The obvious fix is a fourth gate that vetoes on sensor health. It does not
 > work, and finding out why is the useful part.
 >
-> When a gate vetoes, the arbitrator falls back to its own controller. That
-> controller reads **the same corrupted estimate**. So a veto exchanges one
-> command computed from a lie for another command computed from the same lie.
+> When a gate vetoes, the arbitrator falls back to its own controller — and that
+> controller reads **the same corrupted estimate**. A veto exchanges one command
+> computed from a lie for another command computed from the same lie.
 >
 > **You cannot veto your way out of a lying sensor.**
 >
-> What the vehicle needs is not a refusal. It is a change of *posture* — slow
-> down, then slow down more, then stop and ask for a human — and it needs it
-> driven by something that is not downstream of the filter. There is exactly one
-> such signal on the record: the sensor bus already reports, at the boundary,
-> before the filter touches anything, that a channel has gone quiet. It was
-> being computed every tick and read by nothing.
->
-> So the fail-safe machine now has two counters. One counts refusals. One counts
-> silence.
+> What the vehicle needs is not a refusal. It is a change of *posture*, driven by
+> something that is not downstream of the filter. There is exactly one such
+> signal: the sensor bus reports, at the boundary, before the filter touches
+> anything, that a channel has gone quiet. It was being computed every tick and
+> read by nothing.
 
-**Numbers to have ready** (do not recite them all; use two — one before, one
-after):
+**The numbers. Use two, not all of them.**
 
-| | before | after |
+| | when we found it (9 Aug) | today |
 |---|--:|--:|
-| final \|deviation\| under a 200-tick dropout | **4.199 m** | **0.167 m** |
-| escalation | none, NOMINAL for all 400 ticks | **DEGRADED +5, LIMP +15, HALT +40** |
-| the corridor departure begins at | +73 | +73 — the stop now precedes it by **1.65 s** |
-| false alarms on the clean run | — | **zero**, counter 0 across 400 ticks |
+| final \|deviation\| under a 200-tick dropout | **4.199 m** | **0.062 m** |
+| ticks outside the ±1.75 m corridor | 73 | **0** |
+| escalation | none — NOMINAL for all 400 ticks | **DEGRADED +5, LIMP +15** |
+| final speed | 12 m/s, still departing | **0.0000 m/s — stopped, in its lane** |
+| false alarms on the clean run | — | **zero** |
 
-Also worth having: the error propagates into the *unobserved* state — true
-heading **0.0686 rad** against an estimate of **0.0017** (E-58); and a 600-tick
-dropout used to reach **35.705 m** with no attributable veto (E-76).
+**Two honest notes on that table, and give them unprompted.**
 
-**Then the limit, unprompted, and this one matters:**
-
-> Two thirds of that defect are still open and I would rather tell you than have
-> you find it.
+> The deviation improved twice, and only the first was this mechanism. The health
+> counter took it from 4.199 to 0.167 metres in August; **redundancy took it the
+> rest of the way**, because three channels outvote one frozen one. Credit where
+> it is due.
 >
+> And it no longer reaches HALT. A `DEGRADED` stream is capped at LIMP by a
+> health-level ceiling we added afterwards — the counter still reaches its HALT
+> threshold and the ceiling refuses the escalation. The effect is the same here,
+> the vehicle stops, but the *deepest response* to a dark sensor is one posture
+> shallower than it was, and **nothing in the ADR or the audit schema recorded
+> that it had changed.** We found that this morning, re-running our own numbers.
+
+**Then the limit that is still open:**
+
 > This catches a channel that goes **quiet**. It does not catch a channel that
 > lies *fluently* — a constant offset, a slow drift, a value frozen at its last
-> good reading. Those keep the stream perfectly fresh, which is exactly why we
-> chose them as three of our six faults, and the slow drift still ends two
-> metres out with this counter reading zero. There is a test that fails if
-> anyone ever describes this mechanism as "detects sensor faults".
+> good reading. Redundancy now handles the offset. The **slow drift** does not,
+> and we have five refuted detectors to prove it: the innovation sequence, the
+> innovation gate flag, analytical redundancy, cross-channel consistency, and a
+> CUSUM on the residual. All silent.
 >
-> And note what did *not* change: **no gate sees it even now.** The response
-> comes from outside the three-gate argument, not from within it. The general
-> answer is sensor redundancy and a cross-check, and we cannot even measure that
-> here — our reference plant publishes one ground truth to all five modalities,
-> so it is structurally incapable of disagreeing with itself. That is Phase 7,
-> and it is the honest reason Phase 7 exists.
+> The reason is structural, and it is the most useful sentence we have produced:
+> **no rearrangement of downstream quantities creates information that was never
+> upstream.** Every quantity on the record comes from the same measurement.
 
 ---
 
-## Scene 3 — The recovery, and the shape of the blindness
+## Scene 4 — Lose a camera, keep driving
 
-**Do:** wait for the fault window to close. Twenty seconds. Say nothing for the
-last five.
+**Do:** put the degradation table on screen.
 
-**What appears, on the exact tick the sensor recovers:**
+```bash
+uv run python -m benchmarks.degradation
+```
 
-- All three gates flip to **VETO** simultaneously —
-  `SCORE_EXCEEDS_CONFORMAL_QUANTILE`, `LATERAL_JERK_EXCEEDS_LIMIT`,
-  `LATERAL_OFFSET_EXCEEDS_CORRIDOR`.
-- The OOD counter — the one that did nothing for the whole fault — finally
-  starts to climb.
-- **And the vehicle is already stopped**, and has been for hundreds of ticks.
+| sensor | critical | posture | φ | withdrawn |
+|---|:--:|---|--:|---|
+| CAMERA | yes | HALT | 40 | `lane_change`, `lane_keeping` |
+| LIDAR | yes | HALT | 40 | `obstacle_avoidance` |
+| IMU | yes | HALT | 40 | `adaptive_cruise` |
+| GPS | yes | HALT | 40 | `route_following` |
+| RADAR | yes | HALT | 40 | `adaptive_cruise`, `lane_change`, `obstacle_avoidance` |
 
 **Say:**
 
-> That happened on the tick the sensor started telling the truth again. Not one
-> tick earlier. Two hundred and three vetoes, none of them attributable to the
-> fault while the fault was happening.
+> This is the degradation concept every functional-safety argument needs: per
+> sensor, what its loss withdraws and where the posture lands.
 >
-> So the blindness lasts exactly as long as the lie, and it is still there —
-> that is unchanged, and it is the half of our worst defect that is still open.
-> What changed is that those vetoes now arrive at a vehicle something else
-> stopped three hundred and sixty ticks ago.
+> In most projects that is a document maintained by hand beside a state machine
+> maintained separately — which is to say, a document that is wrong. **This one
+> is a measurement.** It drives the real fail-safe machine once per modality with
+> that sensor dark, and prints what happened. The table and the running system
+> cannot disagree, because the table *is* the system.
 
-**The numbers, and this is the pair to put on a slide** (E-76, E-77, E-92):
+**Then the design point, which is what a safety lead will actually take away:**
 
-| 600-tick dropout, same seed | before ADR-0024 | after |
-|---|--:|--:|
-| final \|deviation\| | **35.705 m** | **0.170 m** |
-| peak \|deviation\| | — | **0.369 m** |
-| fail-safe posture during the fault | NOMINAL throughout | DEGRADED t205, LIMP t215, **HALT t240** |
-| OOD counter during the fault | 0 | **0 — unchanged, no veto contributed** |
-| speed at HALT | 10.9 m/s, still driving | **1.90 m/s**, braking to a stop |
-| first veto attributable to the fault | none | still none |
+> Withdrawal is a **second axis**, not a fifth posture. Posture answers *how bad
+> is it*; withdrawal answers *what can I no longer do*. They compose by
+> intersection.
+>
+> That is what lets the vehicle say *lose the camera, stop offering lane changes,
+> keep driving*. Before we separated them, a camera failure either stopped the
+> vehicle or did nothing at all — there was no sentence in between.
 
-**Then the line that makes it land:**
+**And the flag worth pointing at:**
 
-> Read the fourth row again. The out-of-distribution counter is zero in both
-> columns. Nothing about the gates improved. We did not make a monitor smarter —
-> we found the one signal in the system that was not downstream of the broken
-> one, and gave the fail-safe machine a second way to be worried.
+> The column to watch is one that is empty today. If a modality is neither
+> critical nor required by any capability, this table marks it **INERT** — its
+> failure does nothing whatsoever. That is the *"we added a sensor and forgot to
+> wire its failure response"* integration bug, it is invisible in the code, and it
+> falls straight out of this table.
 
-**If someone asks how you tell the two apart in the log** — and a safety lead
-will — show them the escalation table from the study:
+**If you have a spare minute, this is where predictive maintenance goes:**
 
-```bash
-uv run python -m benchmarks.fault_study --ticks 800 --open-at 200 --close-at 600
-```
-
-| scenario | DEGRADED | LIMP | HALT | peak φ |
-|---|--:|--:|--:|--:|
-| `imu_dropout` | +5 | +15 | +40 | **40** |
-| `position_drift` | +410 | +430 | +500 | **0** |
-
-> Same table, same run, two completely different stories, and one column tells
-> you which. The dropout escalated on sensor health, before the hazard. The
-> drift escalated on vetoes, ten ticks after the sensor recovered — which is far
-> too late, and it is why that row is still open.
-
-**This is the best minute of the demonstration.** It shows a working safety
-machine, its exact failure condition, and a fix that addresses the consequence
-without pretending to address the cause — in one continuous shot, with none of
-the three oversold.
+> The same health map that protects the vehicle also gives you a per-modality
+> decay figure — the duty cycle of a fault, not a count — in every audit row. A
+> fleet operator gets *"this camera missed 23% of its frames"* at zero extra
+> sensor cost.
+>
+> And it drives **nothing**, deliberately. A vehicle that stopped for maintenance
+> would be a nuisance stop arriving through a different door.
 
 ---
 
-## Scene 4 — The ablation
+## Scene 5 — The ablation, and where we lose
 
-**Do:** switch to the ablation table. This is a slide or a terminal, not the
-live page.
+**Do:** the ablation and comparison tables, side by side. Terminal or slide.
 
 ```bash
 uv run python -m benchmarks.ablation
+uv run python -m benchmarks.comparison
 ```
 
-**Show:**
+**First, vetoes per profile:**
 
-| profile | control | `imu_dropout` | `position_bias` | others |
+| profile | control | `imu_dropout` | `lateral_noise` | others |
 |---|--:|--:|--:|--:|
-| governed | 3 | 3 | 12 | 3–4 |
-| L6 off | 3 | 3 | **11** | 3–4 |
-| **L7b off** | **0** | **0** | **1** | **0** |
-| L7a off | 3 | 3 | 12 | 3–4 |
+| governed | 1 | 18 | **126** | 1 |
+| L6 off | 1 | 18 | 126 | 1 |
+| **L7b off** | **0** | **0** | **0** | **0** |
+| L7a off | 1 | 18 | 126 | 1 |
 
 **Say:**
 
-> We switched each gate off in turn and re-measured. L7b — the physical
-> admissibility gate — produces essentially every veto this system emits.
-> L6 contributes one veto in 2,800 ticks. L7a contributes zero.
+> We switch each gate off in turn and re-measure. The physical gate produces
+> **every veto this system emits**. Disarm it and the count goes to zero
+> everywhere.
 >
-> The architecture's story is three independent gates. On this traffic, the
-> observable behaviour is one gate.
+> And `L6 off` and `L7a off` are identical to governed in **every cell of both
+> tables**. Not "nearly". Identical. On this traffic those two gates contribute
+> nothing measurable.
 
-**Immediately give the counter-argument yourself:**
+**Give the counter-argument yourself, then refuse half of it:**
 
-> The reading to refuse is "two gates are decorative". L7a vetoed once in
-> roughly half a million nominal ticks — a 2,800-tick study finding zero is
-> consistent with that rate, not evidence against it. What this measures is each
-> gate's contribution *on these seven scenarios*, and that is the whole claim.
+> The reading to refuse is *"two gates are decorative"*. A bound **should** rarely
+> fire, and L7a vetoed once in roughly half a million nominal ticks, so a
+> 2,800-tick study finding zero is consistent with that rate rather than evidence
+> against it.
+>
+> The reading to **accept** is about L6. It is not quiet because the proposals are
+> good — it is quiet because it **cannot fire**. Its live scores sit entirely
+> below the corpus it is judged against, zero overlap, so its exchangeability
+> assumption does not hold. That is our top open defect and the veto rate looked
+> healthy the entire time it was broken.
 
-**The engineering point worth making here:** switching a gate off did not mean
-making it optional. The constructor parameters stayed required and the ablation
-supplies a subtype that runs and cannot block, so a pipeline with no gate is
-still unconstructible. Every ablated record is stamped, so a study can never be
-mistaken for a governed run. That is ADR-0021, and it is the kind of thing a
-safety lead notices.
+**Then the deviation table, and do not skip it:**
+
+| | governed | L7b disarmed | ungoverned Core-A |
+|---|--:|--:|--:|
+| `lateral_noise`, final \|dev\| | **1.3073 m** | 0.1384 m | 0.1484 m |
+| peak \|dev\| | **1.7179 m** | 0.5854 m | — |
+| ticks outside ±1.75 m | 0 | 0 | 0 |
+
+**Say this slowly. It is the most credible thing you will say all meeting:**
+
+> On one of six faults, our governance makes the outcome **worse**. Under a
+> lateral-noise burst the governed vehicle peaks three centimetres inside its own
+> corridor bound; with our own gate switched off it peaks at half a metre.
+>
+> We traced it this morning. The gate vetoes on lateral jerk 125 times out of 200,
+> the rate limiter substitutes the largest admissible command, and the projector
+> realises that as **throttle zero, brake one**. The steering axis moves by four
+> milliradians. **The lateral bound is being satisfied longitudinally — by
+> braking** — which is geometrically reasonable and leaves the car crawling at
+> four metres a second while its deviation grows.
+>
+> It never leaves the lane. Every component did exactly what it was specified to
+> do. And the composition is worse than no governance at all on that fault. It is
+> now an open design question: should a projector prefer the axis the violated
+> bound actually lives on?
+
+**The engineering note a safety lead will notice:** switching a gate off does not
+make it optional. The constructor parameters stay required and the ablation
+supplies a subtype that runs and cannot block, so a pipeline with no gate is still
+unconstructible. Every ablated record is stamped, so a study can never be mistaken
+for a governed run.
 
 ---
 
-## Scene 5 — The register
+## Scene 6 — The register
 
-**Do:** put `CREDIBILITY_MATRIX.md`'s open-defect register on screen. Thirteen
-rows — seven struck through, six open.
+**Do:** put the open-defect register on screen. **21 rows** — sixteen struck
+through, one reclassified, one partly closed, three open.
 
 **Say:**
 
-> Thirteen defects. Every one found by this project, none reported to us.
-> Seven were found this week, by instruments we built for the purpose — a fault
-> injector, a shadow harness, an ablation profile, a test written against the
-> textbook rather than against the code it was checking, and, for the last two,
-> simply passing a different vehicle to a function that had always accepted one.
+> Twenty-one defects. Every one found by this project; none reported to us.
+> They were found by instruments we built for the purpose — a fault injector, a
+> shadow harness, an ablation profile, a census that counts which gates ever
+> object, and a test written against the textbook rather than against the code it
+> was checking.
 >
-> Two of the thirteen are cases where our own evidence log confidently recorded
-> something that had not happened. Those are the ones we care most about,
-> because they are invisible to testing by construction.
+> Several are cases where our own evidence log confidently recorded something
+> that had not happened. Those are the ones we care most about, because they are
+> invisible to testing by construction.
 >
-> And note what is *not* here: nothing on this list was found by the test suite.
-> Twenty-eight hundred tests, ninety-eight percent coverage, and every one of
-> these passed every test that existed when it was written. Each is a
-> composition that is correct at every layer and wrong as a whole. That is the
-> case for runtime evidence, and it is the reason this architecture exists.
+> Nothing on this list was found by the test suite. Three thousand tests,
+> ninety-seven percent coverage, and every one of these passed every test that
+> existed when it was written. Each is a composition that is correct at every
+> layer and wrong as a whole. **That is the case for runtime evidence, and it is
+> the reason this architecture exists.**
+
+**If you want one more beat, this is the best single anecdote in the project:**
+
+> We publish retractions. In August a detector appeared to break a long-standing
+> conclusion of ours and we withdrew the conclusion — then found the measurement
+> had run on a vehicle with every tick vetoed and a speed of zero, the one
+> configuration where the mechanism under test cannot operate. We caught it
+> because two structurally different proposers produced bit-identical numbers,
+> which is not a thing that happens.
+>
+> The fix was not a note in a document. It was a guard that **refuses to run** in
+> that configuration.
+>
+> And here is the part I like. Yesterday we re-ran everything, and that guard had
+> since begun blocking its own benchmark — because a later change gave the
+> fail-safe a response that brings the vehicle to rest, and the guard read a
+> successful safety stop as a dead loop. It had produced nothing for a day and
+> nobody noticed.
+>
+> **A guard is a claim about what a valid configuration looks like, and claims go
+> stale exactly like numbers do.** We pin our audit schema with a test and assert
+> every invariant's enforcement kind with a test. Our retraction guards had
+> nothing watching them. They do now.
 
 **Then stop.** This is the note to end on.
 
@@ -463,183 +476,170 @@ rows — seven struck through, six open.
 
 Every scenario is one button. The observer chooses; nothing is staged.
 
-| Scenario | What it does | What it demonstrates | Expected outcome |
+| Scenario | What it does | What it demonstrates | Expected outcome, today |
 |---|---|---|---|
-| **Nominal** | Nothing | Baseline. Every later claim is a difference from this | Gates green, ±0.03 m |
-| **Certified road** | The starting context — visibility 0.85, traffic 0.7, complexity 0.7 | RCM's *normal* work: a better profile found, both run in parallel | `SHADOW_EXECUTION`, trust **0.717** vs τ 0.70 |
+| **Nominal** | Nothing | Baseline. Every later claim is a difference from this | Gates green, ~0.017 m |
 | **Tunnel** | Visibility 0.05, complexity 0.95 — outside every centroid | Bounded safe exploration — **the architectural differentiator** | `SAFE_EXPLORATION`, envelope narrows, vehicle continues |
-| **IMU dropout** | The IMU stops publishing for 400 ticks | OD-9. The estimate freezes, truth departs, gates stay green | 4.2 m in 200 ticks; no veto until recovery |
-| **Slow drift** | Position ramps 2 m over 400 ticks, 1 cm/tick | The fault no per-tick threshold can see | 2.025 m out; silent on **all three** shadow detectors |
-| **Position bias** | Constant 1 m offset | The one fault L6 partly notices | Vetoes 3 → 12; still leaves the corridor |
-| **Frozen speed** | Speed channel holds its last value | Fresh, well-formed and wrong — staleness cannot see it | Barely moves the vehicle. **Report as a null** |
-| **Noise burst** | Lateral acceleration sigma ×25 | Trust Index responds; the vehicle does not depart | TI 0.96 → 0.61, context flips to `DEGRADED_SENSOR` |
+| **IMU dropout** | The IMU stops publishing | OD-9. Gates stay green; the posture escalates from outside them | 0.062 m, DEGRADED +5, LIMP +15, comes to rest |
+| **Position bias** | Constant 1 m offset on one channel | **Redundancy outvoting a liar** | Indistinguishable from clean — 0.0168 m |
+| **Slow drift** | Position ramps 2 m over 400 ticks | The fault no per-tick threshold can see | 0.017 m — outvoted; **the detectors are still silent** |
+| **Frozen speed** | Speed channel holds its last value | Fresh, well-formed and wrong | 0.024 m. **Report as a null** |
+| **Speed bias** | +3 m/s on the speed channel | L7a's speed bound | 0.059 m. **Report as a null** |
+| **Noise burst** | Lateral acceleration sigma ×25 | **Where governance costs us** | 1.307 m, 126 vetoes — worse than ungoverned |
 
-**Two of these are nulls, and show them anyway.** Frozen speed and the speed
-bias did not stress what they were chosen to stress (E-50). A demonstration that
-only shows the scenarios that worked is a demonstration that has been curated,
-and an audience that spots the curation discounts everything else.
+**Three of these are nulls or losses, and show them anyway.** Frozen speed and
+the speed bias did not stress what they were chosen to stress; the noise burst
+stresses us. A demonstration that only shows what worked is a demonstration that
+has been curated, and an audience that spots the curation discounts everything
+else.
 
 ---
 
 ## What must never be claimed
 
-Print this. Read it before the meeting. These are not hedges — each is a row in
-`EVIDENCE.md`'s *Not demonstrated* section, and each has cost this project a
-retraction already.
+Print this. Read it before the meeting. Each line has cost this project a
+retraction or a register row.
 
 | Never say | Because |
 |---|---|
-| "false-positive rate" or "false-negative rate" of any gate | **N-1.** The plant, twin and corpus share one set of equations. No such rate exists and none can before Phase 7 |
-| "the gates are independent" | **N-2.** All three read L2's estimate. OD-9 is a measured common cause |
-| "1.25 µs intercept latency" | **N-3.** An analytical bound for hardware that does not exist. Never quotable as measured |
-| "ASIL-D" | **N-4.** A design target. An ASIL is the outcome of an assessed safety case |
-| "validated on real driving" | **N-5, N-11.** The UKF has met only synthetic dynamics |
-| "domain-independent" without qualification | **A-1 is PARTLY VIOLATED.** Say "the gates are; the composition root and process model are not" (E-72–E-75) |
-| "the Mahalanobis distance is X" | **OD-10.** The innovation covariance omits `H Q Hᵀ`. It is not a Mahalanobis distance |
+| "false-positive rate" or "false-negative rate" of any gate | The plant, twin and corpus share one set of equations. **No such rate exists** and none can before an external plant |
+| "the gates are independent" | All three read L2's estimate; OD-9 is a measured common cause. And two of three never object |
+| "three layers of defence" | Measured: **one**. Disarming L7b takes every veto to zero |
+| "1.25 µs intercept latency" | An analytical bound for hardware that does not exist. Never quotable as measured |
+| "real-time" or "meets a 10 ms budget" | p50 is 2.2 ms; **p99 has reached 10.46 ms and a single tick 61 ms**, on an idle host, with no deadline monitor |
+| "ASIL-D" | A design target. An ASIL is the outcome of an assessed safety case |
+| "validated on real driving" | **`[M-ext]: 0 of 30`.** The UKF has met only synthetic dynamics |
+| "domain-independent" without qualification | Partly violated. Say *"the gates are; the process model is not"* |
 | "tamper-proof evidence log" | Tamper-**evident**. Tail truncation and a consistent whole-file rewrite are both undetectable |
+| "it detects sensor faults" | It detects a channel going **quiet**, and outvotes one that lies. A slow drift defeats both |
 
 **The false-positive rate has a specific trap.** Two different numbers exist and
 conflating them is the fastest way to lose the room:
 
-- **Per tick**, the gate vetoes **ε** — 5% at the shipped significance level, and
-  always will, because ε of any distribution lies above its own 1−ε quantile.
-- **Per intervention**, measured at the design point: **0.008% of ticks outside
-  NOMINAL** — two episodes in 83 minutes, both self-recovering (E-42).
+- **Per tick**, the gate vetoes **ε** by construction — because ε of any
+  distribution lies above its own 1−ε quantile.
+- **Per intervention**, at the design point: **0.008% of ticks outside NOMINAL.**
 
 **Both are quotable together and neither is quotable alone.** And both are
-`[M-syn]`.
+`[M-syn]` — measured on a plant we wrote.
 
 ---
 
 ## The questions they will ask
 
-Ordered by likelihood. The answer to every one already exists; the job is to
-know where.
-
 **"What's your false-positive rate?"**
-> Two numbers, and I have to give you both or neither. Per tick it is epsilon,
-> five percent, by construction — that is the conformal guarantee working. Per
-> intervention it is 0.008%. But both are on synthetic data where the plant and
-> the judge share equations, so neither is a rate you should plan against. The
-> number you want needs real logs, and that is exactly what we would want from a
-> collaboration.
+> Two numbers and I have to give you both or neither — per tick it is epsilon by
+> construction, per intervention it is 0.008% of ticks. Both measured on a plant
+> we wrote, which is why neither is the number you actually want. That one needs
+> an external environment and it is the next piece of work.
 
-**"So the gates didn't catch it. What use is the system?"**
-> On that fault, none — and we would rather you heard that from us. What the
-> system did was produce a record complete enough that we could find the defect,
-> localise it to a shared input, and measure a fix that gives 3.4 seconds of
-> warning. That is the capability we are offering: not gates that catch
-> everything, but a runtime whose evidence is good enough to find out what they
-> miss.
-
-**"Why should we believe your numbers?"**
-> Every one has a command next to it that reproduces it on a clean checkout,
-> and three published numbers have been retracted after they turned out to be
-> artefacts. The retractions are still in the document, with their corrections.
-
-**"How long to get this on our platform?"**
-> Honestly: the gates would take an adapter. The composition root and the
-> process model are automotive today and we have measured exactly where — four
-> walls, three of them a refactor and one a migration. We tested that this week
-> with a warehouse AGV rather than assuming it.
+**"How often do your gates fire?"**
+> One of three does all of it. The statistical gate cannot currently fire — its
+> exchangeability precondition is violated — and the deterministic gate is a
+> bound that should rarely fire, though zero across a fault suite is more than
+> *rarely* and we have not explained it. Both are open register rows.
 
 **"Is it real-time?"**
-> No, and it is not close. It is Python, the full tick is about 9 ms p99 against
-> a 50 ms period, and there is no hard guarantee anywhere. The architecture is
-> the deliverable; a deployable implementation is a different project.
+> No, and I would not claim it. Median tick is 2.2 milliseconds against a
+> ten-millisecond budget; the ninety-ninth percentile has touched 10.46 and a
+> single tick reached 61. On an idle machine, in CPython, with no deadline
+> monitor — a late tick is written to the record identically to a punctual one.
+> It is characterised, not guaranteed.
 
-**"What happens if someone attacks it?"**
-> There is a threat model as of this week. The short version: we defend
-> thoroughly against a proposer that is wrong and not at all against a platform
-> that is compromised, and the second is the larger surface. The evidence log is
-> tamper-evident since yesterday; artefact digests are recorded but not verified
-> at load, which is the next thing to fix.
+**"What would it take to put this in a vehicle?"**
+> More than validation, and I would rather list it than wave at it. A real-time
+> execution environment — this is CPython. A process or hardware boundary; ours
+> is a type boundary, which stops code and not a compromised process. Byzantine
+> tolerance above zero, which needs a fourth dissimilar channel. Certification
+> artefacts. And an actuation path with real faults in it — every fault we inject
+> is at the sensor end.
 
-**"Did you build this or did a tool?"**
-> Answer honestly. The evidence is reproducible either way, and the register of
-> self-found defects is the thing that is hard to fake.
+**"What's the weakest part?"**
+> All three gates read one estimate. That is by design — nothing above L2 touches
+> raw readings — and it makes L2 a common cause. We measured it: a frozen IMU took
+> the vehicle four metres off a lane with every gate passing and a verdict trace
+> identical to a clean run's.
+
+**"How do I know your numbers are right?"**
+> You do not, on my word. Every one is a row with the command that reproduces it,
+> a number lives in exactly one place so it cannot go stale in a second document,
+> and several are marked withdrawn with the reason. We re-ran the whole set on the
+> sixteenth and corrected twelve figures, two of which were corrections to
+> corrections we had made that morning.
 
 ---
 
 ## Fallback plan
 
-**Capture the recording before the meeting. Every time.**
+**If the dashboard will not start** — every scene has a terminal command. The
+benchmarks are the source of the numbers anyway; the dashboard is a view of them.
 
-```bash
-uv run python -m demo.dashboard --ticks 3000 --record var/demo/fallback.jsonl
-uv run python -m demo.dashboard --replay var/demo/fallback.jsonl
-```
+**If a benchmark refuses to run** — read the refusal aloud. `make artifacts-check`
+saying *"the vehicle does not drive"* is the guard working, and explaining it is a
+better story than the demo you had planned. That is genuinely true and not a
+consolation.
 
-A replay streams recorded frames at the captured rate. The page cannot tell the
-difference; the fault buttons refuse with 409, because the faults in a recording
-already happened. **A recording is exactly the frames the live run produced**, so
-it is as traceable to decision records as the run that made it — say so, and the
-fallback costs you interactivity rather than credibility.
+**If the vehicle stops and you did not expect it** — check the artefacts first.
+`var/` is gitignored and a stale corpus can put every tick into a veto. This has
+happened; it is `E-148`, and `make artifacts-check` exists because of it.
 
-**If the laptop dies entirely**, the ablation and comparison tables are static
-and carry scenes 4 and 5 unaided.
+**If someone asks something you cannot answer** — say so, write it down, and send
+the answer. The register is full of things found by someone asking an awkward
+question; treating one as an attack is the only way to lose a room that is
+otherwise on your side.
 
 ---
 
 ## Pre-flight, the morning of
 
 ```bash
-make check                                   # 2,849 tests + 5 strict xfail
-uv run python -m benchmarks.fault_study      # reproduces E-46 .. E-50
-uv run python -m demo.dashboard --ticks 3000 --record var/demo/fallback.jsonl
+make artifacts-check     # must say the vehicle DRIVES
+make check               # gate green
+uv run python -m benchmarks.arms          # scene 1
+uv run python -m benchmarks.degradation   # scene 4
+uv run python -m benchmarks.ablation      # scene 5
 ```
 
-- [ ] Gate green, and know the number by heart
-- [ ] Fallback recording captured **today**
-- [ ] `--rate 1.0` — real time. The harness runs 5× faster than the vehicle and
-      an unpaced demo shows the fault arriving and leaving before anyone finds it
-- [ ] Browser at 1440 px or wider, or the layout stacks
-- [ ] `CREDIBILITY_MATRIX.md` and `THREAT_MODEL.md` open in tabs
-- [ ] **Know that HALT is terminal.** `reset()` is its only exit by design, so
-      once scene 3 stops the vehicle, restart the server before scene 4
+Order matters for the first one: the corpus is generated *through* the twin and
+the policy is trained against both, so a mismatched set loads cleanly and measures
+nothing.
+
+Have open in tabs: the register, `EVIDENCE.md`, and
+[`A-Z/00_START_HERE/REPRODUCE.md`](../A-Z/00_START_HERE/REPRODUCE.md) so any
+number on screen can be re-run in front of them. **Offer that.** Almost nobody
+can, and the offer alone changes how the rest is heard.
 
 ---
 
 ## The closing line
 
-If you take one sentence into the room, take this one:
-
-> **We built the instrument that found our own worst defect, and we are showing
-> you the defect.**
-
-Everything else in this document is in service of making that sentence land as
-confidence rather than as an apology.
-
+> What we have built is a governance layer that keeps an untrusted controller
+> inside an envelope it can state, degrades in steps instead of stopping, and
+> writes down why — and an apparatus that finds our own defects faster than a
+> reviewer can.
+>
+> What we have **not** done is validate any of it against an environment we did
+> not write ourselves. Zero of thirty claims are external. That is the next piece
+> of work, we know exactly what it will cost us, and we have written down what we
+> expect it to break before running it.
 
 ---
 
-## Appendix — the numbers behind the context tuning
+## What changed since the 10 August plan
 
-Recorded because getting this wrong once cost an afternoon and would have made
-scene 1 meaningless.
+Recorded so this document does not become the thing it warns about.
 
-The Runtime Context Signature has five components: visibility, **ego speed
-normalised by the legal limit**, traffic dynamicity, sensor reliability, road
-complexity. Three arrive from the cold-path context; two are computed from the
-vehicle's own state.
-
-The trap is the second one. This policy cruises at about **12.5 m/s** against a
-**33.3 m/s** limit — 0.375. `HIGHWAY_CLEAR`'s centroid wants **0.8**. So a
-context that *looks* like clear highway on the three supplied components still
-misses on the fourth, and the first attempt at a "certified" baseline sat in
-permanent `SAFE_EXPLORATION` — which would have destroyed the contrast the
-tunnel scene depends on, while looking like the tunnel scene working.
-
-Measured, 200 ticks each:
-
-| context | supplied `(vis, traffic, complexity)` | outcome |
+| Was | Is | Why |
 |---|---|---|
-| urban-matched | `(0.85, 0.7, 0.7)` | `SAFE_EXPLORATION` ×80 → **`SHADOW_EXECUTION`** ×120, trust 0.717 |
-| clear-highway-looking | `(0.90, 0.3, 0.2)` | `SAFE_EXPLORATION` throughout |
-| tunnel | `(0.05, 0.7, 0.95)` | `SAFE_EXPLORATION` throughout |
+| Dropout deviation **4.199 → 0.167 m** | **0.062 m** | ADR-0033 put redundancy on the driven path |
+| Dropout escalates to **HALT at +40** | **LIMP at +15; HALT never** | ADR-0030's health-level ceiling caps a `DEGRADED` stream |
+| `position_bias` 0.931 m, `position_drift` 2.025 m | **both 0.017 m** | Outvoted before reaching the estimator |
+| Redundancy *"we cannot measure that here — that is Phase 7"* | **Scene 1, the strongest result in the deck** | ADR-0033 |
+| Ablation: governed 3 / L6 off 3 / L7b off 0 | **1 / 1 / 0**, and L6 and L7a now identical to governed in every cell | Re-measured |
+| Register: **13 rows** | **21 rows** | Six weeks of finding things |
+| `OD-10`, the innovation covariance | **Closed** by ADR-0032 | The sigma points are redrawn after process noise |
+| Latency: not discussed | **Named, with the tail** | Measured on 16 August; the earlier plan quoted no figure and the A-Z folder wrongly said none existed |
 
-The first eighty ticks of the matched case are exploration too, and that is
-correct rather than a defect: the vehicle starts from rest, so its ego-speed
-component does not match anything until it is up to speed. **If an audience
-notices the run opens in exploration, say that** — it is the signature tracking
-a real change in the vehicle's state, which is the mechanism working.
+**Two ADRs moved a headline safety number and nothing announced it.** Re-run
+[`A-Z/00_START_HERE/VERIFY_PROMPT.md`](../A-Z/00_START_HERE/VERIFY_PROMPT.md)
+before any demo that follows a code change.

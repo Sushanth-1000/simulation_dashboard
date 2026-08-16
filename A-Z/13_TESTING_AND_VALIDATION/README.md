@@ -21,9 +21,9 @@ the wrong row.
 | | Count |
 |---|---|
 | Test files | **83** — 69 unit, 7 integration, 4 architecture, 3 property |
-| Tests | **3,047** |
+| Tests | **3,065** |
 | Strict `xfail` | **3** |
-| Type checking | `mypy --strict` over **167** files, 0 issues (re-run 16 Aug) |
+| Type checking | `mypy --strict` over **169** files, 0 issues (re-run 16 Aug) |
 | Import contracts | **12**, 0 broken |
 | Coverage | **97.47%** (re-run 16 Aug), plus an **80% per-file floor** |
 
@@ -242,7 +242,7 @@ claim in one before believing it.
 
 **Misconception to avoid**
 
-> *"3,047 tests and 97.47% coverage means it is well tested."*
+> *"3,065 tests and 97.47% coverage means it is well tested."*
 >
 > The project's own evidence contradicts that reading. A green suite of that size
 > coexisted with a vehicle **2,883 m off its lane**, a speed cap applied to no

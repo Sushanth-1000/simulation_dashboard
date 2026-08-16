@@ -111,7 +111,10 @@ overstated its own completeness would be a poor start.
 
 ## Verification pass — 16 August 2026
 
-**To repeat this yourself:** [`VERIFY_PROMPT.md`](VERIFY_PROMPT.md) is a
+**To reproduce any single number:** [`REPRODUCE.md`](REPRODUCE.md) — one row per
+result, with the exact command and what to look for in its output.
+
+**To repeat the whole pass yourself:** [`VERIFY_PROMPT.md`](VERIFY_PROMPT.md) is a
 self-contained prompt for a fresh session. It carries the environment quirks, the
 commands, the expected values, and the traps that have already cost time. Re-run
 it whenever the code changes or an ADR lands — two ADRs once moved a headline
@@ -125,8 +128,8 @@ that pass, including what it found wrong.
 
 | Command | Result |
 |---|---|
-| `make check` | **3,047 passed + 3 xfailed** in 80.15 s; `quality gate: PASSED` |
-| `make typecheck` | `Success: no issues found in **167** source files` |
+| `make check` | **3,065 passed + 3 xfailed** in 80.15 s; `quality gate: PASSED` |
+| `make typecheck` | `Success: no issues found in **169** source files` |
 | `make contracts` | **12 kept, 0 broken** |
 | `make coverage-floor` | every file at or above 80%; aggregate **97.47%** |
 | `make artifacts-check` | *twin, corpus and policy present; the vehicle drives* |
@@ -155,7 +158,7 @@ and register rows, and the three structural guards (`artifacts-check` driving,
 
 | # | Was written | Measured | Where fixed |
 |---|---|---|---|
-| 1 | coverage 97.56%, mypy over 166 files | **97.47%**, **167 files** | 13, 25, 28 |
+| 1 | coverage 97.56%, mypy over 166 files | **97.47%**, **169 files** | 13, 25, 28 |
 | 2 | *"no end-to-end latency measurement exists"* | It exists and reproduces: full tick p99 **7.289 ms**, max **57.063 ms** | 19, 22, 25, 28, 29 |
 | 3 | OD-8 quoted at `HIGHWAY_CLEAR` 1.156 vs 1.158 | Superseded 15 Aug; today `URBAN_CLEAR` **3.3648–3.4083** vs **3.8758–5.4312** | 09, 28 |
 | 4 | dropout *"HALT at +40"* | **HALT never happens.** The counter reaches 40; ADR-0030's ceiling maps `DEGRADED → LIMP` | 04, 07, 13, 14, 17, 21, 23, 26, 28 |

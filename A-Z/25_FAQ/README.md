@@ -229,8 +229,8 @@ place a loop instead of a matrix product because bit-comparability mattered more
 ### Q26 · How big is it?
 
 Thirty-four ADRs, ten separation invariants, ten assumptions, thirty claims in the
-credibility matrix, twenty-one register rows, and a suite of **3,047 tests plus 3
-strict xfails** under `mypy --strict` across **167 files** at **97.47%** coverage
+credibility matrix, twenty-one register rows, and a suite of **3,065 tests plus 3
+strict xfails** under `mypy --strict` across **169 files** at **97.47%** coverage
 with a per-file floor and **12 import contracts**. All counted by running the gate
 on 16 August, not read off a document.
 

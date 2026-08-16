@@ -94,7 +94,7 @@ TRAPS THAT HAVE ALREADY BITTEN — check for each
   benchmark that prints nothing all look like health.
 
 EXPECTED VALUES AS OF 16 AUGUST 2026 — a mismatch is a finding, not an error
-  gate                3,047 passed + 3 xfailed; mypy over 167 files; 12 contracts,
+  gate                3,065 passed + 3 xfailed; mypy over 169 files; 12 contracts,
                       0 broken; coverage 97.47%; per-file floor green
   gate census         STATISTICAL 2800/0/0 · PHYSICAL 2651/149/0, all
                       LATERAL_JERK_EXCEEDS_LIMIT · DETERMINISTIC 2800/0/0

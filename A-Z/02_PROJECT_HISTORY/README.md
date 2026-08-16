@@ -239,7 +239,7 @@ by any test.
 ## Act V — Where it stands
 
 **[FACT]** as of 15 August 2026: 21 defects, 16 closed, 1 reclassified, 1 partly
-closed, 3 open. 34 ADRs. 3,047 tests. 164 evidence rows.
+closed, 3 open. 34 ADRs. 3,065 tests. 164 evidence rows.
 
 Everything that can be done in-house is done. The three open rows all want a
 simulator this project did not write, and **`CARLA_PLAN.md`** is the plan for

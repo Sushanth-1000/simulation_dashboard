@@ -14,14 +14,14 @@ deciding whether to trust it, so the uncomfortable numbers come first.
 | **Benchmarks that will not run** | **0 of 17** | `whiteness` refused until its guard was narrowed on 16 Aug; it runs and `E-107` still stands |
 | **Faults where governance costs** | **1 of 6** | `lateral_noise`: governed peaks at 1.7179 m, L7b disarmed at 0.5854 m — both inside the ±1.75 m corridor |
 | **Register** | **3 open** of 21 | 16 closed, 1 reclassified, 1 partly closed |
-| **Quality gate** | **green** | 3,047 passed + 3 xfailed, re-run 16 Aug |
+| **Quality gate** | **green** | 3,065 passed + 3 xfailed, re-run 16 Aug |
 
 **Everything in this section was re-measured on 16 August 2026** by running the
 gate and the benchmarks, not by reading a document. Where a re-run disagreed with
 a recorded figure, the measured value is given and the correction is named.
 
 **[INTERPRETATION]** Read together: the engineering discipline is in good shape
-and the **evidence base is not**. A green gate over 167 files says the code does
+and the **evidence base is not**. A green gate over 169 files says the code does
 what its tests say; it says nothing about whether the system works on a road.
 
 ---
@@ -60,8 +60,8 @@ what its tests say; it says nothing about whether the system works on a road.
 
 **Re-run 16 August 2026, not quoted from a document:**
 
-**3,047 passed + 3 xfailed** in 80.15 s · `ruff` clean · `mypy --strict`
-**Success: no issues found in 167 source files** · `lint-imports`
+**3,065 passed + 3 xfailed** in 80.15 s · `ruff` clean · `mypy --strict`
+**Success: no issues found in 169 source files** · `lint-imports`
 **12 kept, 0 broken** · coverage **97.47%**, per-file floor **every file at or
 above 80%** · `quality gate: PASSED`.
 
