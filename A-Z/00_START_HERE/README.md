@@ -99,12 +99,12 @@ overstated its own completeness would be a poor start.
 | 21 | BENEFITS | **Written** |
 | 22 | LIMITATIONS | **Written** |
 | 23 | RUNTIME_BEHAVIOR | **Written** |
-| 24 | GLOSSARY | *Pass 8* |
-| 25 | FAQ | *Pass 8* |
-| 26 | INTERVIEW_QUESTIONS | *Pass 8* |
-| 27 | RESEARCH_QUESTIONS | *Pass 8* |
-| 28 | CURRENT_STATUS | *Pass 8* |
-| 29 | REMAINING_WORK | *Pass 8* |
+| 24 | GLOSSARY | **Written** |
+| 25 | FAQ | **Written** |
+| 26 | INTERVIEW_QUESTIONS | **Written** |
+| 27 | RESEARCH_QUESTIONS | **Written** |
+| 28 | CURRENT_STATUS | **Written** |
+| 29 | REMAINING_WORK | **Written** |
 | 30 | MASTER_A_TO_Z_DOCUMENT | *Pass 9 — written last, because it is the through-line* |
 
 ---
