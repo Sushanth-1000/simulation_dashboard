@@ -77,9 +77,9 @@ overstated its own completeness would be a poor start.
 |---|---|---|
 | 00 | START_HERE | **Written** |
 | 01 | PROBLEM_AND_MOTIVATION | **Written** |
-| 02 | PROJECT_HISTORY | *Pass 2* |
-| 03 | TIMELINE | *Pass 2* |
-| 04 | ARCHITECTURE_EVOLUTION | *Pass 2* |
+| 02 | PROJECT_HISTORY | **Written** |
+| 03 | TIMELINE | **Written** |
+| 04 | ARCHITECTURE_EVOLUTION | **Written** |
 | 05 | CURRENT_ARCHITECTURE | *Pass 3* |
 | 06 | COMPONENTS | *Pass 3* |
 | 07 | DATA_FLOW | *Pass 3* |
