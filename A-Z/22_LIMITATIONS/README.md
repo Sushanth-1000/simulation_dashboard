@@ -133,11 +133,30 @@ it, and writes it to the evidence log.
 compromise; a shared supplier, bus, firmware image or simply *the same fog*
 breaks it.
 
-### L9 · One gate carries all the veto authority
+### L9 · One gate carries all the veto authority — and on one fault it is the harm
 
 **Why it exists.** Partly design — bounds should rarely fire — and partly defect
-(L6 cannot fire). But the consequence stands: disarming L7b takes the veto count
-to **zero on six of seven scenarios**.
+(L6 cannot fire). Measured 16 August: disarming L7b takes the veto count to
+**zero on all seven scenarios**, while disarming L6 or L7a changes **not one cell**
+of the ablation table.
+
+**And the consequence is worse than concentration.** On `lateral_noise`:
+
+| | vetoes | final \|dev\| |
+|---|---|---|
+| governed | 126 | **1.307 m** |
+| L7b disarmed | 0 | **0.138 m** |
+
+**The gate's own vetoes are what put the vehicle 1.3 m off the lane.** Against
+raw, ungoverned Core-A on the same fault — 0.148 m — the governed vehicle is
+**8.8× worse**.
+
+**[INTERPRETATION]** This is the most uncomfortable measurement in the folder. The
+likely mechanism is ADR-0017's rate limiter: a noisy lateral channel produces
+repeated jerk vetoes, each yielding the largest admissible step instead of the
+demanded one, so the correction never completes — the OD-17 latch shape, on a
+fault it was never tested against. **[OPEN]**, undiagnosed, and it belongs in the
+register rather than in a limitations list.
 
 ### L10 · The process model cannot represent a platform that turns on the spot
 
@@ -173,12 +192,29 @@ the one it replaced.
 | Measurement | p50 | p99 | max |
 |---|---|---|---|
 | L1+L2+L7a+L8 in isolation (`benchmarks/latency.py`) | 0.160 ms | **0.442 ms** | 0.984 ms |
-| **The full assembled tick**, 2,000 samples | 2.214 ms | **7.289 ms** | **57.063 ms** |
+| The full assembled tick, one run of 2,000 | 2.214 ms | 7.289 ms | 57.063 ms |
 
-**The limitation is the last column.** One tick in 2,000 took **57 ms against a
-10 ms budget**. A 20 Hz control loop that overruns by 5.7× has missed its slot,
-and no mechanism in this system notices — there is no deadline monitor, and a
-late tick is indistinguishable from a punctual one in the record.
+**Then it was run five times, and the tail turned out to be unstable.**
+
+| run | p50 | p95 | p99 | max | ticks over budget |
+|---|---|---|---|---|---|
+| 1 | 2.238 | 2.915 | 4.777 | **46.958** | 1 / 2000 |
+| 2 | 2.246 | 2.491 | 2.768 | 7.676 | 0 / 2000 |
+| 3 | 2.152 | 4.473 | 7.948 | **44.996** | 3 / 2000 |
+| 4 | 2.173 | 9.067 | **10.460** | **44.457** | **31 / 2000** |
+| 5 | 2.148 | 3.169 | 6.810 | 10.924 | 2 / 2000 |
+
+**The median is solid and the tail is not.** p50 varies by 5%; p99 varies by
+**3.8×** and in run 4 exceeded the budget outright. Budget violations ranged from
+**0 to 31 ticks per 2,000**.
+
+**The limitation is that nothing notices.** There is **no deadline monitor** — a
+late tick is written to the record identically to a punctual one, so an overrun
+is invisible in exactly the evidence log that exists to make behaviour
+reconstructible.
+
+*A single run had suggested "one tick in 2,000". Five runs show that figure was
+the best of the five, not a typical one.*
 
 **Why it exists.** The prototype targets legibility over performance — no NumPy in
 the kernel, a Python hot path, a loop instead of a matrix product for

@@ -217,6 +217,13 @@ answering all of them.
 the mechanism under test cannot operate. Re-run properly, the conclusion stood
 and was *strengthened* (`E-143`).
 
+> **And there is a sequel, found on 16 August.** The guard written that day now
+> **blocks the benchmark entirely**: it refuses the `imu_dropout` arm because the
+> fail-safe correctly brings the vehicle to 0.0000 m/s, which the guard reads as
+> *"the loop never closed"*. `E-143` cannot be regenerated today. See §18 — a
+> guard is a claim about what a valid configuration looks like, and **claims go
+> stale exactly like numbers do.**
+
 **[INTERPRETATION]** This is the episode that best characterises the project.
 The error was caught by noticing that two different proposers produced
 bit-identical numbers — which is impossible if the proposer matters — rather than

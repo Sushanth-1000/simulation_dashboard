@@ -83,13 +83,37 @@ arrow.
 **Objective.** Does bounded safe exploration survive a platform the twin was
 never fitted to?
 
-**Actual.** RCM correctly held `SAFE_EXPLORATION` for 520 ticks — and the OOD
-counter climbed 0 → 100 underneath it and **halted the vehicle**.
+**Actual (`E-83`).** On **two platforms of five** the OOD counter climbed
+underneath a correctly-held `SAFE_EXPLORATION` and **halted the vehicle** — weak
+acceleration at t398, weak brakes at t404, both ending at 0.00 m/s.
 
 > One event escalated twice, defeating the architecture's distinguishing claim
 > **using its own fail-safe machine**.
 
 **Changed:** ADR-0023 — the OOD counter freezes during exploration.
+
+**Re-run 16 August 2026 — the fix holds, and one row deserves attention:**
+
+| platform | exploring | vetoes | final m/s | final \|dev\| | posture |
+|---|---|---|---|---|---|
+| calibrated | 60 | 3 | 12.30 | 0.036 m | NOMINAL |
+| weak acceleration | 540 | 306 | 0.83 | 0.057 m | NOMINAL |
+| weak brakes | 600 | 3 | 16.69 | 0.095 m | NOMINAL |
+| worn tyres | 60 | 2 | 12.26 | 0.002 m | NOMINAL |
+| **sharp steer** | 560 | 586 | 5.25 | **53.756 m** | **LIMP** |
+
+**No platform HALTs. Every one still moves.** That is what ADR-0023 bought, and it
+reproduces.
+
+**But `sharp_steer` ends 53.756 m off the lane** — thirty lane-widths — at LIMP,
+still driving, and the benchmark's own pass rule counts it as a pass because the
+rule tests *posture, motion and speed cap* and **not lane position**. **[OPEN]**
+That is either a missing exit criterion or a platform this vehicle should refuse.
+
+*A previous draft of this entry said "held `SAFE_EXPLORATION` for 520 ticks while
+the OOD counter climbed 0 → 100". 520 is `E-85`'s **post-fix** exploration count
+for weak acceleration, not a pre-fix failure figure; the two were conflated.
+Today that count is 540.*
 
 ### E4 · The shadow runs — FB2 and FB3
 
@@ -126,6 +150,62 @@ All 149 on one reason code. **ABSTAIN zero everywhere**, so the silent two are
 
 **Consequence:** bears directly on D-3, the independence claim, and forced a
 rewrite of the paper's contribution 2.
+
+---
+
+### E6 · The ablation and the comparison — first run 16 August 2026
+
+Two benchmarks this folder listed in its inventory and had never actually
+executed. Both produced results that change what the folder says.
+
+**The ablation — disarm one gate at a time.** Vetoes, then final deviation:
+
+| profile | control | imu_dropout | position_bias | position_drift | speed_stuck | speed_bias | lateral_noise |
+|---|---|---|---|---|---|---|---|
+| governed | 1 | 18 | 1 | 1 | 1 | 1 | **126** |
+| L6 off | 1 | 18 | 1 | 1 | 1 | 1 | 126 |
+| **L7b off** | **0** | **0** | **0** | **0** | **0** | **0** | **0** |
+| L7a off | 1 | 18 | 1 | 1 | 1 | 1 | 126 |
+
+| profile | control | imu_dropout | lateral_noise |
+|---|---|---|---|
+| governed | 0.017 m | 0.062 m | **1.307 m** |
+| **L7b off** | 0.017 m | 0.061 m | **0.138 m** |
+
+**Disarming L7b makes the vehicle nearly ten times better on `lateral_noise`** —
+1.307 m against 0.138 m. The physical gate issues 126 vetoes on that arm, and the
+vetoes are what put the vehicle 1.3 m off the lane.
+
+**[INTERPRETATION]** This is the sharpest single result in the folder, and it cuts
+against the architecture. On one fault the governance is not merely inert — it is
+**the cause of the departure**. The likely mechanism is ADR-0017's rate limiter:
+a noisy lateral channel produces jerk vetoes, each veto yields the largest
+admissible step rather than the demanded one, and the correction never completes.
+That is the OD-17 latch shape reappearing on a fault it was not tested against.
+**[OPEN]** — not diagnosed, and it deserves an ADR.
+
+**Also worth stating:** `L6 off` and `L7a off` are **bit-identical to governed in
+every cell**. Two of three gates contribute nothing measurable, which is E-162
+seen from the other direction.
+
+**The comparison — ASTRA against raw Core-A**, same seed, same fault:
+
+| scenario | ASTRA | Core-A raw |
+|---|---|---|
+| control | 0.017 m | 0.055 m |
+| `imu_dropout` | **0.062 m** | 1.707 m |
+| `position_bias` | **0.017 m** | 0.960 m |
+| `position_drift` | **0.017 m** | 2.001 m |
+| `speed_bias` | **0.059 m** | 0.126 m |
+| **`lateral_noise`** | **1.307 m** | **0.148 m** |
+
+**`E-56`'s headline — *"on one fault ASTRA is worse"* — is still true, and it has
+moved to a different fault.** In August it was `imu_dropout`, where ASTRA is now
+**27× better**. Today it is `lateral_noise`, where ASTRA is **8.8× worse**.
+
+**[INTERPRETATION]** The claim survived; every number under it changed. A reader
+who had only the sentence would believe something true about the system and
+nothing accurate about it.
 
 ---
 

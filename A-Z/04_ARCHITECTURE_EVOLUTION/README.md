@@ -213,11 +213,13 @@ commands"* and *"a sensor was dark for forty ticks"* need different responses an
 
 ### Problem discovered — three times in one day
 
-**OD-12.** On a platform the twin was never fitted to, RCM correctly held
-`SAFE_EXPLORATION` for 520 ticks while the OOD counter climbed 0 → 100 and
-**halted the vehicle underneath it**. One event escalated twice — defeating the
-architecture's distinguishing claim *using its own fail-safe machine*.
+**OD-12.** On platforms the twin was never fitted to, RCM correctly held
+`SAFE_EXPLORATION` while the OOD counter climbed underneath it and **halted the
+vehicle** — on **two platforms of five**, at t398 and t404, both ending at
+0.00 m/s (`E-83`). One event escalated twice — defeating the architecture's
+distinguishing claim *using its own fail-safe machine*.
 **→ ADR-0023:** the OOD counter **freezes** during bounded exploration.
+Re-run 16 August 2026: **no platform HALTs and every one still moves.**
 
 **Redundancy arrived (ADR-0026) and immediately broke the counter.** One faulted
 channel of three HALTed a vehicle driving at **0.042 m** on the other two.

@@ -94,15 +94,40 @@ response, instead of adapting the twin.
 **Why it looked right.** It learns a *platform constant* rather than a policy —
 seemingly immune to F3's circularity.
 
-**What happened.** Fed the **filtered estimate**, it returns **140.000 on every
-platform** — including plants whose true `B` is **112.0** and **168.0** (`E-63`).
+**What happened, as recorded (`E-63`).** Fed the **filtered estimate**, it returns
+**140.000 on every platform** — including plants whose true `B` is **112.0** and
+**168.0**.
+
+> **This no longer reproduces, 16 August 2026.** Run twice, identically, `python
+> -m benchmarks.effectiveness` now reads **117.929** from the estimate on the
+> `B = 112` platform and **164.443** on the `B = 168` platform. The configured
+> control value is 140.0 and the estimator is no longer returning it.
+>
+> **[INTERPRETATION]** The most likely cause is ADR-0032. The estimator was
+> reading its own input back because the UKF's lateral-acceleration estimate was
+> the `B` assumption propagated; redrawing the sigma points after the process
+> noise changed how much of the *measurement* survives into that estimate, so the
+> estimate now carries platform information it previously did not.
+>
+> **What this does and does not overturn.** The *conclusion* — do not feed FB2
+> from the filtered estimate — still stands on the structural argument, and
+> ADR-0020's status line refuses the original design outright. But the **headline
+> evidence for it is gone**, and a refutation whose measurement no longer
+> reproduces is not a refutation you can put in front of an assessor. `E-63`
+> needs re-deriving or withdrawing. **[OPEN]**
 
 **Why it failed. Structurally, not by tuning.** The UKF's process model *already
 assumes* `B`, so its lateral-acceleration estimate is **that assumption
 propagated**. The estimator was reading its own input back.
 
-**Partial rescue.** Fed the **raw measured response** instead, it tracks the
-platform to within 1.7% — 111.341 against 112.0, 165.140 against 168.0 (`E-64`).
+**Partial rescue, as recorded (`E-64`).** Fed the **raw measured response**
+instead, it tracks the platform to within 1.7% — 111.341 against 112.0, 165.140
+against 168.0.
+
+> **Re-measured 16 August 2026:** **114.986** against 112.0 (**2.7% high**) and
+> **167.702** against 168.0 (**0.18% low**). The rescue still works and the error
+> is no longer symmetric — *"within 1.7%"* is now *"within 2.7%"*, and the sign
+> has flipped on the low platform. Same cause as above.
 But the residual runs **~1.5% low**, unexplained, *in the direction ADR-0020
 names as dangerous*: an underestimated `B` shrinks the departure the score is
 computed from.
@@ -150,7 +175,12 @@ The single most instructive cluster in the project.
 | 2 | Innovation gate flag, γ = 7.5 | Fires on **tick 0 of every arm including the control** and nothing else (`E-105`) |
 | 3 | **Analytical redundancy** from commands | Residual **2.2×–4.0× larger than the fault** (`E-94`) |
 | 4 | Cross-channel consistency | Bias 4.14×; **drift 0.99×** (`E-106`) |
-| 5 | Innovation **whiteness** / CUSUM | **1.03×** at every slack (`E-143`) |
+| 5 | Innovation **whiteness** / CUSUM | **1.03×** at every slack (`E-143`) — **not regenerable today**, the benchmark refuses (§18) |
+
+**A note on how far these five can be trusted, 16 August 2026.** Detectors 1 and 2
+were re-run inside `fault_study` and the innovation signal is **silent on all
+seven arms**, which is rows 1 and 2 confirmed. Row 5 **cannot be re-run at all**.
+Rows 3 and 4 were not re-executed in this pass.
 
 ### Why #3 failed is worth its own paragraph
 

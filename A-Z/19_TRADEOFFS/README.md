@@ -18,21 +18,26 @@ twin forward pass, three gate evaluations, and a record written — every tick.
 would do, and you cannot compute that without a model.
 
 **Measured, 16 August 2026** — and this corrects an earlier draft of this section
-that called the cost unmeasured. Over 2,000 assembled ticks after a 200-tick
-warm-up, against A-2's 10 ms budget:
+that called the cost unmeasured. Six runs of 2,000 assembled ticks each, against
+A-2's 10 ms budget:
 
-| p50 | p95 | p99 | max |
-|---|---|---|---|
-| **2.214 ms** | **6.018 ms** | **7.289 ms** | **57.063 ms** |
+| | p50 | p99 | max | over budget |
+|---|---|---|---|---|
+| best run | 2.246 ms | 2.768 ms | 7.676 ms | **0** / 2000 |
+| worst run | 2.173 ms | **10.460 ms** | 46.958 ms | **31** / 2000 |
 
-**One tick in 2,000 went over budget**, at 57 ms — five and a half times the
-budget, on a run where the p99 sat at 27% headroom. That is the shape of a
-CPython pause, not of a slow layer, and it is the number that matters for a
-20 Hz control loop: the tail, not the median.
+**The median is stable across every run at about 2.2 ms — a fifth of the budget.
+The tail is not stable at all.** p99 ranged 2.768–10.460 ms, and the worst run's
+p99 was *itself over budget*. Three of six runs produced a maximum above 44 ms.
 
-**[OPEN]** What that outlier *is* — garbage collection, page fault, first-touch
-allocation — is not diagnosed, and a 10 ms budget with a 57 ms tail is not a
-budget that has been met. It is a budget that is met 99.95% of the time.
+**Why the cost exists:** you cannot judge a command without computing what it
+would do, and you cannot compute that without a model. **Why the *tail* exists is
+a different question** — CPython offers no timing guarantee, and a pause of that
+shape is a runtime artefact rather than a slow layer.
+
+**[OPEN]** The outlier is not diagnosed, and there is **no deadline monitor**, so
+a 10 ms budget is met at the median and violated somewhere between 0 and 31 times
+per 2,000 ticks with nothing recording that it happened.
 
 ---
 

@@ -11,6 +11,8 @@ deciding whether to trust it, so the uncomfortable numbers come first.
 |---|---|---|
 | **`[M-ext]` claims** | **0 of 30** | Nothing measured against an external reference |
 | **Gates that ever veto** | **1 of 3** | Physical 149, statistical 0, deterministic 0 across 2,800 fault-suite ticks |
+| **Benchmarks that will not run** | **1 of 17** | `whiteness` refuses — a guard added after a retraction now misreads a correct safety stop |
+| **Faults where governance *harms*** | **1 of 6** | `lateral_noise`: governed 1.307 m, L7b disarmed 0.138 m, ungoverned Core-A 0.148 m |
 | **Register** | **3 open** of 21 | 16 closed, 1 reclassified, 1 partly closed |
 | **Quality gate** | **green** | 3,042 passed + 3 xfailed, re-run 16 Aug |
 
@@ -126,6 +128,10 @@ benchmarks.fault_study`, on the redundant driven path ADR-0033 made the default:
 | `position_bias` | 0.017 m | 0.132 m | 1 | 0 |
 | `position_drift` | 0.017 m | 0.132 m | 1 | 0 |
 | `lateral_noise` | **1.307 m** | 0.167 m | **126** | 141 |
+
+**And the dropout arm ends at a complete stop** — final speed **0.0000 m/s**. The
+posture reads LIMP, not HALT, but the speed cap brings the vehicle to rest, so the
+*effect* of a dark IMU is a stopped vehicle inside its lane.
 
 **Three things in that table were not true a week ago.** The dropout now ends at
 0.062 m rather than 0.167 m, because three channels outvote one frozen one.

@@ -233,6 +233,43 @@ produced **bit-identical numbers** — impossible if the proposer mattered.
 The **general** failure — a valid computation in an invalid configuration — has
 no general defence.
 
+### And one of the three guards has since gone wrong — measured 16 August 2026
+
+**`benchmarks.whiteness` cannot be run at all.** With the trained policy named
+explicitly it raises `StationaryVehicleError` and produces nothing.
+
+**The cause is not the one the message states.** The guard fires on
+`final_speed_mps <= 1e-6`, and the arm that trips it is `imu_dropout`, where the
+run is:
+
+```
+arm             vetoed   final m/s   final |dev|
+control              1     12.0907        0.0168   ok
+imu_dropout         18      0.0000        0.0620   REFUSES
+lateral_noise      126      4.2137        1.3073   ok
+```
+
+The vehicle **drove, detected the fault, and was brought to a stop by its own
+fail-safe.** That is the mechanism working. The guard reads the stop as *"the
+loop was never closed"* and refuses.
+
+**[INTERPRETATION] The guard cannot distinguish a policy that never drove from a
+safety response that correctly stopped the vehicle** — and the second became
+possible only after ADR-0024 and ADR-0030 gave the fail-safe a stopping response
+to a dark sensor. A guard written against one failure was invalidated by a later
+feature, and nothing caught it because **nobody re-ran the benchmark.**
+
+**The consequence for the evidence pack: `E-143` is not reproducible today.** It
+is cited in this folder as one of the five refuted drift detectors, and it cannot
+currently be regenerated. **[OPEN]** — the guard needs to test *whether the loop
+closed*, not *whether the vehicle is moving at the end*.
+
+**The generalisable lesson, and it is sharper than the original one.** A guard is
+a claim about what a valid configuration looks like, and **claims go stale
+exactly like numbers do.** This project pins its schema version with a test and
+asserts each invariant's enforcement kind with a test — and its three retraction
+guards are asserted by nothing that would notice them becoming wrong.
+
 ---
 
 ## The pattern across everything

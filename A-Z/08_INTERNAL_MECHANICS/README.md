@@ -152,8 +152,9 @@ def _advanced_counter(self, *, blocking: bool, exploring: bool = False) -> int:
 
 - **Freeze during exploration** (ADR-0023). While L9 owns the out-of-envelope
   condition, counting it again escalates one event twice. Measured: the counter
-  climbed 0 → 100 and halted a vehicle L9 was correctly holding in a narrowed
-  envelope.
+  halted a vehicle L9 was correctly holding in a narrowed envelope, on **two
+  platforms of five**, at ticks 398 and 404 (`E-83`). Re-run 16 August 2026:
+  **no platform HALTs.**
 - **Floor at 0.** A long clean run must not build *credit* that lets a later
   burst pass unnoticed.
 - **Ceiling at the HALT threshold.** A soak recorded **1,508 by tick 2,000** and

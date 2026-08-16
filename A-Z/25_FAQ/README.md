@@ -206,14 +206,19 @@ platform assumption.
 
 ### Q25 · How fast is it?
 
-**Measured, and the answer has a tail.** Full assembled tick over 2,000 samples:
-**p50 2.214 ms, p99 7.289 ms, max 57.063 ms** against A-2's 10 ms budget at 20 Hz.
+**Measured, and the answer is "the median is fine, the tail is not".** Six runs of
+2,000 assembled ticks each, against A-2's 10 ms budget at 20 Hz:
+
+- **p50: 2.15–2.25 ms** in every run — a fifth of the budget, and stable
+- **p99: 2.77–10.46 ms** — a 3.8× spread, and the worst run's p99 was over budget
+- **max: 7.68–46.96 ms**; budget violations ranged **0 to 31 per 2,000 ticks**
+
 The four-layer hot path in isolation is far cheaper — p99 **0.442 ms**.
 
-So it fits, 1,999 times in 2,000. The one that did not fit missed by 5.7×, and
-nothing in the system notices a late tick. The prototype deliberately favours
-legibility over speed — no NumPy in the kernel, and in one place a loop instead of
-a matrix product because bit-comparability mattered more.
+**And nothing notices a late tick.** There is no deadline monitor, so an overrun
+is written to the record identically to a punctual tick. The prototype
+deliberately favours legibility over speed — no NumPy in the kernel, and in one
+place a loop instead of a matrix product because bit-comparability mattered more.
 
 ### Q26 · How big is it?
 

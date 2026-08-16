@@ -182,6 +182,92 @@ being true.**
 
 ---
 
+### Second verification pass — same day
+
+The first pass covered about half the sections. This one ran the **nine
+benchmarks that had never been executed**, repeated the latency measurement five
+times, and fixed a probe that had silently returned `nan`.
+
+**Ran:** `ablation` · `comparison` · `effectiveness` (twice) · `platform_transfer`
+· `commissioning` · `whiteness` · `envelope` · `soak` at 20,000 ticks · plus five
+latency repeats and a corrected estimator-error probe.
+
+**Coverage after both passes: 15 of the 17 benchmarks executed.** The two
+outstanding are `flake_hunt` (not run) and `detectors` (not runnable — it is a
+library, exercised through `fault_study`).
+
+**What it confirmed.** `E-153`'s peak estimator error reproduced **exactly** once
+the estimate was read from `record.fast_state.mean[1]` rather than from fields
+`TickSample` does not have: **1.1805 m** single-channel against **0.1323 m**
+redundant, with the redundant clean and biased arms identical. ADR-0023's fix
+holds — no platform HALTs. The effectiveness figures reproduced identically on
+two consecutive runs.
+
+**Five further corrections, and three are findings rather than staleness.**
+
+| # | Was written | Measured | Where fixed |
+|---|---|---|---|
+| 8 | latency: 1 tick in 2,000 over budget | **0 to 31 per 2,000**, p99 ranging 2.768–10.460 ms across five runs | 19, 22, 25 |
+| 9 | `E-63`: the estimator "returns 140.000 on every platform" | **117.929** and **164.443**. Does not reproduce | 16 |
+| 10 | `E-64`: "tracks to within 1.7% — 111.341, 165.140" | **114.986** and **167.702** — within 2.7%, sign flipped | 16 |
+| 11 | OD-12: "held SAFE_EXPLORATION for 520 ticks, counter 0 → 100" | Conflated a post-fix count with a pre-fix failure. `E-83`: HALT on **two platforms of five**, t398 and t404 | 04, 08, 15 |
+| 12 | `ablation` and `comparison` listed but never run | Both run; see below | 15, 22, 28 |
+
+**Finding one — a benchmark is dead and nobody noticed.** `benchmarks.whiteness`
+refuses to run. Its `StationaryVehicleError` guard — added *after* the `E-143`
+retraction — fires on the `imu_dropout` arm because the fail-safe correctly brings
+the vehicle to **0.0000 m/s**. The guard cannot tell a policy that never drove
+from a safety response that worked, and that second case became possible only
+after ADR-0024 and ADR-0030 landed. **`E-143` cannot be regenerated today.**
+
+**Finding two — on one fault the governance is the harm.** The ablation shows
+`lateral_noise` at **1.307 m governed** against **0.138 m with L7b disarmed**, and
+the comparison shows ungoverned Core-A at **0.148 m**. The physical gate's 126
+vetoes are what put the vehicle off the lane. `E-56`'s *"on one fault ASTRA is
+worse"* still holds — and has **moved to a different fault**, while ASTRA became
+27× *better* on the one it used to name.
+
+**Finding three — two gates contribute literally nothing.** `L6 off` and `L7a off`
+are bit-identical to `governed` in **every cell** of both ablation tables.
+
+**[INTERPRETATION]** The first pass found stale numbers. This one found a broken
+guard, a refutation that no longer reproduces, and a fault on which the
+architecture makes things worse. **The difference between the two passes is
+entirely that the second one ran the code that had never been run** — which is
+the same lesson `E-152`'s wrong command and this folder's own §22 keep producing.
+
+### What is still not verified
+
+Stated so this record cannot itself become the thing it warns about:
+
+- `flake_hunt` — long-running, not executed.
+- `soak` was run at **20,000 ticks, not 100,000**. All ten criteria passed and the
+  verdict was **STABLE**: lane deviation 0.0295 → 0.0277 m, veto rate 0.04% →
+  0.03%, resident set **+0.0 MiB**, per-tick p99 3.873 → 3.865 ms, fail-safe never
+  leaving `NOMINAL`, `PROPOSED` on 19,990 of 20,000 ticks and `RATE_LIMITED` on 10.
+  The 100,000-tick claims in §15 are **not** re-verified at that length.
+  *Note the p99 there — 3.87 ms — against the 2.768–10.460 ms this pass measured
+  over contiguous 2,000-tick runs. The soak takes a p99 per window and reports the
+  half-means; its own range column spans 4.48 ms. The two are different statistics
+  and neither is wrong.*
+- `detectors` has no `main`; it is a library, and its output is the shadow-detector
+  table inside `fault_study`, which was run. That table confirms the innovation
+  detector is **silent on every scenario** and that `trust` raises a **false alarm
+  on the control**.
+- `envelope` runs, but **not against anything in this repository**: every retained
+  log is audit schema **v1** and the benchmark requires **v7 or later**, so it
+  refuses. Driving a fresh log and running it in the same process works and
+  reports *"no exploration episodes"* on a clean run. This is `L13` and OD-14
+  showing up a third time — **the archive cannot be mined retrospectively.**
+- Historical figures that **cannot** be reproduced because the defect is closed:
+  OD-1's 2,883 m, OD-5's 1,508, OD-6's 99,808 / 100,000, OD-4's 2.9 × 10⁶ m,
+  FB2's 40%, FB3's 5.02%. These are traceable to `CREDIBILITY_MATRIX.md` and are
+  labelled as history, not as current behaviour.
+- Every `[INTERPRETATION]` in this folder. Those are arguments; running code says
+  nothing about whether they are right.
+
+---
+
 ## Where to start
 
 Read [`Executive_Overview.md`](Executive_Overview.md) next — fifteen minutes, and

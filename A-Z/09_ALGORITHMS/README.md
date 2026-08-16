@@ -367,7 +367,7 @@ Kept because they are evidence *for* redundancy.
 | 2 | **Innovation gate flag** (γ = 7.5) | Fires on **tick 0 of every arm including the control** — the plant's 1 m initial offset — and on nothing else (`E-105`) |
 | 3 | **Analytical redundancy** from commands | The parity residual is **2.2×–4.0× larger than the fault**. FB1 feeds the command into the *prediction* step, so the two estimates were never independent (`E-94`, `E-95`) |
 | 4 | **Cross-channel consistency** | Catches the bias at 4.14×; the drift at **0.99×** — indistinguishable from clean (`E-106`) |
-| 5 | **Innovation whiteness / CUSUM** | Separates **1.03×** at every slack, while the bias separates 12.8–14.3× (`E-143`) |
+| 5 | **Innovation whiteness / CUSUM** | Separates **1.03×** at every slack, while the bias separates 12.8–14.3× (`E-143`) — **and this row cannot be regenerated today**: `benchmarks.whiteness` refuses to run, see §18 |
 
 **The shared root** **[FACT** — `E-107`**]**:
 
