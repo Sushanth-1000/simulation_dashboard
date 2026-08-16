@@ -122,6 +122,9 @@ EXPECTED VALUES AS OF 16 AUGUST 2026 — a mismatch is a finding, not an error
                       budget
   soak 100k           all ten criteria pass, STABLE, resident +0.1 MiB,
                       p99 8.599 -> 7.757 ms
+  flake_hunt          6/6 full-suite and 15/15 threaded passes under stress-ng
+                      with 32 workers; NO FLAKE OBSERVED. Full suite median
+                      238.8 s under load against ~91 s clean
   recovery bound      91 ticks = 4.6 s, asserted by a passing test
   counts              34 ADRs · 10 SIs · 10 assumptions · 30 credibility rows,
                       [M-ext] 0 of 30 · 21 register rows (16 closed, 1

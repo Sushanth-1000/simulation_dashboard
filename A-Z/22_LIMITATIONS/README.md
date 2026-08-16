@@ -254,6 +254,12 @@ bit-comparability — and CPython gives no timing guarantee at all. The p50 of
 Adding a simulator round trip in CARLA moves every one of these figures the wrong
 way.
 
+**And every figure above was measured on an idle machine.** `flake_hunt` puts the
+same box under `stress-ng` with 32 workers and the full test suite goes from about
+**91 s to a median of 238.8 s — 2.6× slower**. Nothing here establishes what the
+tick tail does under contention, and a control loop shares its host with whatever
+else is running.
+
 ### L13 · The archive cannot say which filter produced a row
 
 **Why it exists.** ADR-0032 changed the innovation covariance. That is a **code**

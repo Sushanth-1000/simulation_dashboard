@@ -198,9 +198,9 @@ times, and fixed a probe that had silently returned `nan`.
 · `commissioning` · `whiteness` · `envelope` · `soak` at 20,000 ticks · plus five
 latency repeats and a corrected estimator-error probe.
 
-**Coverage after both passes: 15 of the 17 benchmarks executed.** The two
-outstanding are `flake_hunt` (not run) and `detectors` (not runnable — it is a
-library, exercised through `fault_study`).
+**Coverage after all three passes: every benchmark in the inventory has been
+executed.** `detectors` has no `main` — it is a library, exercised through
+`fault_study`.
 
 **What it confirmed.** `E-153`'s peak estimator error reproduced **exactly** once
 the estimate was read from `record.fast_state.mean[1]` rather than from fields
@@ -286,7 +286,15 @@ corroborates the tail concern rather than softening it.
 
 Stated so this record cannot itself become the thing it warns about:
 
-- `flake_hunt` — long-running, not executed.
+- `flake_hunt` **was run** and found nothing: 6/6 full-suite passes and 15/15
+  threaded-test passes under `stress-ng` with 32 workers on 16 cores. **No flake,
+  no hang.** Its own verdict states the limit correctly — *absence of evidence
+  over this many runs, not proof of absence*.
+
+  **One number from it bears on the timing tail.** The full suite takes a median
+  of **238.8 s under contention against 90.81 s clean** — a 2.6× slowdown. The
+  latency figures in this folder were measured on an *idle* machine, and nothing
+  here establishes what the tick tail does under load.
 - `detectors` has no `main`; it is a library, and its output is the shadow-detector
   table inside `fault_study`, which was run. That table confirms the innovation
   detector is **silent on every scenario** and that `trust` raises a **false alarm
