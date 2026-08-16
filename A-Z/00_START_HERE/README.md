@@ -90,10 +90,10 @@ overstated its own completeness would be a poor start.
 | 12 | SAFETY_AND_RELIABILITY | **Written** |
 | 13 | TESTING_AND_VALIDATION | **Written** |
 | 14 | SIMULATION | **Written** |
-| 15 | EXPERIMENTS | *Pass 6* |
-| 16 | FAILED_APPROACHES | *Pass 6* |
-| 17 | DECISION_LOG | *Pass 6* |
-| 18 | CHALLENGE_LOG | *Pass 6* |
+| 15 | EXPERIMENTS | **Written** |
+| 16 | FAILED_APPROACHES | **Written** |
+| 17 | DECISION_LOG | **Written** |
+| 18 | CHALLENGE_LOG | **Written** |
 | 19 | TRADEOFFS | *Pass 7* |
 | 20 | ALTERNATIVES | *Pass 7* |
 | 21 | BENEFITS | *Pass 7* |
