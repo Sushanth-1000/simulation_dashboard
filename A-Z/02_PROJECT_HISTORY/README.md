@@ -217,12 +217,17 @@ answering all of them.
 the mechanism under test cannot operate. Re-run properly, the conclusion stood
 and was *strengthened* (`E-143`).
 
-> **And there is a sequel, found on 16 August.** The guard written that day now
-> **blocks the benchmark entirely**: it refuses the `imu_dropout` arm because the
-> fail-safe correctly brings the vehicle to 0.0000 m/s, which the guard reads as
-> *"the loop never closed"*. `E-143` cannot be regenerated today. See §18 — a
-> guard is a claim about what a valid configuration looks like, and **claims go
-> stale exactly like numbers do.**
+> **And there is a sequel, found and fixed on 16 August.** The guard written that
+> day had begun **blocking the benchmark entirely**: it refused the `imu_dropout`
+> arm because the fail-safe correctly brings the vehicle to 0.0000 m/s, which the
+> guard read as *"the loop never closed"*. It now counts the ticks on which the
+> loop actually was closed, and `E-107` still stands — more firmly, since the
+> drift arm is now identical to the control to every printed digit. See §18.
+>
+> **A guard is a claim about what a valid configuration looks like, and claims go
+> stale exactly like numbers do.** This project pins its schema with a test and
+> asserts each invariant's enforcement kind with a test; its retraction guards had
+> nothing watching them.
 
 **[INTERPRETATION]** This is the episode that best characterises the project.
 The error was caught by noticing that two different proposers produced
@@ -234,7 +239,7 @@ by any test.
 ## Act V — Where it stands
 
 **[FACT]** as of 15 August 2026: 21 defects, 16 closed, 1 reclassified, 1 partly
-closed, 3 open. 34 ADRs. 3,042 tests. 164 evidence rows.
+closed, 3 open. 34 ADRs. 3,047 tests. 164 evidence rows.
 
 Everything that can be done in-house is done. The three open rows all want a
 simulator this project did not write, and **`CARLA_PLAN.md`** is the plan for

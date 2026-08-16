@@ -11,10 +11,10 @@ deciding whether to trust it, so the uncomfortable numbers come first.
 |---|---|---|
 | **`[M-ext]` claims** | **0 of 30** | Nothing measured against an external reference |
 | **Gates that ever veto** | **1 of 3** | Physical 149, statistical 0, deterministic 0 across 2,800 fault-suite ticks |
-| **Benchmarks that will not run** | **1 of 17** | `whiteness` refuses — a guard added after a retraction now misreads a correct safety stop |
-| **Faults where governance *harms*** | **1 of 6** | `lateral_noise`: governed 1.307 m, L7b disarmed 0.138 m, ungoverned Core-A 0.148 m |
+| **Benchmarks that will not run** | **0 of 17** | `whiteness` refused until its guard was narrowed on 16 Aug; it runs and `E-107` still stands |
+| **Faults where governance costs** | **1 of 6** | `lateral_noise`: governed peaks at 1.7179 m, L7b disarmed at 0.5854 m — both inside the ±1.75 m corridor |
 | **Register** | **3 open** of 21 | 16 closed, 1 reclassified, 1 partly closed |
-| **Quality gate** | **green** | 3,042 passed + 3 xfailed, re-run 16 Aug |
+| **Quality gate** | **green** | 3,047 passed + 3 xfailed, re-run 16 Aug |
 
 **Everything in this section was re-measured on 16 August 2026** by running the
 gate and the benchmarks, not by reading a document. Where a re-run disagreed with
@@ -60,7 +60,7 @@ what its tests say; it says nothing about whether the system works on a road.
 
 **Re-run 16 August 2026, not quoted from a document:**
 
-**3,042 passed + 3 xfailed** in 80.15 s · `ruff` clean · `mypy --strict`
+**3,047 passed + 3 xfailed** in 80.15 s · `ruff` clean · `mypy --strict`
 **Success: no issues found in 167 source files** · `lint-imports`
 **12 kept, 0 broken** · coverage **97.47%**, per-file floor **every file at or
 above 80%** · `quality gate: PASSED`.

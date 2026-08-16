@@ -170,7 +170,13 @@ credibility rests on.
 The clearest: a 7.35× whiteness improvement, measured correctly from a vehicle
 that had **every one of 400 ticks vetoed and a speed of zero**. Caught because two
 different proposers gave bit-identical results. Fixed by making the measurement
-refuse to run from a stationary vehicle at all.
+refuse a vehicle that never drove.
+
+**And the fix was itself wrong, which is the better half of the story.** It tested
+the run's *final* speed, so once ADR-0024 and ADR-0030 gave the fail-safe a
+stopping response, the benchmark began refusing a run in which the safety
+mechanism had **worked**. It produced nothing for a day. Narrowed on 16 August to
+count the ticks on which the loop was actually closed.
 
 Also: a `100% inside` figure computed from **one** sample, and a claim that an
 artefact was missing that came from an `ls` truncated one line above it.
@@ -223,7 +229,7 @@ place a loop instead of a matrix product because bit-comparability mattered more
 ### Q26 · How big is it?
 
 Thirty-four ADRs, ten separation invariants, ten assumptions, thirty claims in the
-credibility matrix, twenty-one register rows, and a suite of **3,042 tests plus 3
+credibility matrix, twenty-one register rows, and a suite of **3,047 tests plus 3
 strict xfails** under `mypy --strict` across **167 files** at **97.47%** coverage
 with a per-file floor and **12 import contracts**. All counted by running the gate
 on 16 August, not read off a document.

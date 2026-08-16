@@ -175,12 +175,14 @@ The single most instructive cluster in the project.
 | 2 | Innovation gate flag, γ = 7.5 | Fires on **tick 0 of every arm including the control** and nothing else (`E-105`) |
 | 3 | **Analytical redundancy** from commands | Residual **2.2×–4.0× larger than the fault** (`E-94`) |
 | 4 | Cross-channel consistency | Bias 4.14×; **drift 0.99×** (`E-106`) |
-| 5 | Innovation **whiteness** / CUSUM | **1.03×** at every slack (`E-143`) — **not regenerable today**, the benchmark refuses (§18) |
+| 5 | Innovation **whiteness** / CUSUM | 1.03× at every slack (`E-143`); **exactly 1.00×** on 16 Aug — the drift arm is bit-identical to the control |
 
 **A note on how far these five can be trusted, 16 August 2026.** Detectors 1 and 2
 were re-run inside `fault_study` and the innovation signal is **silent on all
-seven arms**, which is rows 1 and 2 confirmed. Row 5 **cannot be re-run at all**.
-Rows 3 and 4 were not re-executed in this pass.
+seven arms**. Detector 5 was re-run after its benchmark's guard was repaired and
+is **more** silent than recorded — the separation is now nil rather than 1.03×,
+because redundancy stops the drift reaching the estimator at all. Rows 3 and 4
+were not re-executed in this pass.
 
 ### Why #3 failed is worth its own paragraph
 

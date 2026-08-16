@@ -119,7 +119,7 @@ that pass, including what it found wrong.
 
 | Command | Result |
 |---|---|
-| `make check` | **3,042 passed + 3 xfailed** in 80.15 s; `quality gate: PASSED` |
+| `make check` | **3,047 passed + 3 xfailed** in 80.15 s; `quality gate: PASSED` |
 | `make typecheck` | `Success: no issues found in **167** source files` |
 | `make contracts` | **12 kept, 0 broken** |
 | `make coverage-floor` | every file at or above 80%; aggregate **97.47%** |
@@ -236,20 +236,51 @@ architecture makes things worse. **The difference between the two passes is
 entirely that the second one ran the code that had never been run** — which is
 the same lesson `E-152`'s wrong command and this folder's own §22 keep producing.
 
+---
+
+### Third pass — the three defects worked, not just recorded
+
+**1 · The whiteness guard is fixed and the benchmark runs again.** It now counts
+the ticks on which **the loop was actually closed** — a command reached the
+actuators *and* the vehicle was moving — instead of reading the run's final
+speed, and it raises only when that count is zero. An arm below **30 live ticks**
+is reported as thin, which is `E-161`'s shape applied to a second benchmark. Five
+tests assert the rule, including the one that would have caught the original
+defect. Re-run:
+
+| arm | live ticks | lateral-acceleration CUSUM | alarm |
+|---|---|---|---|
+| control | 200 | 3.75 | — |
+| **`position_drift`** | 200 | **3.75** | **—** |
+| `imu_dropout` | **41** | 77.63 | +2 |
+| `lateral_noise` | 200 | 888.92 | +1 |
+
+**`position_drift` does not alarm — E-107 stands**, and the arm is now
+*identical to the control to every printed digit*, because ADR-0033's redundancy outvotes the drift
+before it reaches the estimator. `E-143`'s 1.03× separation is now exactly
+**1.00×**: the refutation got stronger and its number needs updating.
+
+**2 · The `lateral_noise` finding was diagnosed, and it refuted my own
+explanation.** I had guessed at a latched steering correction. The trace shows the
+steering axis moving by 4 milliradians while the rate limiter substitutes
+**throttle 0, brake 1.0** — the lateral bound is being satisfied *longitudinally*,
+by braking. And the vehicle **never leaves the corridor**: it peaks at 1.7179 m
+against a 1.75 m bound, 3.2 cm inside, on zero ticks out. My earlier phrasing —
+*"the vetoes put the vehicle off the lane"* — was wrong and is corrected in §15,
+§22 and §28.
+
+**3 · The soak now runs at full length.** 100,000 ticks, all ten criteria pass,
+verdict **STABLE**: lane deviation 0.0285 → 0.0287 m, resident set **+0.1 MiB**,
+`PROPOSED` on 99,958 ticks, fail-safe never leaving `NOMINAL`. Its per-tick p99 is
+**8.599 → 7.757 ms** against the 10 ms budget — much closer to the 7.289 ms this
+pass measured over contiguous runs than the 20,000-tick soak's 3.87 ms, which
+corroborates the tail concern rather than softening it.
+
 ### What is still not verified
 
 Stated so this record cannot itself become the thing it warns about:
 
 - `flake_hunt` — long-running, not executed.
-- `soak` was run at **20,000 ticks, not 100,000**. All ten criteria passed and the
-  verdict was **STABLE**: lane deviation 0.0295 → 0.0277 m, veto rate 0.04% →
-  0.03%, resident set **+0.0 MiB**, per-tick p99 3.873 → 3.865 ms, fail-safe never
-  leaving `NOMINAL`, `PROPOSED` on 19,990 of 20,000 ticks and `RATE_LIMITED` on 10.
-  The 100,000-tick claims in §15 are **not** re-verified at that length.
-  *Note the p99 there — 3.87 ms — against the 2.768–10.460 ms this pass measured
-  over contiguous 2,000-tick runs. The soak takes a p99 per window and reports the
-  half-means; its own range column spans 4.48 ms. The two are different statistics
-  and neither is wrong.*
 - `detectors` has no `main`; it is a library, and its output is the shadow-detector
   table inside `fault_study`, which was run. That table confirms the innovation
   detector is **silent on every scenario** and that `trust` raises a **false alarm

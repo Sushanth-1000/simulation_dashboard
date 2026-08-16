@@ -21,7 +21,7 @@ the wrong row.
 | | Count |
 |---|---|
 | Test files | **83** — 69 unit, 7 integration, 4 architecture, 3 property |
-| Tests | **3,042** |
+| Tests | **3,047** |
 | Strict `xfail` | **3** |
 | Type checking | `mypy --strict` over **167** files, 0 issues (re-run 16 Aug) |
 | Import contracts | **12**, 0 broken |
@@ -113,7 +113,7 @@ the improvement land silently.
 | Recovery bounded at 91 ticks | Derived from the counter's ceiling |
 | FB2 would fall 40% in an unchanging context | `E-39` |
 | FB3's veto rate converges to ε exactly | `E-40` |
-| Five drift detectors are silent | `E-53`, `E-94`, `E-105`, `E-106`, `E-143` |
+| Five drift detectors are silent | `E-53`, `E-94`, `E-105`, `E-106`, `E-143` — detectors 1, 2 and 5 re-run 16 Aug and still silent; 5 is now *exactly* silent, at 1.00× |
 | Two of three gates never object | `E-162` |
 | Live scores do not overlap the corpus | `E-159` |
 
@@ -122,7 +122,7 @@ the improvement land silently.
 | | Assumption | Status |
 |---|---|---|
 | A-1 | Domain independence via ports | **Partly measured FALSE** — OD-11 |
-| A-2 | 10 ms at 20 Hz in CPython | **Never measured** |
+| A-2 | 10 ms at 20 Hz in CPython | **Measured 16 Aug** — full tick p50 2.2 ms, p99 2.8–10.5 ms across five runs, max 46.9 ms. Met at the median, violated in the tail |
 | A-3 | JSONL is adequate evidence | Not stress-tested at scale |
 | A-8 | CARLA resolvable without core change | **Untested — the CARLA work is the test** |
 
@@ -133,7 +133,9 @@ the improvement land silently.
 - **The gates' efficacy** — five of ten rows are `[NOT DONE]`
 - **The train/serve skew** — the proposer trains on truth, runs on an estimate
   (`E-155`). **[OPEN]**
-- **Timing under load.** No end-to-end latency measurement exists
+- **Timing under load.** The tick is measured; what is *not* measured is the
+  cause of the tail, and there is **no deadline monitor** — a late tick is
+  recorded identically to a punctual one
 
 ---
 
@@ -240,7 +242,7 @@ claim in one before believing it.
 
 **Misconception to avoid**
 
-> *"3,042 tests and 97.47% coverage means it is well tested."*
+> *"3,047 tests and 97.47% coverage means it is well tested."*
 >
 > The project's own evidence contradicts that reading. A green suite of that size
 > coexisted with a vehicle **2,883 m off its lane**, a speed cap applied to no

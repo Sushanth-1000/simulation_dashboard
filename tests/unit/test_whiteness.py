@@ -31,8 +31,12 @@ import random
 import pytest
 
 from benchmarks.whiteness import (
+    _MINIMUM_LIVE_TICKS,
+    ArmReading,
+    Whiteness,
     _longest_run,
     _majority_fraction,
+    _row_is_live,
     _standard_deviation,
     cusum,
 )
@@ -179,3 +183,70 @@ def test_the_standard_deviation_is_the_sample_estimate() -> None:
     assert _standard_deviation([2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]) == pytest.approx(
         2.13809, abs=1e-4
     )
+
+
+# --------------------------------------------------------------------------- #
+# Liveness: which ticks may be measured at all
+# --------------------------------------------------------------------------- #
+# These exist because the *first* version of this guard was wrong, and wrong in
+# the direction that produces silence rather than a bad number: it read the
+# run's final speed, so an arm whose fail-safe correctly brought the vehicle to
+# rest was refused as though the policy had never driven. The benchmark produced
+# nothing at all until 16 August 2026 and no test would have noticed.
+
+
+def test_a_tick_is_live_only_when_a_command_moved_the_vehicle() -> None:
+    assert _row_is_live(was_issued=True, speed_mps=12.0)
+
+
+def test_a_vetoed_tick_is_not_live_however_fast_the_vehicle_is() -> None:
+    # E-107's mechanism is the proposer closing the loop on a corrupted
+    # estimate. A command that reaches no actuator cannot do that, and coasting
+    # is not the loop being closed.
+    assert not _row_is_live(was_issued=False, speed_mps=12.0)
+
+
+def test_a_stationary_tick_is_not_live_however_the_command_was_issued() -> None:
+    # The 7.35x retraction in one line: a stopped vehicle has no lateral
+    # dynamics for the estimate to be wrong about, so its residual keeps a bias
+    # that a moving vehicle would absorb.
+    assert not _row_is_live(was_issued=True, speed_mps=0.0)
+
+
+def test_liveness_is_per_tick_so_a_correct_safety_stop_keeps_its_earlier_ticks() -> None:
+    """The defect this guard was narrowed to fix, stated as a property.
+
+    Under an IMU dropout the fail-safe brings the vehicle to rest part way
+    through the window. Those ticks are dead and the ones before the stop are
+    not. A rule that read the *run's* final speed threw away both.
+    """
+    moving_then_stopped = [(True, 12.0)] * 41 + [(True, 0.0)] * 159
+
+    live = [
+        _row_is_live(was_issued=issued, speed_mps=speed) for issued, speed in moving_then_stopped
+    ]
+
+    assert sum(live) == 41, "the ticks before the stop are measurable"
+    assert live[0], "the vehicle was driving when the window opened"
+    assert not live[-1], "and stopped before it closed"
+
+
+def test_an_arm_below_the_floor_is_thin_rather_than_quoted() -> None:
+    def arm(live: int) -> ArmReading:
+        return ArmReading(
+            arm="imu_dropout",
+            components=(
+                Whiteness(
+                    component="position_y",
+                    mean_sigmas=0.0,
+                    peak_cusum=0.0,
+                    detected_at=None,
+                    longest_run=0,
+                    majority_sign_fraction=0.0,
+                ),
+            ),
+            live_samples=live,
+        )
+
+    assert arm(_MINIMUM_LIVE_TICKS - 1).thin
+    assert not arm(_MINIMUM_LIVE_TICKS).thin

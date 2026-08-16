@@ -123,6 +123,15 @@ detection out of arithmetic."""
 _STATIONARY_MPS: Final = 1e-6
 """At or below this the vehicle did not move and the loop is not closed."""
 
+_MINIMUM_LIVE_TICKS: Final = 30
+"""Below this an arm's statistics are reported as thin rather than quoted.
+
+Same shape as ``exchangeability._MINIMUM_LIVE_SAMPLES`` and for the same reason
+(E-161): a figure computed from a handful of samples is not a weaker measurement,
+it is a different kind of thing, and printing it in the same column as a figure
+from two hundred invites exactly one reading.
+"""
+
 CUSUM_THRESHOLD: Final = 5.0
 """Alarm threshold ``h``, in standard deviations. Chosen before any faulted arm
 was run, and the control arm is reported against it so a reader can see whether
@@ -155,11 +164,43 @@ class Whiteness:
 
 
 @dataclass(frozen=True, slots=True)
+class _Row:
+    """One tick's signed residual, and whether the loop was closed on that tick.
+
+    Attributes:
+        residual: The signed measurement residual, one element per observed
+            dimension.
+        live: Whether a command reached the actuators *and* the vehicle was
+            moving. E-107's mechanism is the proposer closing the loop on a
+            corrupted estimate; a tick without both of these is a tick where
+            that mechanism is not operating, and its residual is not comparable
+            with one where it is.
+    """
+
+    residual: tuple[float, ...]
+    live: bool
+
+
+@dataclass(frozen=True, slots=True)
 class ArmReading:
-    """One fault arm's whiteness across every component."""
+    """One fault arm's whiteness across every component.
+
+    Attributes:
+        arm: The scenario name, or ``control``.
+        components: One entry per measured dimension.
+        live_samples: How many ticks in the window had a closed loop. Reported
+            rather than assumed, so an arm whose fail-safe stopped the vehicle
+            part way through is visible as such instead of being averaged in.
+    """
 
     arm: str
     components: tuple[Whiteness, ...]
+    live_samples: int = 0
+
+    @property
+    def thin(self) -> bool:
+        """Whether this arm has too few live ticks to quote."""
+        return self.live_samples < _MINIMUM_LIVE_TICKS
 
 
 def cusum(samples: Sequence[float], *, slack: float, threshold: float) -> tuple[float, int | None]:
@@ -227,6 +268,25 @@ def _standard_deviation(samples: Sequence[float]) -> float:
     return math.sqrt(variance) if variance > _DEGENERATE_VARIANCE else 1.0
 
 
+def _row_is_live(*, was_issued: bool, speed_mps: float) -> bool:
+    """Return whether the closed loop was actually closed on this tick.
+
+    Both halves are required and neither is sufficient. A command that reaches
+    no actuator cannot move the vehicle toward the corrupted estimate, and a
+    stationary vehicle produces no lateral dynamics for the estimate to be wrong
+    about -- which is precisely the configuration that produced the 7.35x
+    retraction (E-143).
+
+    Args:
+        was_issued: Whether a command reached the actuation sink this tick.
+        speed_mps: The plant's speed at this tick.
+
+    Returns:
+        ``True`` if E-107's mechanism was operating on this tick.
+    """
+    return was_issued and speed_mps > _STATIONARY_MPS
+
+
 class StationaryVehicleError(RuntimeError):
     """Raised when the arm under measurement never drove.
 
@@ -247,6 +307,28 @@ class StationaryVehicleError(RuntimeError):
     A benchmark measuring a closed-loop property must refuse to run when the
     loop is open. Detecting it costs two comparisons and it was the difference
     between a finding and a retraction.
+
+    **Narrowed 16 August 2026, because the first version of this guard was
+    itself wrong.** It tested ``final_speed_mps``, which asks *"is the vehicle
+    moving at the end?"* rather than *"was the loop ever closed?"* Those were the
+    same question in August. They stopped being the same question when ADR-0024
+    and ADR-0030 gave the fail-safe a response that brings the vehicle to rest
+    under a dark sensor: from then on the ``imu_dropout`` arm ended at exactly
+    0.0000 m/s **because the safety mechanism worked**, and this guard refused
+    it. `benchmarks.whiteness` produced nothing at all for a day, and nobody
+    noticed, because nobody re-ran it.
+
+    The guard now counts the ticks on which the loop actually *was* closed --
+    the vehicle moving and a command reaching the actuators -- and raises only
+    when that count is zero. An arm with some live ticks but fewer than
+    :data:`_MINIMUM_LIVE_TICKS` is reported as thin instead of being quoted or
+    refused.
+
+    **The transferable part:** a guard is a claim about what a valid
+    configuration looks like, and claims go stale exactly like numbers do. This
+    project pins its audit schema with a test and asserts each invariant's
+    enforcement kind with a test; the guards written after its three retractions
+    were asserted by nothing that would notice them becoming wrong.
     """
 
 
@@ -256,13 +338,20 @@ def _residuals(
     ticks: int,
     seed: int,
     policy: LearnedPolicy | None,
-) -> list[tuple[float, ...]]:
+) -> list[_Row]:
     """Drive one arm and collect the signed innovation residual per tick.
 
     Reaches the estimator directly. The residual is computed on every corrected
     update and consumed by nothing -- only its norm reaches the gates and the
     archive -- so there is no wired path to read it from, and inventing one
     before the detector has earned its place would be backwards.
+
+    Each row records whether the loop was **closed on that tick** -- the vehicle
+    moving and a command reaching the actuators. That is the condition E-107's
+    mechanism needs, and it is per-tick rather than per-run: an arm whose
+    fail-safe correctly brings the vehicle to rest part way through is live for
+    the ticks before the stop and dead for the ticks after, and only the first
+    group can be measured.
 
     Args:
         fault: The injector for this arm, or ``None`` for the control.
@@ -271,16 +360,26 @@ def _residuals(
         policy: The trained proposer, or ``None`` for the placeholder.
 
     Returns:
-        One signed residual vector per tick that produced a corrected update.
+        One row per tick that produced a corrected update.
+
+    Raises:
+        StationaryVehicleError: If the loop was never closed on any tick.
     """
-    collected: list[tuple[float, ...]] = []
+    collected: list[_Row] = []
     holder: dict[str, Any] = {}
 
-    def capture(_sample: object) -> None:
+    def capture(sample: Any) -> None:  # noqa: ANN401
         estimator = holder["estimator"]
         innovation = estimator.latest_innovation()
         if innovation is not None:
-            collected.append(tuple(innovation.residual))
+            collected.append(
+                _Row(
+                    residual=tuple(innovation.residual),
+                    live=_row_is_live(
+                        was_issued=bool(sample.was_issued), speed_mps=float(sample.speed_mps)
+                    ),
+                )
+            )
 
     def remember(assembled: Any) -> None:  # noqa: ANN401
         holder["estimator"] = assembled.pipeline._estimator  # noqa: SLF001
@@ -293,13 +392,14 @@ def _residuals(
         observer=capture,
         on_assembled=remember,
     )
-    if result.vetoed >= result.ticks or result.final_speed_mps <= _STATIONARY_MPS:
+    if not any(row.live for row in collected):
         message = (
-            f"the vehicle never drove: {result.vetoed}/{result.ticks} ticks vetoed, "
-            f"final speed {result.final_speed_mps:.4f} m/s. This benchmark measures a "
-            "CLOSED-loop property and the loop is open, so any separation it reported "
-            "would be an artefact -- see StationaryVehicleError and E-143. Check the "
-            "--policy path names a checkpoint that actually drives."
+            f"the loop was never closed: {result.vetoed}/{result.ticks} ticks vetoed, "
+            f"final speed {result.final_speed_mps:.4f} m/s, and not one tick both "
+            "issued a command and moved the vehicle. This benchmark measures a "
+            "CLOSED-loop property, so any separation it reported would be an artefact "
+            "-- see StationaryVehicleError and E-143. Check the --policy path names a "
+            "checkpoint that actually drives."
         )
         raise StationaryVehicleError(message)
     return collected
@@ -325,14 +425,16 @@ def evaluate(
         The control reading first, then one per scenario.
     """
     control = _residuals(fault=None, ticks=ticks, seed=seed, policy=policy)
-    windowed = control[open_at:]
+    # Only ticks with a closed loop are comparable, and the control's scale must
+    # come from the same population the faulted arms are measured against.
+    windowed = [row.residual for row in control[open_at:] if row.live]
     scales = [
         _standard_deviation([row[index] for row in windowed if index < len(row)])
         for index in range(len(COMPONENTS))
     ]
 
-    def reading(name: str, rows: list[tuple[float, ...]]) -> ArmReading:
-        window = rows[open_at:]
+    def reading(name: str, rows: list[_Row]) -> ArmReading:
+        window = [row.residual for row in rows[open_at:] if row.live]
         stats: list[Whiteness] = []
         for index, component in enumerate(COMPONENTS):
             samples = [row[index] / scales[index] for row in window if index < len(row)]
@@ -347,7 +449,7 @@ def evaluate(
                     majority_sign_fraction=_majority_fraction(samples),
                 )
             )
-        return ArmReading(arm=name, components=tuple(stats))
+        return ArmReading(arm=name, components=tuple(stats), live_samples=len(window))
 
     readings = [reading("control", control)]
     for scenario in SCENARIOS:
@@ -393,8 +495,23 @@ def render(readings: Sequence[ArmReading]) -> list[str]:
                 f"{component.peak_cusum:>8.2f}  {alarm:<9}{component.longest_run:<7}"
                 f"{component.majority_sign_fraction:.2f}"
             )
+        suffix = "  <-- TOO FEW TO QUOTE" if entry.thin else ""
+        lines.append(f"{'':<17}n = {entry.live_samples} live ticks{suffix}")
         lines.append("")
     lines.append("-" * 88)
+    thin = [entry.arm for entry in readings if entry.thin]
+    if thin:
+        lines.extend(
+            [
+                "",
+                f"  Thin arms, reported and not quoted: {', '.join(thin)}.",
+                "  A tick counts as live only if a command reached the actuators and the",
+                "  vehicle was moving. An arm whose fail-safe correctly stopped the",
+                "  vehicle part way through is live before the stop and dead after it,",
+                f"  and below {_MINIMUM_LIVE_TICKS} live ticks the statistics are not a weaker",
+                "  measurement -- they are a different kind of thing (E-161).",
+            ]
+        )
 
     # The verdict text below is deliberately blunt in both directions. An
     # earlier version of this benchmark printed a falsification banner off a
@@ -471,10 +588,14 @@ def sweep(*, ticks: int, open_at: int, seed: int, policy: LearnedPolicy | None) 
         for scenario in SCENARIOS
         if scenario.name in {"position_drift", "position_bias"}
     }
-    scale = _standard_deviation([row[position] for row in control[open_at:]])
+    # Live ticks only, for the same reason `evaluate` uses them: a tick where no
+    # command reached an actuator, or the vehicle was not moving, is not a tick
+    # on which E-107's mechanism was operating.
+    live = [row.residual[position] for row in control[open_at:] if row.live]
+    scale = _standard_deviation(live)
 
-    def series(rows: Sequence[tuple[float, ...]], start: int) -> list[float]:
-        return [row[position] / scale for row in rows[start:]]
+    def series(rows: Sequence[_Row], start: int) -> list[float]:
+        return [row.residual[position] / scale for row in rows[start:] if row.live]
 
     lines = [
         "",

@@ -91,8 +91,16 @@ Every quantity on the record is computed from the same measurement. A lie slower
 than the sensor noise is, from inside a single chain, **indistinguishable from
 truth**.
 
-**Partly fixed** by redundancy — a *bias* is now outvoted (`E-153`). A slow
-**drift** remains hard, because a drift stays close to the median for a long time.
+**Partly fixed** by redundancy — a *bias* is now outvoted (`E-153`, verified
+16 August: peak estimator error **1.1805 m → 0.1323 m**). A slow **drift** remains
+hard, because a drift stays close to the median for a long time.
+
+**And the fifth detector was re-run on 16 August with a harder result than
+recorded.** The whiteness CUSUM does not separate the drift **at all** — the
+faulted arm matches the control to every printed digit, where `E-143` had measured 1.03×.
+Redundancy now stops the drift reaching the estimator, so there is no innovation
+signature left to find. The refutation is stronger and the limitation is
+unchanged: nothing sees the drift.
 
 ### L6 · The twin has no uncertainty
 
@@ -140,22 +148,43 @@ breaks it.
 **zero on all seven scenarios**, while disarming L6 or L7a changes **not one cell**
 of the ablation table.
 
-**And the consequence is worse than concentration.** On `lateral_noise`:
+**And the consequence is worse than concentration.** On `lateral_noise`, traced
+tick by tick on 16 August:
 
-| | vetoes | final \|dev\| |
-|---|---|---|
-| governed | 126 | **1.307 m** |
-| L7b disarmed | 0 | **0.138 m** |
+| | vetoes | final m/s | final \|dev\| | **peak \|dev\|** | ticks outside ±1.75 m |
+|---|---|---|---|---|---|
+| governed | 125 | 4.214 | 1.3073 m | **1.7179 m** | **0** |
+| L7b disarmed | 0 | 6.870 | 0.1384 m | 0.5854 m | 0 |
 
-**The gate's own vetoes are what put the vehicle 1.3 m off the lane.** Against
-raw, ungoverned Core-A on the same fault — 0.148 m — the governed vehicle is
-**8.8× worse**.
+**The governed vehicle peaked 3.2 cm inside its own corridor bound.** Ungoverned
+Core-A on the same fault ends at 0.148 m. **Neither arm ever left the lane** — the
+harm is a near-miss and a slower vehicle, not a departure.
 
-**[INTERPRETATION]** This is the most uncomfortable measurement in the folder. The
-likely mechanism is ADR-0017's rate limiter: a noisy lateral channel produces
-repeated jerk vetoes, each yielding the largest admissible step instead of the
-demanded one, so the correction never completes — the OD-17 latch shape, on a
-fault it was never tested against. **[OPEN]**, undiagnosed, and it belongs in the
+**The mechanism, measured rather than guessed.** L7b vetoes
+`LATERAL_JERK_EXCEEDS_LIMIT` on **125 of 200** post-fault ticks. ADR-0017's rate
+limiter then substitutes the largest admissible command — and the projector
+realises that as **throttle 0, brake 1.0**:
+
+```
+tick 351   proposed  (throttle 0.6147, brake 0.2084, steer 0.0094)
+           issued    (throttle 0.0000, brake 1.0000, steer 0.0137)
+```
+
+**The steering axis is barely touched.** The jerk bound is being satisfied by
+*slowing down*, which is geometrically reasonable — lateral jerk falls with speed
+— and the side effect is that the vehicle spends the whole burst decelerating
+from 12.2 to 4.2 m/s while its deviation grows.
+
+**[INTERPRETATION]** Not a latch, and not a clipped correction. It is a
+**bound satisfied through the wrong axis**: a lateral constraint discharged
+longitudinally. The vehicle obeys every rule it was given and ends up slower and
+closer to the lane edge than if the gate had been switched off. **[OPEN]** — this
+belongs in the register, and the design question is whether the projector should
+prefer the lateral axis when a lateral bound is the one being violated.
+
+*An earlier draft of this entry said the vetoes "put the vehicle 1.3 m off the
+lane" and blamed a latched steering correction. Both were wrong: the vehicle
+stayed inside the corridor on every tick, and the steering was never clipped.*, undiagnosed, and it belongs in the
 register rather than in a limitations list.
 
 ### L10 · The process model cannot represent a platform that turns on the spot

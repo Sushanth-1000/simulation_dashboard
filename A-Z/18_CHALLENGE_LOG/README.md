@@ -268,7 +268,36 @@ closed*, not *whether the vehicle is moving at the end*.
 a claim about what a valid configuration looks like, and **claims go stale
 exactly like numbers do.** This project pins its schema version with a test and
 asserts each invariant's enforcement kind with a test — and its three retraction
-guards are asserted by nothing that would notice them becoming wrong.
+guards were asserted by nothing that would notice them becoming wrong.
+
+### Fixed the same day
+
+The guard now asks the question it always meant to ask. It counts the ticks on
+which **the loop was actually closed** — a command reached the actuators *and*
+the vehicle was moving — and raises only when that count is zero. An arm with
+some live ticks but fewer than 30 is **reported as thin** rather than quoted or
+refused, which is `E-161`'s shape applied to a second benchmark.
+
+**Five tests now assert the rule**, including the one that would have caught this:
+*liveness is per tick, so a correct safety stop keeps its earlier ticks.*
+
+**Re-run, the benchmark produces a result again — and it is the same conclusion:**
+
+| arm | live ticks | lateral-acceleration CUSUM | alarm |
+|---|---|---|---|
+| control | 200 | 3.75 | — |
+| **`position_drift`** | **200** | **3.75** | **—** |
+| `imu_dropout` | **41** | 77.63 | +2 |
+| `lateral_noise` | 200 | 888.92 | +1 |
+
+**`position_drift` does not alarm. E-107 stands.** And the arm is now
+**identical to the control on every component, to every digit the report prints** — because ADR-0033's
+redundancy outvotes the drift before it reaches the estimator, so the separation
+`E-143` recorded as 1.03× is now exactly **1.00×**. The refutation got stronger,
+and `E-143`'s number needs updating rather than its conclusion.
+
+`imu_dropout` reports **41 live ticks** of 200 — the fail-safe stopping the
+vehicle, now visible in the table instead of killing the run.
 
 ---
 
