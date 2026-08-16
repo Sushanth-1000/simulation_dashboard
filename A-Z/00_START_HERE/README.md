@@ -83,9 +83,9 @@ overstated its own completeness would be a poor start.
 | 05 | CURRENT_ARCHITECTURE | **Written** |
 | 06 | COMPONENTS | **Written** |
 | 07 | DATA_FLOW | **Written** |
-| 08 | INTERNAL_MECHANICS | *Pass 4* |
-| 09 | ALGORITHMS | *Pass 4* |
-| 10 | MATHEMATICS | *Pass 4* |
+| 08 | INTERNAL_MECHANICS | **Written** |
+| 09 | ALGORITHMS | **Written** |
+| 10 | MATHEMATICS | **Written** |
 | 11 | UNCERTAINTY_AND_ERROR | *Pass 5* |
 | 12 | SAFETY_AND_RELIABILITY | *Pass 5* |
 | 13 | TESTING_AND_VALIDATION | *Pass 5* |
@@ -98,7 +98,7 @@ overstated its own completeness would be a poor start.
 | 20 | ALTERNATIVES | *Pass 7* |
 | 21 | BENEFITS | *Pass 7* |
 | 22 | LIMITATIONS | *Pass 7* |
-| 23 | RUNTIME_BEHAVIOR | *Pass 4* |
+| 23 | RUNTIME_BEHAVIOR | **Written** |
 | 24 | GLOSSARY | *Pass 8* |
 | 25 | FAQ | *Pass 8* |
 | 26 | INTERVIEW_QUESTIONS | *Pass 8* |
