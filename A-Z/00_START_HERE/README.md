@@ -80,9 +80,9 @@ overstated its own completeness would be a poor start.
 | 02 | PROJECT_HISTORY | **Written** |
 | 03 | TIMELINE | **Written** |
 | 04 | ARCHITECTURE_EVOLUTION | **Written** |
-| 05 | CURRENT_ARCHITECTURE | *Pass 3* |
-| 06 | COMPONENTS | *Pass 3* |
-| 07 | DATA_FLOW | *Pass 3* |
+| 05 | CURRENT_ARCHITECTURE | **Written** |
+| 06 | COMPONENTS | **Written** |
+| 07 | DATA_FLOW | **Written** |
 | 08 | INTERNAL_MECHANICS | *Pass 4* |
 | 09 | ALGORITHMS | *Pass 4* |
 | 10 | MATHEMATICS | *Pass 4* |
