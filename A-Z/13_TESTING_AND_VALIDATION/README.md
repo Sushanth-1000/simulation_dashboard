@@ -23,9 +23,9 @@ the wrong row.
 | Test files | **83** — 69 unit, 7 integration, 4 architecture, 3 property |
 | Tests | **3,042** |
 | Strict `xfail` | **3** |
-| Type checking | `mypy --strict` over **166** files |
+| Type checking | `mypy --strict` over **167** files, 0 issues (re-run 16 Aug) |
 | Import contracts | **12**, 0 broken |
-| Coverage | **97.6%**, plus an **80% per-file floor** |
+| Coverage | **97.47%** (re-run 16 Aug), plus an **80% per-file floor** |
 
 ### The gate
 
@@ -109,7 +109,7 @@ the improvement land silently.
 |---|---|
 | Lane-keeping to 0.0168 m over 400 ticks | `E-152` |
 | A 1 m bias in one channel never reaches the estimator | `E-153` |
-| IMU dropout: HALT at +40 vs departure at +73 | `E-87`, `E-88` |
+| IMU dropout: escalation to LIMP at +15, no departure, 0.062 m | re-measured 16 Aug — supersedes `E-87`/`E-88`'s *HALT at +40 vs departure at +73* |
 | Recovery bounded at 91 ticks | Derived from the counter's ceiling |
 | FB2 would fall 40% in an unchanging context | `E-39` |
 | FB3's veto rate converges to ε exactly | `E-40` |
@@ -240,7 +240,7 @@ claim in one before believing it.
 
 **Misconception to avoid**
 
-> *"3,042 tests and 97.6% coverage means it is well tested."*
+> *"3,042 tests and 97.47% coverage means it is well tested."*
 >
 > The project's own evidence contradicts that reading. A green suite of that size
 > coexisted with a vehicle **2,883 m off its lane**, a speed cap applied to no

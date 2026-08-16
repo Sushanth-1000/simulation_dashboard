@@ -57,7 +57,7 @@ did not take, and why* is rare and is what makes this log trustworthy.
 | **Problem** | OD-9: all three gates read L2's estimate; a sensor fault blinds them together, and **the proposer drives the corrupted value toward what the gates consider safe** |
 | **Options** | A fourth gate; a better detector; **a second counter reading a signal upstream of the estimator** |
 | **Why** | A fourth gate reads the same estimate and **adds nothing**. What was needed was not more judgement but **a different vantage point** |
-| **Evidence** | Dropout deviation **4.199 m → 0.167 m**, HALT at +40 against departure at +73 — **1.65 s of margin** |
+| **Evidence** | *11 Aug:* dropout deviation **4.199 m → 0.167 m**, HALT at +40 against departure at +73 — **1.65 s of margin**. *Re-measured 16 Aug:* **0.062 m**, escalation stops at **LIMP at +15** because ADR-0030's ceiling maps `DEGRADED → LIMP`, and no departure develops because ADR-0033 made redundancy the driven path |
 | **Gave up** | It catches a stream going *quiet*. **A fresh, well-formed, wrong stream stays HEALTHY for ever** — honest about closing one third of OD-9 |
 
 ---

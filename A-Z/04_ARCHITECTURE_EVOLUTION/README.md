@@ -170,9 +170,21 @@ sensors ─┴→ L2 estimate → L3, L4, L5, L6, L7a, L7b        │
           (freshness, computed before the filter)
 ```
 
-**Measured after:** dropout deviation **4.199 m → 0.167 m**, with DEGRADED at +5
-ticks, LIMP at +15, HALT at +40 — against a departure that begins at +73. **1.65
-seconds of margin.**
+**Measured after, 11 August (`E-87`, `E-88`):** dropout deviation **4.199 m →
+0.167 m**, with DEGRADED at +5 ticks, LIMP at +15, HALT at +40 — against a
+departure that begins at +73. **1.65 seconds of margin.**
+
+> **Re-measured 16 August 2026, and both halves have moved.** The deviation is now
+> **0.062 m**, because ADR-0033 made three-channel sensing the driven path and one
+> frozen channel is outvoted. And the escalation is **DEGRADED +5, LIMP +15,
+> HALT never** — the counter still reaches 40, but ADR-0030's health-level ceiling
+> maps a `DEGRADED` stream to a maximum posture of `LIMP`, so HALT is now
+> unreachable for this fault.
+>
+> **Neither ADR recorded that it had changed OD-9's headline number.** This is the
+> same shape as the archive's inability to say which filter produced a row (§22
+> L13): a code change moved a safety measurement, and nothing in the evidence
+> chain announced it.
 
 ### What it explicitly did *not* fix
 

@@ -98,15 +98,29 @@ governance system. It does not require success; it requires that failure be
 
 ## 29.2 · Should have been done already
 
-### Measure latency
+### Watch the timing tail — not measure it, *watch* it
 
-A-2 has been an **assumption** for the entire project: 10 ms per tick at 20 Hz in
-CPython. No end-to-end figure appears in the evidence pack.
+**Corrected 16 August 2026.** An earlier draft of this section said latency was
+unmeasured and should have been done first. That was wrong on both counts:
+`benchmarks/latency.py` has existed since 5 August (`E-10`), the soak recorded a
+full-pipeline p99 of **9.32 ms** on the same day (`E-8`), and re-measuring today
+gives:
 
-**Why it should have come first.** A timing budget you never measure is a claim you
-discover is false at the worst possible moment — and CARLA adds a simulator round
-trip to every tick, so the first real measurement will be taken under the worst
-conditions the project has yet run.
+| | p50 | p95 | p99 | max |
+|---|---|---|---|---|
+| Four-layer hot path | 0.160 | 0.232 | **0.442** | 0.984 |
+| **Full assembled tick** | 2.214 | 6.018 | **7.289** | **57.063** |
+
+*(milliseconds, 2,000 samples after 200 warm-up ticks, against A-2's 10 ms budget)*
+
+**The open item is the last cell.** One tick in 2,000 overran the budget by 5.7×.
+There is **no deadline monitor**: a late tick is written to the record identically
+to a punctual one, so an overrun in the field would be invisible in exactly the
+evidence log that exists to make behaviour reconstructible.
+
+**Why it matters now rather than later.** CARLA adds a simulator round trip to
+every tick, and the figure it will add to is a p99 already at 73% of budget with a
+tail that has been seen to reach 570% of it.
 
 **Cheap.** This is instrumentation, not research.
 
@@ -183,8 +197,12 @@ precisely what fault injection cannot manufacture.
    retraction this project has made came from a measurement taken in a
    configuration where it was meaningless, and both guards are that lesson applied
    in advance rather than after the third one.
-3. **Latency.** The cheapest open question in the project, and the only assumption
-   still unmeasured after nine months.
+3. **A deadline monitor.** Latency turned out to be *measured*, not open — the
+   full tick runs at p50 2.214 ms and p99 7.289 ms against a 10 ms budget. What is
+   missing is the thing that notices the **57 ms outlier**: one tick in 2,000
+   overran by 5.7×, and nothing in the record distinguishes a late tick from a
+   punctual one. Adding a simulator round trip in CARLA makes this worse, not
+   better.
 
 **Note what is not on that list: the adapter.** It is the biggest item and it is
 not the most important — because a CARLA result generated without the guards is a

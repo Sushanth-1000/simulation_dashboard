@@ -173,7 +173,7 @@ not wiring them.
 
 ## 23.6 · Escalation timing — worked
 
-**[FACT** — `E-87`, `E-88`.**]** IMU dropout, thresholds 5 / 15 / 40:
+**[FACT** — `E-87`, `E-88`, 11 August 2026.**]** IMU dropout, thresholds 5 / 15 / 40:
 
 ```
 tick +0    fault opens; stream goes ABSENT
@@ -184,6 +184,35 @@ tick +73   the vehicle would have left its corridor
 ```
 
 **1.65 seconds of margin.** Deviation **4.199 m → 0.167 m**.
+
+**[FACT** — re-measured 16 August 2026, `python -m benchmarks.fault_study`.**]**
+The same fault, on the system as it stands today:
+
+```
+tick +0    fault opens; IMU stream goes DEGRADED
+tick +5    integrity counter = 5   → DEGRADED
+tick +15   integrity counter = 15  → LIMP       (deepest posture reached)
+tick +40   integrity counter = 40  → LIMP       (ceiling holds it)
+           ... the vehicle never leaves the corridor at all
+```
+
+Final deviation **0.062 m**; 195 of 400 ticks outside NOMINAL; peak counter **40**.
+
+**Two changes, both from ADRs landed on 15 August, neither of which recorded that
+it had moved this number.**
+
+- **ADR-0033** made three-channel sensing the *driven* path, so one frozen channel
+  is outvoted and the departure never develops.
+- **ADR-0030**'s health-level ceiling maps `DEGRADED → LIMP`. The counter still
+  reaches its HALT threshold; the ceiling refuses the escalation. **HALT is now
+  unreachable for this fault.**
+
+**[INTERPRETATION]** Read the second change carefully before calling it an
+improvement. The vehicle is safer *because of redundancy*, and separately the
+fail-safe's deepest response to a dark IMU has been **capped one posture short of
+where it used to go**. That is defensible — a stream that is stale is not a stream
+that is gone — but it is a weakening of the response, and it arrived as a side
+effect of a different decision.
 
 And recovery, from the other direction: the longest walk back to NOMINAL is **91
 consecutive clean ticks — 4.6 s**. Automatic *and* bounded.

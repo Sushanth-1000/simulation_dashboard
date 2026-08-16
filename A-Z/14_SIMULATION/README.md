@@ -88,7 +88,7 @@ the limitation is severe, *and* a project that leads with it is behaving well.
 |---|---|
 | **The machinery runs** | The pipeline completes 100,000 ticks and produces evidence |
 | **Structural properties** | `[M-code]` — true regardless of plant |
-| **A mechanism responds to a fault it was built for** | Dropout → HALT at +40 vs departure at +73 |
+| **A mechanism responds to a fault it was built for** | Dropout → escalation to LIMP at +15, counter to 40, no departure (re-measured 16 Aug) |
 | **A mechanism does *not* respond** | Five detectors silent on drift — a **refutation** is valid on synthetic data |
 | **Relative comparisons under identical conditions** | Single channel 0.8387 m vs redundant 0.0168 m, same seed, same fault |
 | **Implementation errors** | The corpus generator's own words: *"It can expose an implementation error"* |

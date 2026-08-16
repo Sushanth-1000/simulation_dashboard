@@ -40,8 +40,15 @@ same state, so they all read the same lie. The health map is computed from
 freshness before the filter touches anything, so it is the **only input that is
 not downstream of the common cause**.
 
-Measured: it cut a frozen-IMU departure from **4.199 m to 0.167 m**, and halted at
-tick +40 against a departure beginning at +73 — 1.65 s of margin.
+Measured on 11 August: it cut a frozen-IMU departure from **4.199 m to 0.167 m**,
+and halted at tick +40 against a departure beginning at +73 — 1.65 s of margin.
+
+**Have the re-measurement ready, because it is the better answer.** On 16 August
+the same fault gives **0.062 m**, and the escalation stops at **LIMP** — ADR-0030's
+health-level ceiling caps a `DEGRADED` stream one posture short of HALT. Two ADRs
+moved a headline safety number and neither said so. *That* is the interesting
+thing to volunteer, and it is a better demonstration of how the project works than
+the original figure was.
 
 **Its limit, and say it before you are asked:** it catches a stream going *quiet*.
 A stream publishing fresh, well-formed, **wrong** values stays `HEALTHY`.

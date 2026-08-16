@@ -109,6 +109,79 @@ overstated its own completeness would be a poor start.
 
 ---
 
+## Verification pass — 16 August 2026
+
+Every quantitative claim in passes 1–8 was **re-measured by running the code**,
+not confirmed by reading the document it came from. What follows is the record of
+that pass, including what it found wrong.
+
+### What was run
+
+| Command | Result |
+|---|---|
+| `make check` | **3,042 passed + 3 xfailed** in 80.15 s; `quality gate: PASSED` |
+| `make typecheck` | `Success: no issues found in **167** source files` |
+| `make contracts` | **12 kept, 0 broken** |
+| `make coverage-floor` | every file at or above 80%; aggregate **97.47%** |
+| `make artifacts-check` | *twin, corpus and policy present; the vehicle drives* |
+| `python -m benchmarks.gate_census` | STATISTICAL 2800/0/0 · PHYSICAL 2651/**149**/0 · DETERMINISTIC 2800/0/0 |
+| `python -m benchmarks.exchangeability` | `URBAN_CLEAR` **0.0% inside**; `DEGRADED_SENSOR` `n=1`, too few to judge |
+| `python -m benchmarks.degradation` | 5 modalities, all critical, all HALT at φ 40, capabilities withdrawn per modality |
+| `python -m benchmarks.fault_study` | see the corrections below |
+| `python -m benchmarks.redundancy` | shadow residual table; faulted channel separates at +41 / +28 ticks |
+| `python benchmarks/latency.py` | four-layer hot path p99 **0.442 ms** |
+| `pytest tests/integration/test_closed_loop_faults.py` | 10 passed |
+| `pytest tests/unit/test_l8_failsafe.py -k recovery_is_bounded` | passed — the 91-tick bound holds |
+| direct drive, `single_channel` on and off | clean **0.1034 → 0.0168 m**; 1 m bias **0.8387 → 0.0168 m** |
+| direct drive, `pipeline_duration_ns` | full tick p50 **2.214** · p99 **7.289** · max **57.063 ms** |
+
+### What reproduced exactly
+
+The gate census to the veto, the reason code and the abstention count. The
+exchangeability ranges to four decimals. **The strongest claim in this folder —
+that a 1 m bias in one of three channels leaves the final deviation at 0.0168 m,
+the clean run's figure to four decimals — reproduced exactly.** The recovery bound,
+the schema version, the counts of ADRs, invariants, assumptions, credibility rows
+and register rows, and the three structural guards (`artifacts-check` driving,
+`StationaryVehicleError`, the 30-sample floor) all held.
+
+### What did not, and was corrected
+
+| # | Was written | Measured | Where fixed |
+|---|---|---|---|
+| 1 | coverage 97.56%, mypy over 166 files | **97.47%**, **167 files** | 13, 25, 28 |
+| 2 | *"no end-to-end latency measurement exists"* | It exists and reproduces: full tick p99 **7.289 ms**, max **57.063 ms** | 19, 22, 25, 28, 29 |
+| 3 | OD-8 quoted at `HIGHWAY_CLEAR` 1.156 vs 1.158 | Superseded 15 Aug; today `URBAN_CLEAR` **3.3648–3.4083** vs **3.8758–5.4312** | 09, 28 |
+| 4 | dropout *"HALT at +40"* | **HALT never happens.** The counter reaches 40; ADR-0030's ceiling maps `DEGRADED → LIMP` | 04, 07, 13, 14, 17, 21, 23, 26, 28 |
+| 5 | dropout deviation 0.167 m | **0.062 m** — ADR-0033 made redundancy the driven path | as above |
+| 6 | `position_bias` 0.931 m, `position_drift` 2.025 m | Both now **0.017 m**, indistinguishable from the control | 28 |
+| 7 | `Verdict.merge`: *"empty ⇒ VETO"* | True, and incomplete — abstentions are stripped first, so **all-abstain ⇒ VETO** too | 24 |
+
+**The two findings worth carrying forward.**
+
+**A code change moved a headline safety number and nothing announced it.** ADR-0030
+and ADR-0033 between them changed OD-9's measured response — the deviation
+improved and the deepest posture got *shallower* — and neither ADR, nor the audit
+schema, nor the config hash records that the number moved. This is the same defect
+§22 records as L13, showing up a second time in a different place.
+
+**A defect in the source documents, not just this folder.** `E-152` cites
+`python -m benchmarks.redundancy` as the command that produces its 0.1034 →
+0.0168 m figures. It does not — that script prints the shadow residual table. The
+figures come from `drive_closed_loop(single_channel=...)`. The numbers are right;
+the reproduction command is wrong, which is exactly the failure `EVIDENCE.md`'s
+one-command-per-row convention exists to prevent.
+
+**[INTERPRETATION]** Passes 1–8 were written from the project's own documents,
+and those documents were accurate **on the day each row was written**. Six of the
+seven corrections above are staleness of that kind: measurements taken before
+15 August that two ADRs then superseded without saying so. That is not a
+documentation failure so much as the thing this folder's own §22 warns about —
+**the dangerous claims are the ones that keep looking reassuring after they stop
+being true.**
+
+---
+
 ## Where to start
 
 Read [`Executive_Overview.md`](Executive_Overview.md) next — fifteen minutes, and

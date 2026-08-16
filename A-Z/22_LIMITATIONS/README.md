@@ -164,14 +164,30 @@ classifier **refuses to guess** from a friction proxy it cannot see.
 
 ## Tier 3 — Engineering and operational limits
 
-### L12 · Timing is an assumption, not a measurement
+### L12 · The timing budget is met at the median and missed in the tail
 
-A-2 asserts 10 ms at 20 Hz is achievable in CPython. **[OPEN]** No end-to-end
-latency measurement appears in the evidence pack.
+**Corrected 16 August 2026.** An earlier draft of this section said timing was
+unmeasured. It is measured, twice over, and the honest limitation is sharper than
+the one it replaced.
+
+| Measurement | p50 | p99 | max |
+|---|---|---|---|
+| L1+L2+L7a+L8 in isolation (`benchmarks/latency.py`) | 0.160 ms | **0.442 ms** | 0.984 ms |
+| **The full assembled tick**, 2,000 samples | 2.214 ms | **7.289 ms** | **57.063 ms** |
+
+**The limitation is the last column.** One tick in 2,000 took **57 ms against a
+10 ms budget**. A 20 Hz control loop that overruns by 5.7× has missed its slot,
+and no mechanism in this system notices — there is no deadline monitor, and a
+late tick is indistinguishable from a punctual one in the record.
 
 **Why it exists.** The prototype targets legibility over performance — no NumPy in
 the kernel, a Python hot path, a loop instead of a matrix product for
-bit-comparability.
+bit-comparability — and CPython gives no timing guarantee at all. The p50 of
+2.2 ms is comfortable; the tail is where a soft-real-time language costs you.
+
+**[OPEN]** The outlier is not diagnosed, and there is no deadline monitor.
+Adding a simulator round trip in CARLA moves every one of these figures the wrong
+way.
 
 ### L13 · The archive cannot say which filter produced a row
 

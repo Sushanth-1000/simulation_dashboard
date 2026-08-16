@@ -49,8 +49,9 @@ vehicle in the simulation exists to give the governance something to govern.
   boundary that does not compile if violated, an error that becomes a refusal
   rather than a repair, an empty verdict set that merges to VETO.
 - What is **DEMONSTRATED** — measured, but on a plant this project wrote: a frozen
-  sensor's departure cut from 4.199 m to 0.167 m, a 1 m sensor bias that never
-  reaches the estimator.
+  sensor's departure cut from 4.199 m to **0.062 m** as re-measured on 16 August,
+  and a 1 m sensor bias that never reaches the estimator — 0.8387 m single-channel
+  against **0.0168 m** redundant, which is the clean run's figure to four decimals.
 - What is **NOT VALIDATED** — everything about external accuracy. `[M-ext]: 0 of
   30`.
 
@@ -205,17 +206,22 @@ platform assumption.
 
 ### Q25 · How fast is it?
 
-**Unknown.** A-2 *assumes* 10 ms per tick at 20 Hz is achievable in CPython. No
-end-to-end latency measurement appears in the evidence pack. The prototype
-deliberately favours legibility over speed — no NumPy in the kernel, and in one
-place a loop instead of a matrix product because bit-comparability mattered more.
+**Measured, and the answer has a tail.** Full assembled tick over 2,000 samples:
+**p50 2.214 ms, p99 7.289 ms, max 57.063 ms** against A-2's 10 ms budget at 20 Hz.
+The four-layer hot path in isolation is far cheaper — p99 **0.442 ms**.
+
+So it fits, 1,999 times in 2,000. The one that did not fit missed by 5.7×, and
+nothing in the system notices a late tick. The prototype deliberately favours
+legibility over speed — no NumPy in the kernel, and in one place a loop instead of
+a matrix product because bit-comparability mattered more.
 
 ### Q26 · How big is it?
 
 Thirty-four ADRs, ten separation invariants, ten assumptions, thirty claims in the
-credibility matrix, twenty-one register rows, and a suite of 3,042 tests plus 3
-strict xfails under mypy strict across 166 files at 97.6% coverage with a per-file
-floor.
+credibility matrix, twenty-one register rows, and a suite of **3,042 tests plus 3
+strict xfails** under `mypy --strict` across **167 files** at **97.47%** coverage
+with a per-file floor and **12 import contracts**. All counted by running the gate
+on 16 August, not read off a document.
 
 ### Q27 · What happens next?
 

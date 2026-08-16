@@ -148,7 +148,7 @@ PASS, VETO, or ABSTAIN (uncalibrated class) with a reason code.
 |---|---|
 | Corpus describes an **older system** | Closing FB1 drove the veto rate 59.8% → 99.8% with no policy change |
 | Corpus built from the **wrong source** | Threshold moved 1.18 → 2.43; the shipped value had been less than half what the system produced (`E-20`) |
-| **Nothing changed and it went stale anyway** | Live 1.156 vs corpus minimum 1.158 (`E-41`); re-measured 15 Aug as **zero overlap** (`E-159`) |
+| **Nothing changed and it went stale anyway** | Live 1.156 vs corpus minimum 1.158 (`E-41`, 6 Aug); re-measured 15 Aug as **zero overlap** (`E-159`) and confirmed again 16 Aug — `URBAN_CLEAR` live **3.3648–3.4083** against a corpus of **3.8758–5.4312**, 0.0% inside |
 | **Silent when wrong** | Scores below the threshold ⇒ **0 vetoes**, which looks healthy (`E-162`) |
 
 ### 11 · Alternatives

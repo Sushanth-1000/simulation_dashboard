@@ -69,8 +69,15 @@ proposer, the twin and all three gates.
 estimate. When that estimate is corrupted, everything computed from it agrees.
 This is the only input that does not.
 
-**Measured:** dropout deviation **4.199 m → 0.167 m**; HALT at +40 against a
-departure beginning at +73 — **1.65 s of margin**.
+**Measured, 11 August:** dropout deviation **4.199 m → 0.167 m**; HALT at +40
+against a departure beginning at +73 — **1.65 s of margin**.
+
+**Re-measured 16 August:** deviation **0.062 m**, and the escalation now stops at
+**LIMP at +15** — ADR-0030's ceiling maps a `DEGRADED` stream to a maximum posture
+of `LIMP`, so the counter reaches 40 without HALT. The benefit still holds and
+the mechanism is unchanged; **the response is one posture shallower than this
+section originally claimed**, and the improvement in deviation is now mostly
+redundancy's rather than the health map's.
 
 **How far it holds.** It catches a stream going **quiet**. A stream publishing
 fresh, well-formed, *wrong* values stays `HEALTHY` — one third of OD-9, and the

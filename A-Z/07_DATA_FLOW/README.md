@@ -277,11 +277,22 @@ failure) marks the stream `ABSENT`, the integrity counter climbs, and the postur
 escalates **with no gate involved at all**:
 
 ```
-DEGRADED at +5 ticks · LIMP at +15 · HALT at +40
+DEGRADED at +5 ticks · LIMP at +15 · HALT at +40      (11 Aug, E-87/E-88)
 departure begins at +73
 ```
 
 **1.65 seconds of margin**, and deviation **4.199 m → 0.167 m**.
+
+**Re-measured 16 August 2026**, the same fault on today's system:
+
+```
+DEGRADED at +5 ticks · LIMP at +15 · HALT never       (counter still reaches 40)
+no departure at all — final deviation 0.062 m
+```
+
+ADR-0030's health-level ceiling maps `DEGRADED → LIMP`, so the counter reaches its
+HALT threshold and the escalation is refused; ADR-0033's redundancy is why the
+departure no longer develops.
 
 **But note precisely what was fixed.** ADR-0024 catches the stream going *quiet*.
 A stream that keeps publishing fresh, well-formed, slowly-wrong values still

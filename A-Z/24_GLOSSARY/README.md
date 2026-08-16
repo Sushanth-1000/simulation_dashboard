@@ -57,12 +57,18 @@ could not evaluate a proposal look like a gate that approved it.
 
 ### Fail-closed fold
 
-The merge rule for verdicts. Any `VETO` wins; an **empty** set of verdicts merges
-to `VETO`.
+The merge rule for verdicts. Abstentions are **removed first**, then: any `VETO`
+wins, and an **empty** remainder merges to `VETO`. So `PASS` requires that at
+least one verdict participated and every participating verdict was `PASS`.
 
 *Why the empty case matters:* if no gate reported, something upstream failed.
 Treating silence as approval makes a crashed gate indistinguishable from an
 approving one.
+
+*And the consequence of stripping abstentions first, verified in the source:* an
+input consisting **only** of abstentions is indistinguishable from an empty one
+and also yields `VETO` — otherwise a gate could clear a command by declining to
+look at it.
 
 ### Posture
 

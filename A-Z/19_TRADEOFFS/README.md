@@ -17,9 +17,22 @@ twin forward pass, three gate evaluations, and a record written — every tick.
 **Why the cost exists:** you cannot judge a command without computing what it
 would do, and you cannot compute that without a model.
 
-**[OPEN]** The size of this cost is **unmeasured**. A-2 asserts 10 ms is
-achievable in CPython; it is an *assumption*, and no end-to-end latency figure
-appears in the evidence pack.
+**Measured, 16 August 2026** — and this corrects an earlier draft of this section
+that called the cost unmeasured. Over 2,000 assembled ticks after a 200-tick
+warm-up, against A-2's 10 ms budget:
+
+| p50 | p95 | p99 | max |
+|---|---|---|---|
+| **2.214 ms** | **6.018 ms** | **7.289 ms** | **57.063 ms** |
+
+**One tick in 2,000 went over budget**, at 57 ms — five and a half times the
+budget, on a run where the p99 sat at 27% headroom. That is the shape of a
+CPython pause, not of a slow layer, and it is the number that matters for a
+20 Hz control loop: the tail, not the median.
+
+**[OPEN]** What that outlier *is* — garbage collection, page fault, first-touch
+allocation — is not diagnosed, and a 10 ms budget with a 57 ms tail is not a
+budget that has been met. It is a budget that is met 99.95% of the time.
 
 ---
 

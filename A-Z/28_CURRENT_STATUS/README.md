@@ -12,10 +12,14 @@ deciding whether to trust it, so the uncomfortable numbers come first.
 | **`[M-ext]` claims** | **0 of 30** | Nothing measured against an external reference |
 | **Gates that ever veto** | **1 of 3** | Physical 149, statistical 0, deterministic 0 across 2,800 fault-suite ticks |
 | **Register** | **3 open** of 21 | 16 closed, 1 reclassified, 1 partly closed |
-| **Quality gate** | **green** | 3,042 tests + 3 strict xfail (`E-1`) |
+| **Quality gate** | **green** | 3,042 passed + 3 xfailed, re-run 16 Aug |
+
+**Everything in this section was re-measured on 16 August 2026** by running the
+gate and the benchmarks, not by reading a document. Where a re-run disagreed with
+a recorded figure, the measured value is given and the correction is named.
 
 **[INTERPRETATION]** Read together: the engineering discipline is in good shape
-and the **evidence base is not**. A green gate over 166 files says the code does
+and the **evidence base is not**. A green gate over 167 files says the code does
 what its tests say; it says nothing about whether the system works on a road.
 
 ---
@@ -52,9 +56,15 @@ what its tests say; it says nothing about whether the system works on a road.
 
 ### The quality gate, in detail
 
-**3,042 tests + 3 strict xfail** · `ruff` + `mypy --strict` over **166 files** ·
-**12 import contracts**, 0 broken · coverage **97.56%** with a **per-file floor at
-80%** (`E-1`, `E-133`).
+**Re-run 16 August 2026, not quoted from a document:**
+
+**3,042 passed + 3 xfailed** in 80.15 s · `ruff` clean · `mypy --strict`
+**Success: no issues found in 167 source files** · `lint-imports`
+**12 kept, 0 broken** · coverage **97.47%**, per-file floor **every file at or
+above 80%** · `quality gate: PASSED`.
+
+*Two figures corrected against `E-1` and `E-133`, which recorded 166 files and
+97.56% on 15 August.*
 
 The floor sits far below the aggregate deliberately: its job is to catch a module
 with *no* tests, not to chase branches. It exists because `astra explain` shipped
@@ -66,12 +76,24 @@ at 10.3% behind a green aggregate gate (`E-123`).
 
 ### OD-8 — the live loop is not exchangeable with its corpus · **the blocker**
 
-Live scores at **1.156**, below the corpus **minimum** of 1.158; the whole
-`HIGHWAY_CLEAR` distribution spans 1.158–1.189 over 1,000 samples. **Zero
-overlap.**
+**Re-measured 16 August 2026** — `python -m benchmarks.exchangeability`:
 
-Survived regeneration with the gap **widened**. The 0.089% veto rate is that
-mismatch, not evidence the gate discriminates.
+| context | corpus range | live range | inside |
+|---|---|---|---|
+| `URBAN_CLEAR` | 3.8758 – 5.4312 | 3.3648 – 3.4083 | **0.0%** |
+| `DEGRADED_SENSOR` | 0.0823 – 5.3990 | 3.2415 | `n=1` — too few to judge |
+
+**Zero overlap**, and the live median of 3.3787 sits **13% below the corpus
+minimum**. Survived the regeneration through both ADR-0032 and ADR-0033 with the
+gap widened.
+
+*An earlier draft of this section quoted `E-41`'s 6 August figures — live 1.156
+against a `HIGHWAY_CLEAR` corpus minimum of 1.158 — as though they were current.
+They were superseded by `E-159` on 15 August; the finding is the same and the
+numbers are not.*
+
+The thin `DEGRADED_SENSOR` row is the `E-161` guard working: one sample is
+reported as one sample rather than as `100% inside`.
 
 **Not fixable in-house** — the corpus and the loop are both things this project
 wrote.
@@ -89,10 +111,37 @@ Deferred by explicit decision.
 
 ### And one partly closed
 
-**OD-9** — the common-cause estimate. One third closed: the health map now bypasses
-L2 and cuts a frozen-IMU departure from 4.199 m to 0.167 m. The remaining two
-thirds — a stream publishing fresh, well-formed, **wrong** values — is what
-redundancy addresses for bias and does not address for slow drift.
+**OD-9** — the common-cause estimate. One third closed: the health map bypasses L2,
+and the frozen-IMU departure that was **4.199 m** when the defect was found
+(`E-46`, 9 August) fell to **0.167 m** once the integrity counter was wired
+(`E-88`, 11 August).
+
+**Re-measured 16 August 2026, and it has moved again** — `python -m
+benchmarks.fault_study`, on the redundant driven path ADR-0033 made the default:
+
+| scenario | final \|dev\| | max est err | vetoes | ticks not NOMINAL |
+|---|---|---|---|---|
+| control | 0.017 m | 0.132 m | 1 | 0 |
+| `imu_dropout` | **0.062 m** | 0.174 m | 18 | 195 |
+| `position_bias` | 0.017 m | 0.132 m | 1 | 0 |
+| `position_drift` | 0.017 m | 0.132 m | 1 | 0 |
+| `lateral_noise` | **1.307 m** | 0.167 m | **126** | 141 |
+
+**Three things in that table were not true a week ago.** The dropout now ends at
+0.062 m rather than 0.167 m, because three channels outvote one frozen one.
+`position_bias` and `position_drift` are now **indistinguishable from the
+control** — the faults that used to end 0.931 m and 2.025 m out are simply gone.
+And `lateral_noise` has become the worst arm, at 1.307 m with 126 vetoes.
+
+**And one recorded claim no longer reproduces.** The escalation table gives
+`imu_dropout` **DEGRADED +5, LIMP +15, HALT —, peak φ 40**. The counter *reaches*
+its HALT threshold; the machine does **not** enter HALT — ADR-0030's health-level
+ceiling maps a `DEGRADED` stream to a maximum posture of `LIMP`.
+
+`E-88`'s *"HALT at +40"* was correct when it was measured on 11 August. The
+ceiling landed on the 15th and **capped the response one posture shallower**, and
+nothing in the ADR, the audit schema or the config hash records that it had done
+so. Corrected here and in sections 04, 07, 13, 14, 17, 21, 23 and 26.
 
 ---
 
@@ -181,7 +230,8 @@ Distinguish **not yet** from **decided against**:
 | Per-gate override list in config | **Refused** — would turn *"which gate may be overruled"* into a value a deployment can edit |
 | Weighting modalities | **Refused** — nobody can defend *"the camera is worth 0.4 of an IMU"* |
 | Certification artefacts | Not yet. ISO 26262 work item |
-| Latency measurement | **Not yet, and it should have been done first** |
+| Latency measurement | **Done** — full tick p99 **7.289 ms** against a 10 ms budget, max **57.063 ms**, 1 tick in 2,000 over budget (16 Aug) |
+| A deadline monitor | **Not built.** Nothing distinguishes a late tick from a punctual one in the record |
 
 ---
 
