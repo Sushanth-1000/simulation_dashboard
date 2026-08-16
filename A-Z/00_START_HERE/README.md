@@ -111,6 +111,12 @@ overstated its own completeness would be a poor start.
 
 ## Verification pass — 16 August 2026
 
+**To repeat this yourself:** [`VERIFY_PROMPT.md`](VERIFY_PROMPT.md) is a
+self-contained prompt for a fresh session. It carries the environment quirks, the
+commands, the expected values, and the traps that have already cost time. Re-run
+it whenever the code changes or an ADR lands — two ADRs once moved a headline
+safety number with nothing announcing it, which is why it exists.
+
 Every quantitative claim in passes 1–8 was **re-measured by running the code**,
 not confirmed by reading the document it came from. What follows is the record of
 that pass, including what it found wrong.
