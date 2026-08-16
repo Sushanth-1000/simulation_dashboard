@@ -86,10 +86,10 @@ overstated its own completeness would be a poor start.
 | 08 | INTERNAL_MECHANICS | **Written** |
 | 09 | ALGORITHMS | **Written** |
 | 10 | MATHEMATICS | **Written** |
-| 11 | UNCERTAINTY_AND_ERROR | *Pass 5* |
-| 12 | SAFETY_AND_RELIABILITY | *Pass 5* |
-| 13 | TESTING_AND_VALIDATION | *Pass 5* |
-| 14 | SIMULATION | *Pass 5* |
+| 11 | UNCERTAINTY_AND_ERROR | **Written** |
+| 12 | SAFETY_AND_RELIABILITY | **Written** |
+| 13 | TESTING_AND_VALIDATION | **Written** |
+| 14 | SIMULATION | **Written** |
 | 15 | EXPERIMENTS | *Pass 6* |
 | 16 | FAILED_APPROACHES | *Pass 6* |
 | 17 | DECISION_LOG | *Pass 6* |
