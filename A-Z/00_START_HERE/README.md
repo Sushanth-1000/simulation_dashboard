@@ -120,6 +120,20 @@ commands, the expected values, and the traps that have already cost time. Re-run
 it whenever the code changes or an ADR lands — two ADRs once moved a headline
 safety number with nothing announcing it, which is why it exists.
 
+**That prompt proposes; it does not edit.** A verifying session writes its findings
+to a new `CORRECTIONS.md` — one entry per discrepancy, each classified `STALE` /
+`WRONG` / `UNREPRODUCIBLE` / `OVERSTATED`, with the quoted text, the command, and
+proposed replacement wording — and changes nothing else. Applying them is a
+second, reviewed step.
+
+**[INTERPRETATION]** That separation was added after this pass rather than before
+it, and the reason is what happened during it: the session that measured also did
+the rewriting, and **twice corrected a correction it had made an hour earlier** —
+once on the latency tail, once on the `lateral_noise` mechanism. Both were caught,
+but only because the same session happened to keep measuring. A session that
+measures and rewrites can talk itself into agreeing with the document, and leaves
+no artefact showing what disagreed.
+
 Every quantitative claim in passes 1–8 was **re-measured by running the code**,
 not confirmed by reading the document it came from. What follows is the record of
 that pass, including what it found wrong.

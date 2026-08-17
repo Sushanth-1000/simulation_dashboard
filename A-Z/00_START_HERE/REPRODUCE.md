@@ -310,4 +310,6 @@ reproduced.
 
 **Related:** [`VERIFY_PROMPT.md`](VERIFY_PROMPT.md) turns this list into a
 self-contained prompt for a fresh session, with the environment quirks and the
-traps that have already cost time.
+traps that have already cost time. That session writes its findings to
+`CORRECTIONS.md` and edits nothing — use this file when you want one number, and
+that one when you want the whole sweep audited.
