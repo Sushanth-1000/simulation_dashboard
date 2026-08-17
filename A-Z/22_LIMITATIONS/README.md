@@ -160,31 +160,45 @@ tick by tick on 16 August:
 Core-A on the same fault ends at 0.148 m. **Neither arm ever left the lane** — the
 harm is a near-miss and a slower vehicle, not a departure.
 
-**The mechanism, measured rather than guessed.** L7b vetoes
-`LATERAL_JERK_EXCEEDS_LIMIT` on **125 of 200** post-fault ticks. ADR-0017's rate
-limiter then substitutes the largest admissible command — and the projector
-realises that as **throttle 0, brake 1.0**:
+**What governs those ticks, measured per tick and per axis.** L7b vetoes
+`LATERAL_JERK_EXCEEDS_LIMIT` on **125 of 200** post-fault ticks. Maximum
+\|issued − proposed\| by issued-command origin:
+
+| origin | ticks | throttle | brake | steer |
+|---|--:|--:|--:|--:|
+| `RATE_LIMITED` | 122 | **0.000000** | **0.000000** | 0.011977 |
+| `PROPOSED` | 75 | 0.000000 | 0.000000 | 0.000000 |
+| `SPEED_CAPPED` | 3 | 0.614747 | 0.791599 | 0.004285 |
+
+**ADR-0017's rate limiter is a steering-axis limiter.** On all 122 ticks it
+governs it leaves throttle and brake **bit-identical to the proposal** and moves
+steering by at most **11.977 mrad**. The `throttle 0, brake 1.0` substitution
+belongs to the **speed cap**, which fires on exactly three ticks — 351, 352, 353:
 
 ```
-tick 351   proposed  (throttle 0.6147, brake 0.2084, steer 0.0094)
+tick 351   origin    SPEED_CAPPED
+           proposed  (throttle 0.6147, brake 0.2084, steer 0.0094)
            issued    (throttle 0.0000, brake 1.0000, steer 0.0137)
 ```
 
-**The steering axis is barely touched.** The jerk bound is being satisfied by
-*slowing down*, which is geometrically reasonable — lateral jerk falls with speed
-— and the side effect is that the vehicle spends the whole burst decelerating
-from 12.2 to 4.2 m/s while its deviation grows.
+**[OPEN] — and this is the third explanation of this arm, two of which measurement
+has refuted.** The first blamed a latched steering correction; the second said the
+lateral bound was being discharged longitudinally, by braking. **The limiter does
+not brake at all.** What remains established is the outcome — 1.7179 m peak, speed
+falling 12.1821 → 4.2137 m/s, inside the corridor throughout — and *what governs
+each tick*. **What causes the deviation is not established.** A steering axis
+clipped on 122 of 200 ticks is a candidate again, which is where the first
+hypothesis started; three hard speed-cap brakes are another; the policy's own
+response to a corrupted lateral signal is a third. None has been measured.
 
-**[INTERPRETATION]** Not a latch, and not a clipped correction. It is a
-**bound satisfied through the wrong axis**: a lateral constraint discharged
-longitudinally. The vehicle obeys every rule it was given and ends up slower and
-closer to the lane edge than if the gate had been switched off. **[OPEN]** — this
-belongs in the register, and the design question is whether the projector should
-prefer the lateral axis when a lateral bound is the one being violated.
+**The design question stands regardless** and belongs in the register: should a
+projector prefer the axis the violated bound lives on?
 
-*An earlier draft of this entry said the vetoes "put the vehicle 1.3 m off the
-lane" and blamed a latched steering correction. Both were wrong: the vehicle
-stayed inside the corridor on every tick, and the steering was never clipped.*, undiagnosed, and it belongs in the
+*Corrected 17 August 2026 by a verification pass that read `record.issued.origin`
+per tick. The earlier drafts of this entry quoted tick 351 **by name** as the rate
+limiter's work; it is one of the three speed-cap ticks. The error came from
+picking the largest command substitution in the run and assuming it belonged to
+the majority origin.*, undiagnosed, and it belongs in the
 register rather than in a limitations list.
 
 ### L10 · The process model cannot represent a platform that turns on the spot
@@ -220,22 +234,24 @@ the one it replaced.
 
 | Measurement | p50 | p99 | max |
 |---|---|---|---|
-| L1+L2+L7a+L8 in isolation (`benchmarks/latency.py`) | 0.160 ms | **0.442 ms** | 0.984 ms |
+| L1+L2+L7a+L8 in isolation (`benchmarks/latency.py`) | 0.144–0.170 ms | **0.207–0.245 ms** | 0.474–0.573 ms |
 | The full assembled tick, one run of 2,000 | 2.214 ms | 7.289 ms | 57.063 ms |
 
-**Then it was run five times, and the tail turned out to be unstable.**
+**Then it was run five times, and again ten times the next day.**
 
-| run | p50 | p95 | p99 | max | ticks over budget |
-|---|---|---|---|---|---|
-| 1 | 2.238 | 2.915 | 4.777 | **46.958** | 1 / 2000 |
-| 2 | 2.246 | 2.491 | 2.768 | 7.676 | 0 / 2000 |
-| 3 | 2.152 | 4.473 | 7.948 | **44.996** | 3 / 2000 |
-| 4 | 2.173 | 9.067 | **10.460** | **44.457** | **31 / 2000** |
-| 5 | 2.148 | 3.169 | 6.810 | 10.924 | 2 / 2000 |
+| | p50 | p99 | max | ticks over budget |
+|---|---|---|---|---|
+| 16 Aug, 5 runs | 2.148–2.246 | 2.768–**10.460** | 7.676–46.958 | **0–31** / 2000 |
+| 17 Aug, 10 runs | 2.006–2.392 | 3.322–6.225 | 3.682–55.302 | **0–2** / 2000 |
 
-**The median is solid and the tail is not.** p50 varies by 5%; p99 varies by
-**3.8×** and in run 4 exceeded the budget outright. Budget violations ranged from
-**0 to 31 ticks per 2,000**.
+**The median is solid and the tail is not — including between days.** p50 varies
+by under 20% across sixteen runs. p99 spans 2.768–10.460 ms, and the single run
+whose p99 exceeded the budget **has not recurred**. Budget violations ran 0–31 on
+one day and 0–2 on the next.
+
+**What reproduces is the maximum.** Both days produced individual ticks above
+44 ms — 46.958 and 55.302 — so **a tick taking twenty-five times the median is a
+repeatable event whose frequency is not.**
 
 **The limitation is that nothing notices.** There is **no deadline monitor** — a
 late tick is written to the record identically to a punctual one, so an overrun
@@ -255,10 +271,10 @@ Adding a simulator round trip in CARLA moves every one of these figures the wron
 way.
 
 **And every figure above was measured on an idle machine.** `flake_hunt` puts the
-same box under `stress-ng` with 32 workers and the full test suite goes from about
-**91 s to a median of 238.8 s — 2.6× slower**. Nothing here establishes what the
-tick tail does under contention, and a control loop shares its host with whatever
-else is running.
+same box under `stress-ng` with 32 workers and the full test suite slows by
+**2.6× on 16 August** (91 s → 238.8 s) and **3.5× on 17 August** (78.2 s →
+276.2 s). Nothing here establishes what the tick tail does under contention, and a
+control loop shares its host with whatever else is running.
 
 ### L13 · The archive cannot say which filter produced a row
 

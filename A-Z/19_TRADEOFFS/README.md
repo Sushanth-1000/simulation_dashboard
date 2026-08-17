@@ -14,21 +14,24 @@ price, because a benefit with no stated cost is marketing.
 **Paid:** nine layers of work inside a 50 ms tick. Two Cholesky decompositions, a
 twin forward pass, three gate evaluations, and a record written — every tick.
 
-**Why the cost exists:** you cannot judge a command without computing what it
-would do, and you cannot compute that without a model.
-
-**Measured, 16 August 2026** — and this corrects an earlier draft of this section
-that called the cost unmeasured. Six runs of 2,000 assembled ticks each, against
-A-2's 10 ms budget:
+**Measured** — and this corrects an earlier draft that called the cost unmeasured.
+Sixteen runs of 2,000 assembled ticks each, across two days, against A-2's 10 ms
+budget:
 
 | | p50 | p99 | max | over budget |
 |---|---|---|---|---|
-| best run | 2.246 ms | 2.768 ms | 7.676 ms | **0** / 2000 |
-| worst run | 2.173 ms | **10.460 ms** | 46.958 ms | **31** / 2000 |
+| 16 Aug, six runs | 2.17–2.25 ms | 2.768–**10.460** ms | 7.676–46.958 ms | **0–31** / 2000 |
+| 17 Aug, ten runs | 2.01–2.39 ms | 3.322–6.225 ms | 3.682–55.302 ms | **0–2** / 2000 |
 
-**The median is stable across every run at about 2.2 ms — a fifth of the budget.
-The tail is not stable at all.** p99 ranged 2.768–10.460 ms, and the worst run's
-p99 was *itself over budget*. Three of six runs produced a maximum above 44 ms.
+**The median is stable across all sixteen runs at about 2.0–2.4 ms — a fifth of
+the budget. The tail is not stable at all**, and it is not stable *between days*
+either: the 16 August p99 of 10.460 ms and its 31 breaches **did not recur** in ten
+further runs, while the maximum reached 55.302 ms on a run whose p99 was 6.2.
+
+**[INTERPRETATION]** The reproducible finding is about the **maximum**, not the
+p99: a single tick can take twenty-five times the median, on an idle host, and
+which run it lands in is not predictable. Quoting any one run's p99 — high or low
+— overstates what is known.
 
 **Why the cost exists:** you cannot judge a command without computing what it
 would do, and you cannot compute that without a model. **Why the *tail* exists is
@@ -36,8 +39,9 @@ a different question** — CPython offers no timing guarantee, and a pause of th
 shape is a runtime artefact rather than a slow layer.
 
 **[OPEN]** The outlier is not diagnosed, and there is **no deadline monitor**, so
-a 10 ms budget is met at the median and violated somewhere between 0 and 31 times
-per 2,000 ticks with nothing recording that it happened.
+the budget is met at the median and violated an unpredictable number of times —
+0 to 31 per 2,000 ticks across sixteen runs — with **nothing recording that it
+happened**.
 
 ---
 

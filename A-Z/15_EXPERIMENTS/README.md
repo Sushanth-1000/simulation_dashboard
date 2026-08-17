@@ -180,28 +180,30 @@ executed. Both produced results that change what the folder says.
 | governed | 125 | 4.214 | 1.3073 m | **1.7179 m** | **0** |
 | L7b disarmed | 0 | 6.870 | 0.1384 m | 0.5854 m | 0 |
 
-**The mechanism, measured.** L7b vetoes `LATERAL_JERK_EXCEEDS_LIMIT` on 125 of 200
-post-fault ticks. ADR-0017's rate limiter substitutes the largest admissible
-command, and the projector realises it as **throttle 0, brake 1.0**:
+**What governs each tick, measured per axis.** L7b vetoes
+`LATERAL_JERK_EXCEEDS_LIMIT` on 125 of 200 post-fault ticks. Maximum
+\|issued − proposed\| by origin:
 
-```
-tick 351   proposed  (throttle 0.6147, brake 0.2084, steer 0.0094)
-           issued    (throttle 0.0000, brake 1.0000, steer 0.0137)
-```
+| origin | ticks | throttle | brake | steer |
+|---|--:|--:|--:|--:|
+| `RATE_LIMITED` | 122 | **0.000000** | **0.000000** | 0.011977 |
+| `SPEED_CAPPED` | 3 | 0.614747 | 0.791599 | 0.004285 |
 
-The steering axis moves by 4 milliradians. **The lateral bound is being satisfied
-longitudinally** — by braking, which does reduce lateral jerk — and the vehicle
-decelerates from 12.2 to 4.2 m/s across the burst while its deviation grows to
-within **3.2 cm** of the corridor bound.
+**ADR-0017's rate limiter never touches throttle or brake.** It clips steering, by
+at most 11.977 mrad. The `throttle 0, brake 1.0` substitution belongs to the speed
+cap, on ticks 351–353 only.
 
-**[INTERPRETATION]** On one fault the governance is not inert; it is the reason the
-vehicle ends up slower and nearer the lane edge than an ungoverned one. But it
-**never leaves the corridor**, and every component did what it was specified to do.
-The design question this raises — *should a projector prefer the axis the violated
-bound lives on?* — is a real one and belongs in an ADR. **[OPEN]**
+**[INTERPRETATION]** On one fault the governance is not inert: the governed vehicle
+ends up slower and nearer the lane edge than an ungoverned one, though **never
+outside the corridor**. *Why* is `[OPEN]` — see §22 L9 for the three candidate
+mechanisms and why none is yet measured. The design question is real and belongs
+in an ADR: should a projector prefer the axis the violated bound lives on?
 
-*This entry originally guessed at a latched steering correction. The trace refuted
-it: the steering is never clipped, and the vehicle never leaves the lane.*
+*Two explanations of this arm have now been refuted by measurement — a latched
+steering correction, then a lateral bound discharged by braking. Corrected
+17 August by reading `record.issued.origin` per tick. Volunteer this history in a
+demo; three attempts and two refutations is a better credential than a clean
+story.*
 
 **Also worth stating:** `L6 off` and `L7a off` are **bit-identical to governed in
 every cell**. Two of three gates contribute nothing measurable, which is E-162

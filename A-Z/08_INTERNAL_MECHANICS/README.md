@@ -11,12 +11,12 @@ All code quoted is **[FACT]**, read from the tree.
 
 ```python
 def predict(self) -> None:
-    sigmas     = self._points.sigma_points(self.x, self.P)
+    sigmas = self._points.sigma_points(self.x, self.P)
     propagated = np.array([self._fx(point, self._dt) for point in sigmas])
     self.x, self.P = unscented_transform(
         propagated, self._mean_weights, self._covariance_weights, self.Q
     )
-    self._sigmas_f = self._points.sigma_points(self.x, self.P)   # ← ADR-0032
+    self._sigmas_f = self._points.sigma_points(self.x, self.P)  # ← ADR-0032
 ```
 
 **Line by line.**
@@ -72,7 +72,7 @@ for index in range(self._sigmas_f.shape[0]):
         self._sigmas_f[index] - self.x, sigmas_h[index] - predicted
     )
 
-gain  = cross @ np.linalg.inv(innovation_covariance)
+gain = cross @ np.linalg.inv(innovation_covariance)
 self.y = measurement - predicted
 self.S = innovation_covariance
 self.K = gain
@@ -115,8 +115,8 @@ makes the FilterPy removal defensible as a like-for-like swap.
 
 ```python
 departure = math.dist(proposed, predicted)
-sigma     = math.sqrt(max(variance, _MINIMUM_SIGMA))
-score     = departure / sigma
+sigma = math.sqrt(max(variance, _MINIMUM_SIGMA))
+score = departure / sigma
 ```
 
 Then, in the gate:
@@ -142,7 +142,7 @@ readable.
 ```python
 def _advanced_counter(self, *, blocking: bool, exploring: bool = False) -> int:
     if exploring:
-        return self._counter                       # frozen — ADR-0023
+        return self._counter  # frozen — ADR-0023
     if not blocking:
         return max(0, self._counter - 1)
     return min(self._settings.ood_threshold_halt, self._counter + 1)
@@ -170,7 +170,8 @@ def _advanced_counter(self, *, blocking: bool, exploring: bool = False) -> int:
 ```python
 critical = self._settings.critical_modalities
 unhealthy = sum(
-    1 for modality, health in frame_health
+    1
+    for modality, health in frame_health
     if health is not StreamHealth.HEALTHY and modality in critical
 )
 if unhealthy <= self._settings.integrity_tolerated_faults:
@@ -193,8 +194,7 @@ Three decisions compressed into one condition:
 ```python
 unhealthy = {m for m, h in frame_health if h is not StreamHealth.HEALTHY}
 withdrawn = tuple(
-    name for name, required in self._settings.capabilities
-    if unhealthy.intersection(required)
+    name for name, required in self._settings.capabilities if unhealthy.intersection(required)
 )
 ```
 
@@ -223,7 +223,7 @@ camera had already gone dark.
 alpha = 2.0 / (self._settings.decay_window_ticks + 1.0)
 for modality, health in frame_health:
     unhealthy = 0.0 if health is StreamHealth.HEALTHY else 1.0
-    previous  = self._decay.get(modality, 0.0)
+    previous = self._decay.get(modality, 0.0)
     self._decay[modality] = previous + alpha * (unhealthy - previous)
 ```
 

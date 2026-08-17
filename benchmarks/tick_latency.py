@@ -170,8 +170,10 @@ def render(readings: Sequence[RunReading]) -> list[str]:
         "  on an idle host, with no simulator in the loop. Never a bound.",
         "",
         f"  {'run':<6}{'seed':>12}{'p50':>9}{'p95':>9}{'p99':>9}{'max':>10}{'over budget':>16}",
-        f"  {'-' * 6}{'-' * 11:>12}{'-' * 8:>9}{'-' * 8:>9}{'-' * 8:>9}{'-' * 9:>10}"
-        f"{'-' * 15:>16}",
+        (
+            f"  {'-' * 6}{'-' * 11:>12}{'-' * 8:>9}{'-' * 8:>9}{'-' * 8:>9}"
+            f"{'-' * 9:>10}{'-' * 15:>16}"
+        ),
     ]
     for index, reading in enumerate(readings, start=1):
         lines.append(

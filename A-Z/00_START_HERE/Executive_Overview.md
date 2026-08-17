@@ -184,8 +184,8 @@ measured.
 
 **[FACT]** as of 15 August 2026:
 
-- 3,042 tests, 3 strict `xfail`, `mypy --strict` over 166 files, 12 import
-  contracts, 97.6% coverage with a per-file floor
+- 3,065 tests, 3 strict `xfail`, `mypy --strict` over 169 files, 12 import
+  contracts, 97.47% coverage with a per-file floor
 - 34 architecture decision records
 - 164 evidence rows
 - Nine layers built; the full pipeline runs closed-loop against a synthetic plant

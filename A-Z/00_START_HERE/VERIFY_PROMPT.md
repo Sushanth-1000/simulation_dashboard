@@ -65,6 +65,21 @@ Must print "twin, corpus and policy present; the vehicle drives". Presence is no
 the check; DRIVING is. Run `make artifacts` if it refuses — order is load-bearing,
 the corpus is generated through the twin and the policy is trained against both.
 
+STEP 0b — RUN THE LINT STAGES AGAINST THE COMMITTED STATE, NOT THE WORKING COPY
+  git clone --branch <branch> /mnt/c/Users/Dell/Documents/ASTRA ~/checks/clone
+  cd ~/checks/clone && <venv>/ruff format --check . && <venv>/ruff check .
+
+**This step exists because the instruction above it hid half of a finding.** The
+rsync excludes `A-Z/`, and `ruff format` is configured to format fenced code
+blocks in markdown — so a verifier who lints the synced copy sees only the Python
+failures and misses the markdown ones. On 17 August that reported two unformatted
+files when the committed state had four.
+
+More generally: **the working copy is not what shipped.** The gate can be green in
+WSL and red on the branch if formatting was applied on one side of the rsync and
+the commit came from the other. That is exactly what happened in `83a7983`. Lint
+the clone; run the expensive stages wherever is convenient.
+
 RUN ALL OF THIS
   make check                       # tests, xfails, mypy, contracts, coverage
   python -m benchmarks.gate_census
@@ -97,9 +112,17 @@ RUN ALL OF THIS
 THE ONE THING NO BENCHMARK PRINTS
 The lateral_noise mechanism. To re-derive it, drive the lateral_noise scenario
 from benchmarks.fault_study.SCENARIOS with an observer and read, per tick,
-`record.issued.origin` and both command vectors. Expected: RATE_LIMITED on ~122
-of 200 post-fault ticks, and the rate limiter substituting throttle 0 / brake 1.0
-while the steering axis barely moves.
+`record.issued.origin` TOGETHER WITH both command vectors — and report the maximum
+delta PER AXIS PER ORIGIN, not the largest delta in the run.
+
+Expected: RATE_LIMITED on 122 of 200 post-fault ticks with throttle and brake
+deltas of exactly 0.000000 and a steer delta up to 0.011977; SPEED_CAPPED on 3
+ticks (351, 352, 353) carrying the throttle 0 / brake 1.0 substitution.
+
+Two wrong explanations of this arm came from reading the largest substitution in
+the run and attributing it to the majority origin. Read them together or not at
+all. And note that this establishes WHAT GOVERNS each tick, not what causes the
+deviation — that is [OPEN].
 
 TRAPS THAT HAVE ALREADY BITTEN — check each
 - Field names. TickSample has NO estimated/true lateral fields, and
@@ -160,7 +183,9 @@ EXPECTED VALUES AS OF 16 AUGUST 2026 — a mismatch is a finding, not an error
   flake_hunt          6/6 full-suite and 15/15 threaded passes under stress-ng
                       with 32 workers; NO FLAKE OBSERVED. Full suite median
                       238.8 s under load against ~91 s clean
-  recovery bound      91 ticks = 4.6 s, asserted by a passing test
+  recovery bound      91 ticks = 4.6 s, DERIVED from simulation.toml
+                      (100 - 10 + 1) at 20 Hz. The cited test asserts the
+                      FORMULA on its own thresholds (3/10/1 -> 8), not 91
   structural          ProposalWriter has send + a pending property, no read
                       method · Verdict.merge strips abstentions first, so
                       all-abstain => VETO as well as empty => VETO ·

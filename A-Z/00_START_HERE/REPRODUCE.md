@@ -157,14 +157,26 @@ if the behaviour changes. The measured facts:
 | governed | 125 | 4.214 | 1.3073 m | **1.7179 m** | **0** |
 | L7b disarmed | 0 | 6.870 | 0.1384 m | 0.5854 m | 0 |
 
-Issued-command origins after the fault opens: `PROPOSED` 75, **`RATE_LIMITED`
-122**, `SPEED_CAPPED` 3. At tick 351 the proposal `(throttle 0.6147, brake
-0.2084, steer 0.0094)` is issued as `(0.0000, 1.0000, 0.0137)`.
+Maximum \|issued − proposed\| by issued-command origin, after the fault opens:
 
-**The steering axis moves by 4 milliradians.** The lateral bound is being
-satisfied *longitudinally*, by braking. To re-derive it, drive the
-`lateral_noise` scenario from `benchmarks.fault_study.SCENARIOS` with an observer,
-and read `record.issued.origin` and both command vectors per tick.
+| origin | ticks | throttle | brake | steer |
+|---|--:|--:|--:|--:|
+| `RATE_LIMITED` | 122 | **0.000000** | **0.000000** | 0.011977 |
+| `PROPOSED` | 75 | 0.000000 | 0.000000 | 0.000000 |
+| `SPEED_CAPPED` | 3 | 0.614747 | 0.791599 | 0.004285 |
+
+**ADR-0017's rate limiter is a steering-axis limiter** — throttle and brake are
+bit-identical to the proposal on all 122 ticks it governs. `throttle 0, brake 1.0`
+belongs to the **speed cap**, on ticks 351, 352 and 353 only.
+
+**To re-derive it:** drive the `lateral_noise` scenario from
+`benchmarks.fault_study.SCENARIOS` with an observer, and read
+`record.issued.origin` **together with** both command vectors per tick. Reading
+the largest substitution without its origin is what produced two wrong
+explanations of this arm — the delta and the origin must be read together.
+
+**What this does *not* establish** is the cause of the 1.307 m. See §22 L9:
+`[OPEN]`, with three candidates and none measured.
 
 ---
 
@@ -190,7 +202,7 @@ the tick tail does under contention.
 
 | Figure | Command |
 |---|---|
-| All ten criteria pass, verdict **STABLE**: deviation 0.0285 → 0.0287 m, resident **+0.1 MiB**, `PROPOSED` on 99,958 ticks, per-tick p99 8.599 → 7.757 ms | `python -m benchmarks.soak -n 100000 -o var/soak/verify` |
+| All ten criteria pass, verdict **STABLE**: deviation 0.0285 → 0.0287 m and `PROPOSED` on 99,958 ticks *(both exact across two days)*; resident **+0.1 to +0.2 MiB**, per-tick p99 **8.599 → 7.757 ms** (16 Aug) and **10.589 → 7.582 ms** (17 Aug) — the criterion tests the **trend**, ×0.72 against a ×1.5 budget, not the absolute | `python -m benchmarks.soak -n 100000 -o var/soak/verify` |
 
 **What to look for.** Ten `[pass]` lines and `verdict: STABLE`. The header states
 the limit honestly — the plant, twin and corpus share one set of equations, so
@@ -270,7 +282,7 @@ runs, not proof of absence.*
 | Empty verdict set ⇒ VETO, and **all-abstain ⇒ VETO too** | `Verdict.merge` in `src/astra/kernel/enums.py` — abstentions are stripped *before* the fold |
 | Audit schema version | `AUDIT_SCHEMA_VERSION` in `src/astra/kernel/constants.py` — **10** |
 | Three strict xfails, all NFR5 walls | `tests/architecture/test_domain_independence.py` |
-| Recovery bounded at 91 ticks = 4.6 s | `pytest tests/unit/test_l8_failsafe.py -k recovery_is_bounded` |
+| Recovery bounded at 91 ticks = 4.6 s | **Derived, not printed**: `θ_halt − θ_degraded + hysteresis` = 100 − 10 + 1 from `config/environments/simulation.toml`, at 20 Hz. The *property* — that the bound exists and equals that expression — is asserted by `pytest tests/unit/test_l8_failsafe.py -k recovery_is_bounded`, which runs on its own fixture thresholds (3 / 10 / 1, so a bound of 8) and never prints 91 |
 | 34 ADRs · 10 SIs · 10 assumptions · 30 credibility rows · 21 register rows | `docs/adr/`, `docs/SEPARATION_INVARIANTS.md`, `docs/ASSUMPTIONS.md`, `docs/CREDIBILITY_MATRIX.md` |
 
 ---
@@ -284,14 +296,20 @@ outside anything certified:
 python -m benchmarks.envelope <path-to-events.jsonl>
 ```
 
-**It refuses every log in `var/`.** All retained logs are audit **schema v1** and
-it requires **v7 or later** — the version that began recording the arbitration
-signature (OD-14). To exercise it, drive a fresh log and call its `main` in the
-**same process**, because the loop writes to a temporary directory that is cleaned
-on exit.
+**It refuses the *historical* logs in `var/`** — schema **v1** and **v2** against
+a **v7** minimum, v7 being the version that began recording the arbitration
+signature (OD-14).
 
-That refusal is itself a finding, and the third appearance of one shape: **the
-archive cannot be mined retrospectively.** See §22 `L13`.
+**It does not refuse the logs written since schema 10 landed.**
+`var/soak/verify-100k`, `verify-20k` and `verify` — all produced by the
+verification soak runs themselves — read cleanly and report *"no exploration
+episodes"* on a clean drive. *An earlier draft of this section said it refuses
+every log in `var/`; that stopped being true the moment this verification wrote
+its own.*
+
+The refusal that remains is the finding, and the third appearance of one shape:
+**the archive that predates the arbitration signature cannot be mined
+retrospectively, and no amount of new logging fixes the old logs.** See §22 `L13`.
 
 ---
 

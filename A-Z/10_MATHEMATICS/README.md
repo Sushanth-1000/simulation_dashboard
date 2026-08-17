@@ -304,8 +304,8 @@ noticed: both failure modes produce plausible numbers.
 
 ```python
 departure = math.dist(proposed, predicted)
-sigma     = math.sqrt(max(variance, _MINIMUM_SIGMA))
-score     = departure / sigma
+sigma = math.sqrt(max(variance, _MINIMUM_SIGMA))
+score = departure / sigma
 ```
 
 | Term | Meaning |

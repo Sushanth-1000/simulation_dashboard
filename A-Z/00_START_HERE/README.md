@@ -283,14 +283,26 @@ defect. Re-run:
 before it reaches the estimator. `E-143`'s 1.03× separation is now exactly
 **1.00×**: the refutation got stronger and its number needs updating.
 
-**2 · The `lateral_noise` finding was diagnosed, and it refuted my own
-explanation.** I had guessed at a latched steering correction. The trace shows the
-steering axis moving by 4 milliradians while the rate limiter substitutes
-**throttle 0, brake 1.0** — the lateral bound is being satisfied *longitudinally*,
-by braking. And the vehicle **never leaves the corridor**: it peaks at 1.7179 m
-against a 1.75 m bound, 3.2 cm inside, on zero ticks out. My earlier phrasing —
-*"the vetoes put the vehicle off the lane"* — was wrong and is corrected in §15,
-§22 and §28.
+**2 · The `lateral_noise` finding was diagnosed twice, and both diagnoses were
+wrong.** The first blamed a latched steering correction; the second said the
+lateral bound was being discharged longitudinally, by braking, and quoted tick 351
+by name as the rate limiter's work.
+
+**A third pass on 17 August read `record.issued.origin` per tick and refuted
+that too.** The rate limiter's throttle and brake deltas are **exactly 0.000000**
+on all 122 ticks it governs — it is a *steering-axis* limiter, moving steering by
+at most 11.977 mrad. `throttle 0, brake 1.0` belongs to the **speed cap**, on
+three ticks, and **tick 351 is one of them.**
+
+What survives is the outcome — peak 1.7179 m against a 1.75 m bound, 3.2 cm
+inside, zero ticks out, speed falling 12.1821 → 4.2137 m/s — and *what governs
+each tick*. **The cause is now marked `[OPEN]`** rather than explained a third
+time. Corrected in §15, §22, `REPRODUCE.md` and `VERIFY_PROMPT.md`.
+
+**[INTERPRETATION]** Three attempts, two refutations, and each refutation came from
+measuring one level finer than the last. The transferable error is small and
+repeatable: I read the largest command substitution in the run and attributed it
+to the majority origin, because I never printed the two together.
 
 **3 · The soak now runs at full length.** 100,000 ticks, all ten criteria pass,
 verdict **STABLE**: lane deviation 0.0285 → 0.0287 m, resident set **+0.1 MiB**,
@@ -308,10 +320,12 @@ Stated so this record cannot itself become the thing it warns about:
   no hang.** Its own verdict states the limit correctly — *absence of evidence
   over this many runs, not proof of absence*.
 
-  **One number from it bears on the timing tail.** The full suite takes a median
-  of **238.8 s under contention against 90.81 s clean** — a 2.6× slowdown. The
-  latency figures in this folder were measured on an *idle* machine, and nothing
-  here establishes what the tick tail does under load.
+  **One number from it bears on the timing tail.** Under contention the full suite
+  takes a median of **238.8 s against 90.81 s clean** (16 Aug, **2.6×**) and
+  **276.2 s against 78.2 s** (17 Aug, min 249.2, max 307.0 — **3.5×**). Every
+  latency figure in this folder was measured on an *idle* machine, and nothing here
+  establishes what the tick tail does under load. **Both readings move the argument
+  the same way and the larger one is the more recent.**
 - `detectors` has no `main`; it is a library, and its output is the shadow-detector
   table inside `fault_study`, which was run. That table confirms the innovation
   detector is **silent on every scenario** and that `trust` raises a **false alarm

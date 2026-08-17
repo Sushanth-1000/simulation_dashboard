@@ -247,9 +247,9 @@ def render(readings: Sequence[ArmReading], *, offset: float) -> list[str]:
     single_faulted = by_key[True, True]
 
     lines.append("")
-    outvoted = abs(
-        redundant_faulted.final_deviation_m - redundant_clean.final_deviation_m
-    ) < _AGREEMENT_M
+    outvoted = (
+        abs(redundant_faulted.final_deviation_m - redundant_clean.final_deviation_m) < _AGREEMENT_M
+    )
     if outvoted:
         lines.extend(
             [
