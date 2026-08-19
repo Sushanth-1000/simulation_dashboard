@@ -38,6 +38,39 @@ Section 7 predicts which, in advance, on purpose. **A prediction that comes true
 is a result; a prediction that is refuted is a better one.** Do not quietly drop
 a prediction that turns out wrong.
 
+### Where the code is
+
+| | |
+|---|---|
+| **Repository** | `https://github.com/huddartanay/Major-Project.git` |
+| **Branch you want** | `phase4-l5-twin-l7b-physical` |
+| **Commit this file was written at** | `7ac73c3` |
+| **Owner** | Sushanth C · `sushanthc.cs23@bmsce.ac.in` |
+
+**`main` is 92 commits behind and is not what you want.** A default clone lands
+on `main` and gives you a repository from before all nine layers were finished,
+before redundancy landed, and before the entire A-Z knowledge base existed. It
+will look plausible and nothing will match this file.
+
+```bash
+git clone https://github.com/huddartanay/Major-Project.git astra
+cd astra
+git checkout phase4-l5-twin-l7b-physical
+git log --oneline -1        # expect 7ac73c3 or later
+```
+
+If the repository is private you will need a GitHub token or an SSH key on the
+remote box — a browser-based remote session cannot complete an interactive
+credential prompt, so set that up before the clone rather than during it.
+
+**Push your CARLA work to a branch off `phase4-l5-twin-l7b-physical`**, not to
+`main` and not directly onto the phase branch while someone may still be working
+on it:
+
+```bash
+git checkout -b carla-adapter
+```
+
 ### The documents that own the detail
 
 | File | What it owns |
@@ -98,9 +131,9 @@ clock are the same clock. See §5.2.
 
 ### 2.1 · Repository
 
+Cloned and checked out per §0. Then:
+
 ```bash
-git clone <repo> astra && cd astra
-git checkout phase4-l5-twin-l7b-physical
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync --all-groups --all-extras
 ```
@@ -221,6 +254,32 @@ true.
 So: **commit the route manifest and the seed to git before the first frame is
 rendered.** `var/carla/partition.json` is committed, **not gitignored**, unlike
 every other artefact.
+
+> ### The trap that will bite you here
+>
+> **`.gitignore` line 20 is `var/`, so `git add var/carla/partition.json` does
+> nothing and says nothing.** It exits zero, prints nothing, and the file is not
+> staged. You will believe you committed the partition and you will not have.
+>
+> That is Gate B failing silently, through the back door, which is precisely the
+> shape this project's register exists to catch.
+>
+> **Fix it permanently, not with a flag.** Add a negation to `.gitignore` so the
+> exception is visible to everyone rather than depending on someone remembering
+> `-f`:
+>
+> ```gitignore
+> var/
+> !var/carla/
+> !var/carla/partition.json
+> ```
+>
+> Then verify it actually worked, rather than assuming:
+>
+> ```bash
+> git check-ignore -v var/carla/partition.json   # must print nothing
+> git add var/carla/partition.json && git status --short
+> ```
 
 ```json
 {
@@ -505,7 +564,9 @@ because a session doing both corrected its own corrections twice in one afternoo
 
 ```bash
 nvidia-smi; nproc; free -g; df -h .
-git checkout phase4-l5-twin-l7b-physical && uv sync --all-groups --all-extras
+git clone https://github.com/huddartanay/Major-Project.git astra && cd astra
+git checkout phase4-l5-twin-l7b-physical && git checkout -b carla-adapter
+uv sync --all-groups --all-extras
 make artifacts-check          # regenerate with `make artifacts` if it refuses
 make check                    # expect 3,065 passed + 3 xfailed, gate PASSED
 python -m benchmarks.gate_census && python -m benchmarks.arms
