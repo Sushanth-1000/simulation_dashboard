@@ -71,6 +71,19 @@ on it:
 git checkout -b carla-adapter
 ```
 
+### What is NOT settled, and will block you
+
+Two decisions belong to the project owner, not to you, and one component does not
+exist. **Raise all three before starting §5.**
+
+| | State |
+|---|---|
+| **`RAIN_NIGHT`** (Gate A, §4.1) | **Undecided.** Blocks CALIBRATE generation |
+| **`partition.json`** (Gate B, §4.2) | **Not written.** Blocks the first frame |
+| **Phase 6, FGSM** (§5.6) | **Not built.** No implementation exists in this repository |
+
+Everything else in this file you can act on.
+
 ### The documents that own the detail
 
 | File | What it owns |
@@ -153,6 +166,30 @@ to 0.9.14 would reintroduce a closed risk and would be invisible in every result
 If 0.9.16 will not install, stop and report it.
 
 CARLA is **Linux-only** — no macOS build. That constraint is real and recorded.
+
+**Getting it onto the box.** The packaged release is the one you want; building
+from source costs hours and buys nothing here.
+
+```bash
+# 1. The simulator itself (~20 GB unpacked -- check `df -h .` first)
+wget https://tiny.carla.org/carla-0-9-16-linux -O CARLA_0.9.16.tar.gz
+mkdir -p ~/carla && tar -xzf CARLA_0.9.16.tar.gz -C ~/carla
+
+# 2. The Python client, into the project's venv
+uv pip install carla==0.9.16
+
+# 3. Prove both halves work before writing any adapter code
+~/carla/CarlaUE4.sh -RenderOffScreen -carla-rpc-port=2000 &
+uv run python -c "import carla; c=carla.Client('localhost',2000); c.set_timeout(10.0); print(c.get_server_version(), c.get_client_version())"
+```
+
+**Server and client version must match.** A mismatch produces confusing
+timeouts rather than a clear error, and it is the most common way to lose an
+afternoon here. If `uv pip install carla==0.9.16` fails, the wheel also ships
+inside the tarball under `PythonAPI/carla/dist/`.
+
+Town04 is needed and ships with the standard release — no additional map
+download.
 
 ### 2.3 · The artefacts — the first place people lose a day
 
@@ -405,6 +442,89 @@ disappointing on a Friday.
 
 ---
 
+## 5.6 · The seven-phase drive — what TEST actually is
+
+**This is the deliverable.** Four sections of this file refer to it; here is what
+it is. Source: `docs/ROADMAP.md` and `docs/WORK_PLAN.md` §7.5.
+
+**Town04, one continuous run, ≈ 21 minutes, and the vehicle never stops:**
+
+| # | Phase | What it is there to exercise |
+|:--:|---|---|
+| 1 | **Highway** | The certified baseline. Everything later is a difference from this |
+| 2 | **Urban** | A second certified context, and the profile switch between them |
+| 3 | **Rain / night** | `RAIN_NIGHT` — **and this is the phase Gate A is about** |
+| 4 | **Tunnel** | No certified profile matches ⇒ **bounded safe exploration**, the architecture's distinguishing behaviour |
+| 5 | **Sensor fault** | IMU corruption, injected at the sensor boundary |
+| 6 | **Adversarial (FGSM)** | An attack on the proposer, not on the sensors |
+| 7 | **Recovery** | The walk back to `NOMINAL`, bounded at 91 ticks = 4.6 s |
+
+### Why phases 5 and 6 carry the whole independence claim
+
+Straight from `WORK_PLAN.md` §7.5, and it is the most important sentence in this
+file after Gate B:
+
+> **The independence evidence lives here and nowhere else.** Phase 6 (FGSM) is
+> designed so that **exactly one** gate fires; Phase 5 (IMU corruption) so that
+> **two fire for different reasons**. Until those run, *"three structurally
+> independent gates"* is architecture rather than evidence.
+
+That is the direct link to **P3 and P4** in §7. Today two of three gates judge
+every tick and never object, so this drive is the first thing that could support
+the central claim — or refute it.
+
+**Report what happens, not what was predicted.** If two gates fire under FGSM, or
+none do, **that is the finding.**
+
+### It is one continuous run, and that has a cost
+
+A failure in phase 6 costs a **full re-run** to reproduce — and TEST may only be
+run once. Two consequences:
+
+- **Rehearse the whole drive on TRAIN routes first.** TRAIN is regenerable and
+  contaminates nothing; use it to shake out the adapter, the sensor mounts and
+  the phase transitions until the run completes end to end.
+- **Then run TEST once**, in tmux, with the guard armed.
+
+### Phase 6 is NOT BUILT — scope it before you start
+
+**There is no FGSM implementation in this repository.** `grep -ri fgsm src/
+training/ benchmarks/` returns nothing but incidental mentions. Evidence row
+**N-12** records the position honestly: *"the paper's §5 validation drive — 21
+minutes, seven phases, 47 evidence tuples — **never run**."*
+
+So phase 6 needs building, and it needs a decision first:
+
+| Option | What it means |
+|---|---|
+| **Build FGSM against the policy network** | A gradient attack on `LearnedPolicy`'s observation. Faithful to the paper, and the only version that tests what §7.5 claims |
+| **Substitute a simpler perturbation** | Cheaper, and **it does not test the same thing** — say so explicitly rather than letting it read as FGSM |
+| **Drop phase 6** | Acceptable **only** if recorded, and it costs the independence evidence above |
+
+**Whichever you choose, the attack goes at the proposer, not the sensors.** Phase
+5 already attacks the sensors; the point of phase 6 is that a *different* failure
+mode should light a *different* gate. An FGSM that perturbs sensor readings tests
+phase 5 twice and proves nothing about independence.
+
+### The ablation study runs alongside it
+
+`ROADMAP.md` scopes it with the drive and it is not in §5's build list because
+the harness already exists: `python -m benchmarks.ablation`. Point it at the
+CARLA loop. Disarm L6, L7a and L7b in turn and re-measure — the synthetic result
+is that `L6 off` and `L7a off` are **identical to governed in every cell**, and
+whether that survives CARLA is P3/P4 seen from the other side.
+
+### Route definitions
+
+`hw-loop-a` and friends in the `partition.json` example are **placeholders**. You
+have to define real Town04 routes as waypoint lists, and §4.2's rule governs
+them: **the road geometry itself must differ between TRAIN, CALIBRATE and TEST.**
+Town04 has a highway loop, urban streets and a tunnel — enough for three disjoint
+sets, but you must pick them deliberately and write them into the manifest before
+committing it.
+
+---
+
 ## 6 · Order of operations
 
 Do not reorder. Each gate must pass before the next step.
@@ -461,9 +581,9 @@ contribution 2 needs rewriting.
 3. `partition.json` was committed **before the first frame**; TRAIN / CALIBRATE /
    TEST are disjoint **by route**; `test-runs.log` holds exactly one entry for the
    TEST manifest's digest.
-4. The seven-phase continuous drive completes without the vehicle stopping — **or
-   it stops and the reason is in the audit log, named, with the posture that
-   produced it.**
+4. The seven-phase continuous drive (**§5.6**) completes without the vehicle
+   stopping — **or it stops and the reason is in the audit log, named, with the
+   posture that produced it.**
 5. Every P1–P6 prediction is marked confirmed or refuted, with numbers.
 6. The register's `[M-syn]` rows carry a second column: what the same measurement
    said in CARLA.
