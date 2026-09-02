@@ -258,7 +258,7 @@ SEPARATION_INVARIANTS: tuple[SeparationInvariant, ...] = (
     SeparationInvariant(
         identifier="SI-8",
         title="Timing-domain separation",
-        statement="Cold-path work must never block a hot-path tick.",
+        statement="Cold-path event handling is decoupled from hot-path execution.",
         rationale=(
             "The knowledge-base search and evidence writing are unbounded in time. A tick "
             "that waits for either is late, and a late verdict about a vehicle that has "
@@ -288,7 +288,7 @@ SEPARATION_INVARIANTS: tuple[SeparationInvariant, ...] = (
             "The statistical gate can be silently disabled by a corrupt or hostile "
             "calibration table."
         ),
-        enforcement=EnforcementKind.STATIC,
+        enforcement=EnforcementKind.RUNTIME,
         mechanism="require_non_decreasing in CalibrationProfile; Phase 6 checksum verification",
     ),
     SeparationInvariant(

@@ -58,8 +58,17 @@ _DEFAULT_WARMUP: Final = 200
 _DEFAULT_SEED: Final = 20260809
 _DEFAULT_POLICY: Final = Path("var/policy/synthetic.pt")
 
+PERIOD_MS: Final = 50.0
+"""The control period at 20 Hz. This is the deadline: a tick that exceeds it
+has missed its slot."""
+
 BUDGET_MS: Final = 10.0
-"""A-2's per-tick budget at 20 Hz. An assumption, not a measured bound."""
+"""A-2's self-imposed end-to-end software budget *within* the 50 ms tick.
+
+Not the deadline. A-2 reads "< 10 ms end-to-end within a 50 ms tick", so this
+is a design target carrying five-fold margin, and exceeding it is a loss of
+margin rather than a missed deadline. Conflating the two understates the
+headroom and overstates the number of real overruns."""
 
 _NANOSECONDS_PER_MILLISECOND: Final = 1e6
 
@@ -75,7 +84,10 @@ class RunReading:
         p95: 95th percentile.
         p99: 99th percentile.
         maximum: The slowest single tick.
-        over_budget: How many ticks exceeded :data:`BUDGET_MS`.
+        over_budget: How many ticks exceeded :data:`BUDGET_MS`, the software
+            design target.
+        over_period: How many ticks exceeded :data:`PERIOD_MS`, the actual
+            20 Hz deadline.
     """
 
     seed: int
@@ -85,6 +97,7 @@ class RunReading:
     p99: float
     maximum: float
     over_budget: int
+    over_period: int
 
 
 def percentile(values: Sequence[float], fraction: float) -> float:
@@ -148,6 +161,7 @@ def measure(*, runs: int, ticks: int, warmup: int, seed: int, policy: Path) -> l
                 p99=percentile(durations, 0.99),
                 maximum=max(durations),
                 over_budget=sum(1 for value in durations if value > BUDGET_MS),
+                over_period=sum(1 for value in durations if value > PERIOD_MS),
             )
         )
     return readings
@@ -166,10 +180,11 @@ def render(readings: Sequence[RunReading]) -> list[str]:
         "",
         "Full assembled tick -- the whole pipeline, not the four-layer hot path",
         "=" * 78,
-        f"  budget {BUDGET_MS} ms per tick (A-2, 20 Hz). SOFTWARE characterisation,",
+        f"  period {PERIOD_MS} ms (20 Hz deadline); software budget {BUDGET_MS} ms (A-2).",
+        "  SOFTWARE characterisation,",
         "  on an idle host, with no simulator in the loop. Never a bound.",
         "",
-        f"  {'run':<6}{'seed':>12}{'p50':>9}{'p95':>9}{'p99':>9}{'max':>10}{'over budget':>16}",
+        f"  {'run':<6}{'p50':>9}{'p95':>9}{'p99':>9}{'max':>10}{'>10ms':>9}{'>50ms':>9}",
         (
             f"  {'-' * 6}{'-' * 11:>12}{'-' * 8:>9}{'-' * 8:>9}{'-' * 8:>9}"
             f"{'-' * 9:>10}{'-' * 15:>16}"
@@ -177,14 +192,15 @@ def render(readings: Sequence[RunReading]) -> list[str]:
     ]
     for index, reading in enumerate(readings, start=1):
         lines.append(
-            f"  {index:<6}{reading.seed:>12}{reading.p50:>9.3f}{reading.p95:>9.3f}"
+            f"  {index:<6}{reading.p50:>9.3f}{reading.p95:>9.3f}"
             f"{reading.p99:>9.3f}{reading.maximum:>10.3f}"
-            f"{f'{reading.over_budget} / {reading.samples}':>16}"
+            f"{reading.over_budget:>9}{reading.over_period:>9}"
         )
 
     p99s = [reading.p99 for reading in readings]
     maxima = [reading.maximum for reading in readings]
     breaches = [reading.over_budget for reading in readings]
+    missed = [reading.over_period for reading in readings]
     lines.extend(
         [
             "",
@@ -194,7 +210,8 @@ def render(readings: Sequence[RunReading]) -> list[str]:
             ),
             f"  p99 spread   {min(p99s):.3f} - {max(p99s):.3f} ms",
             f"  max spread   {min(maxima):.3f} - {max(maxima):.3f} ms",
-            f"  breaches     {min(breaches)} - {max(breaches)} ticks per run",
+            f"  over 10 ms   {min(breaches)} - {max(breaches)} ticks per run (software budget)",
+            f"  over 50 ms   {min(missed)} - {max(missed)} ticks per run (MISSED DEADLINE)",
             "",
         ]
     )

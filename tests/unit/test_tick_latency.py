@@ -25,11 +25,28 @@ from __future__ import annotations
 
 import pytest
 
-from benchmarks.tick_latency import BUDGET_MS, RunReading, percentile, render
+from benchmarks.tick_latency import BUDGET_MS, PERIOD_MS, RunReading, percentile, render
 
 
-def reading(*, p99: float, maximum: float, over: int = 0, p50: float = 2.2) -> RunReading:
-    """Return a reading with only the fields the verdict reads set meaningfully."""
+def reading(
+    *,
+    p99: float,
+    maximum: float,
+    over: int = 0,
+    late: int = 0,
+    p50: float = 2.2,
+) -> RunReading:
+    """Return a reading with only the fields the verdict reads set meaningfully.
+
+    Args:
+        p99: The 99th percentile.
+        maximum: The slowest tick.
+        over: Ticks exceeding the 10 ms software budget.
+        late: Ticks exceeding the 50 ms period. A missed deadline, which is a
+            different and more serious thing than a lost margin; see
+            :data:`~benchmarks.tick_latency.PERIOD_MS`.
+        p50: The median.
+    """
     return RunReading(
         seed=20260809,
         samples=2000,
@@ -38,6 +55,7 @@ def reading(*, p99: float, maximum: float, over: int = 0, p50: float = 2.2) -> R
         p99=p99,
         maximum=maximum,
         over_budget=over,
+        over_period=late,
     )
 
 
@@ -125,14 +143,32 @@ def test_the_spread_across_runs_is_reported_because_one_run_is_not_a_tail() -> N
     assert "10.460" in spread
 
 
-def test_the_breach_range_is_reported_rather_than_a_total() -> None:
-    # A sum would read as "32 breaches in 4,000 ticks", which averages away the
-    # fact that one run had none and the other had 31.
+def test_the_budget_range_is_reported_rather_than_a_total() -> None:
+    # A sum would read as "31 over budget in 4,000 ticks", which averages away
+    # the fact that one run had none and the other had 31.
     lines = render([reading(p99=3.0, maximum=8.0), reading(p99=10.5, maximum=46.9, over=31)])
-    breaches = next(line for line in lines if "breaches" in line)
+    budget = next(line for line in lines if "over 10 ms" in line)
 
-    assert "0" in breaches
-    assert "31" in breaches
+    assert "0" in budget
+    assert "31" in budget
+
+
+def test_the_period_is_reported_separately_from_the_budget() -> None:
+    """The two thresholds are not the same and must not be summarised as one.
+
+    10 ms is a self-imposed software budget carrying five-fold margin; 50 ms is
+    the 20 Hz deadline. Reporting only the budget overstates the number of real
+    overruns, which is the confusion that produced an earlier draft claiming a
+    10 ms period.
+    """
+    lines = render([reading(p99=10.5, maximum=PERIOD_MS + 90.0, over=76, late=1)])
+    budget = next(line for line in lines if "over 10 ms" in line)
+    period = next(line for line in lines if "over 50 ms" in line)
+
+    assert "76" in budget
+    assert "software budget" in budget
+    assert "1" in period
+    assert "MISSED DEADLINE" in period
 
 
 @pytest.mark.parametrize("count", [1, 5])
