@@ -1,0 +1,4 @@
+policy,calibration_n,threshold,epsilon,expected_far,heldout_far_pooled,per_run_far_median,per_run_far_lo,per_run_far_hi,runs_in_band,n_runs,status
+P1,12000,3.7095,0.05,0.0500,0.0548,0.0488,0.0350,0.0700,21,30,in band
+P2,12000,5.9024,0.05,0.0500,0.0467,0.0000,0.0000,0.0000,0,30,in band
+P3,12000,3.4000,0.05,0.0500,0.0816,0.0100,0.0050,0.0100,4,30,in band

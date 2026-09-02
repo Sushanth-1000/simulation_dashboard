@@ -1,0 +1,25 @@
+{
+  "config_hash": "a1dbf0fabb165fd5",
+  "thresholds": {
+    "P1": 3.702369982656383,
+    "P3": 3.395305537817987,
+    "P2": 6.000019158456247
+  },
+  "calibration_version": "R2-v3-matched-pooled",
+  "scheme": "pooled, matched window",
+  "calibration_window_ticks": [
+    201,
+    400
+  ],
+  "evaluation_window_ticks": [
+    201,
+    400
+  ],
+  "epsilon": 0.05,
+  "estimator": "ceil((n+1)(1-eps)) order statistic",
+  "acceptance_band": [
+    0.025,
+    0.1
+  ],
+  "primary_criterion": "P1 >= 24/30 runs in band"
+}

@@ -1,0 +1,28 @@
+{
+  "config_hash": "2e45b38009592e50",
+  "calibration_version": "R1-v2-runlocal",
+  "scheme": "run-local windowed",
+  "calibration_window_ticks": [
+    1,
+    200
+  ],
+  "evaluation_window_ticks": [
+    201,
+    400
+  ],
+  "epsilon": 0.05,
+  "estimator": "ceil((n+1)(1-eps)) order statistic",
+  "acceptance_band": [
+    0.025,
+    0.1
+  ],
+  "ticks_per_run": 400,
+  "fault_first_tick": 200,
+  "warmup_discarded": false,
+  "threshold_scope": "per run",
+  "policies": [
+    "P1",
+    "P3"
+  ],
+  "success_criterion_runs_in_band": 24
+}

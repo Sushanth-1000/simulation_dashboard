@@ -1,0 +1,45 @@
+  [  30/1260] P1 position_bias low  134s
+  [  60/1260] P1 position_bias medium  266s
+  [  90/1260] P1 position_bias high  396s
+  [ 120/1260] P1 position_drift low  469s
+  [ 150/1260] P1 position_drift medium  579s
+  [ 180/1260] P1 position_drift high  694s
+  [ 210/1260] P1 speed_bias low  803s
+  [ 240/1260] P1 speed_bias medium  913s
+  [ 270/1260] P1 speed_bias high  1024s
+  [ 300/1260] P1 lateral_noise low  1136s
+  [ 330/1260] P1 lateral_noise medium  1248s
+  [ 360/1260] P1 lateral_noise high  1360s
+  [ 390/1260] P1 speed_stuck medium  1472s
+  [ 420/1260] P1 imu_dropout medium  1582s
+  [ 450/1260] P2 position_bias low  1694s
+  [ 480/1260] P2 position_bias medium  1805s
+  [ 510/1260] P2 position_bias high  1917s
+  [ 540/1260] P2 position_drift low  2028s
+  [ 570/1260] P2 position_drift medium  2140s
+  [ 600/1260] P2 position_drift high  2252s
+  [ 630/1260] P2 speed_bias low  2363s
+  [ 660/1260] P2 speed_bias medium  2474s
+  [ 690/1260] P2 speed_bias high  2592s
+  [ 720/1260] P2 lateral_noise low  2711s
+  [ 750/1260] P2 lateral_noise medium  2830s
+  [ 780/1260] P2 lateral_noise high  2948s
+  [ 810/1260] P2 speed_stuck medium  3065s
+  [ 840/1260] P2 imu_dropout medium  3180s
+  [ 870/1260] P3 position_bias low  3297s
+  [ 900/1260] P3 position_bias medium  3414s
+  [ 930/1260] P3 position_bias high  3530s
+  [ 960/1260] P3 position_drift low  3646s
+  [ 990/1260] P3 position_drift medium  3763s
+  [1020/1260] P3 position_drift high  3879s
+  [1050/1260] P3 speed_bias low  4000s
+  [1080/1260] P3 speed_bias medium  4116s
+  [1110/1260] P3 speed_bias high  4233s
+  [1140/1260] P3 lateral_noise low  4353s
+  [1170/1260] P3 lateral_noise medium  4473s
+  [1200/1260] P3 lateral_noise high  4593s
+  [1230/1260] P3 speed_stuck medium  4711s
+  [1260/1260] P3 imu_dropout medium  4828s
+
+  1260 records | fault reached estimator in 1251/1260
+  -> experiments\phase5_od8_h7\E18_OD8_CALIBRATION\raw_results\fault_evaluation.json

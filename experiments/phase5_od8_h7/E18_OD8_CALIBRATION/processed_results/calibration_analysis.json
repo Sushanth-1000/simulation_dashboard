@@ -1,0 +1,105 @@
+{
+  "epsilon": 0.05,
+  "schemes": {
+    "global": {
+      "quantile": 5.644888672519105,
+      "n_calibration": 36000,
+      "per_policy": {
+        "P1": {
+          "far": 0.0,
+          "in_band": false,
+          "headroom": 1.9588607128895577
+        },
+        "P2": {
+          "far": 0.11058333333333334,
+          "in_band": false,
+          "headroom": 0.8642340506121649
+        },
+        "P3": {
+          "far": 0.0,
+          "in_band": false,
+          "headroom": 2.2619270570397054
+        }
+      },
+      "all_in_band": false
+    },
+    "policy_conditional": {
+      "per_policy": {
+        "P1": {
+          "quantile": 3.709526398117814,
+          "far": 0.05466666666666667,
+          "in_band": true,
+          "headroom": 0.023498438488266604,
+          "quantile_ci": [
+            3.706427673377574,
+            3.711815610984294
+          ],
+          "n_calibration": 12000
+        },
+        "P2": {
+          "quantile": 5.902398261027489,
+          "far": 0.04675,
+          "in_band": true,
+          "headroom": 1.1217436391205489,
+          "quantile_ci": [
+            5.521431668521529,
+            5.615047575198032
+          ],
+          "n_calibration": 12000
+        },
+        "P3": {
+          "quantile": 3.3999549394352635,
+          "far": 0.08225,
+          "in_band": true,
+          "headroom": 0.016993323955863726,
+          "quantile_ci": [
+            3.390654797943833,
+            3.398186849099514
+          ],
+          "n_calibration": 12000
+        }
+      },
+      "all_in_band": true
+    }
+  },
+  "diagnostics": {
+    "P1": {
+      "mean": 3.6860279596295475,
+      "sd": 0.022216584755225526,
+      "min": 3.4506100362119785,
+      "max": 3.848756603798233,
+      "exchangeability_auc": 0.5153685138888888,
+      "first_half_mean": 3.6850485136817,
+      "second_half_mean": 3.6870074055773974,
+      "drift_over_sd": 0.08817250343740055
+    },
+    "P2": {
+      "mean": 4.78065462190694,
+      "sd": 0.9220477052903099,
+      "min": 2.4032518848880824,
+      "max": 7.446127986190092,
+      "exchangeability_auc": 0.5371913194444444,
+      "first_half_mean": 4.190247063301219,
+      "second_half_mean": 5.371062180512661,
+      "drift_over_sd": 1.2806442773366684
+    },
+    "P3": {
+      "mean": 3.3829616154793998,
+      "sd": 0.012442501621076421,
+      "min": 3.21329383376295,
+      "max": 3.4834110572735124,
+      "exchangeability_auc": 0.5277174513888889,
+      "first_half_mean": 3.3831493927271805,
+      "second_half_mean": 3.38277383823162,
+      "drift_over_sd": 0.0301831984433451
+    }
+  },
+  "selected_scheme": "policy_conditional",
+  "selection_rule": "protocol.md section F: prefer global unless its clean false-alarm rate falls outside [eps/2, 2*eps] for at least one policy.",
+  "fail_criteria": {
+    "C1_false_alarm_in_band": true,
+    "C2_exchangeable_auc_le_0.70": true,
+    "C3_drift_within_between_run_spread": false
+  },
+  "verdict": "PARTIAL"
+}

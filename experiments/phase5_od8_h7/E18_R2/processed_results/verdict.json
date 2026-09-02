@@ -1,0 +1,12 @@
+{
+  "verdict": "PARTIAL-R2",
+  "primary_runs_in_band": 13,
+  "P3_runs_in_band": 2,
+  "P3_classification": "INVALID",
+  "config_hash": "a1dbf0fabb165fd5",
+  "thresholds": {
+    "P1": 3.702369982656383,
+    "P3": 3.395305537817987,
+    "P2": 6.000019158456247
+  }
+}

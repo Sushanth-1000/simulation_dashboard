@@ -1,0 +1,38 @@
+{
+  "P1": {
+    "threshold": 3.702369982656383,
+    "runs_in_band": 13,
+    "n_runs": 30,
+    "pooled_far": 0.05816666666666666,
+    "median_far": 0.030000000000000002,
+    "iqr": [
+      0.015,
+      0.05375
+    ],
+    "zero_alarm_runs": 2
+  },
+  "P3": {
+    "threshold": 3.395305537817987,
+    "runs_in_band": 2,
+    "n_runs": 30,
+    "pooled_far": 0.09183333333333334,
+    "median_far": 0.01,
+    "iqr": [
+      0.005,
+      0.085
+    ],
+    "zero_alarm_runs": 4
+  },
+  "P2": {
+    "threshold": 6.000019158456247,
+    "runs_in_band": 0,
+    "n_runs": 30,
+    "pooled_far": 0.08366666666666668,
+    "median_far": 0.0,
+    "iqr": [
+      0.0,
+      0.0
+    ],
+    "zero_alarm_runs": 25
+  }
+}
