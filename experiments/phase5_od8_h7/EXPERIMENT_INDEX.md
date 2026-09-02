@@ -7,7 +7,9 @@
 | **E18** | Can OD-8 be validly calibrated? | **Complete, verdict revised** | D_s does not predict detection; P1 verdict withdrawn after window-mismatch correction | **PARTIAL** |
 | **E18-R1** | Can run-local calibration recover P3? | **Complete** | P3 9/30; mechanism removed but estimator too noisy; **found E18 window defect** | **FAIL-P3** |
 | **E18-R2** | Does matched-window pooled calibration work? | **Complete** | P1 13/30 (best of 3); obstacle is the score process, not the threshold | **PARTIAL-R2** |
-| E19 | Does the observability profile predict monitor placement? | **BLOCKED - no calibrated monitor** | - | - |
+| **E18-R3** | Precision-limited or dynamics-limited? | **Complete** | P1 30/30 at n=3200 (160 s). Precision-limited | **PASS-R3** |
+| **E18-R3b** | Does it detect faults at the long window? | **NEXT** | - | - |
+| E19 | Does the observability profile predict monitor placement? | **Unblocked for P1**, pending R3b | - | - |
 | E20 | How does single-channel manipulation propagate? | **Future** | - | - |
 
 ## E18 headline

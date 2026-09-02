@@ -1,0 +1,7 @@
+frozen thresholds (v3, not recomputed): {'P1': 3.7024, 'P3': 3.3953}
+30 seeds x 2 policies x 3400 ticks
+
+  P1: at n=3200  runs in band 30/30   median FAR 5.84%   [475s]
+  P3: at n=3200  runs in band 5/30   median FAR 1.16%   [971s]
+
+  60 runs -> experiments\phase5_od8_h7\E18_R3\raw_results\long_runs.json

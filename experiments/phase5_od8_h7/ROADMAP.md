@@ -9,8 +9,9 @@
     E18  OD-8 calibration               COMPLETE - verdict revised; P1 withdrawn
     E18-R1  run-local calibration       COMPLETE - FAIL-P3; found E18 window defect
     E18-R2  matched-window calibration  COMPLETE - PARTIAL-R2; obstacle is the score process
-    E18-R3  longer evaluation windows   <-- NEXT, and blocking
-    E19  H7 monitor placement           BLOCKED - no calibrated monitor exists
+    E18-R3  longer evaluation windows   COMPLETE - PASS. P1 30/30 at 160 s
+    E18-R3b detection at the long window <-- NEXT, and blocking
+    E19  H7 monitor placement           UNBLOCKED for P1, pending R3b
     E20  lying sensor                   FUTURE
     comma2k19 / highD / CARLA           NOT STARTED, correctly
 
@@ -79,3 +80,26 @@ contribution reframes around the demonstrated limitation:
 > per-run-stable operational monitor, because its alarm process is temporally clustered and its
 > baseline varies between runs. Statistical discriminability, calibration validity and operational
 > stability are three distinct properties.
+
+
+## Update, 3 September 2026 — E18-R3 passed
+
+**The evaluation window was the binding variable all along.**
+
+| policy | n=200 | n=800 | n=3200 (160 s) |
+|---|:--:|:--:|:--:|
+| P1 | 12/30 | 21/30 | **30/30** |
+| P3 | 2/30 | 6/30 | 5/30 (bias, not variance) |
+
+The E18-R2 conclusion is **superseded**. "OD-8 cannot deliver per-run-stable false alarms" was true
+only on 200-tick windows, and that qualifier was load-bearing. At 160 seconds of driving — an
+ordinary engineering requirement — P1 has a valid operational monitor.
+
+### E18-R3b is now the gate
+
+R3 measured **clean data only**. A monitor with perfect false-alarm control and no detection is
+still useless, and E18 found `speed_stuck` and `imu_dropout` undetectable at any severity on the
+short window. **R3b re-runs the faulted evaluation at n = 3200 against the frozen threshold.** It
+decides whether the PASS is worth anything.
+
+Only after R3b does E19 become genuinely worth running.

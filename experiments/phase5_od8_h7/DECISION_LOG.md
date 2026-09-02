@@ -213,3 +213,34 @@ NEXT ACTION:   Repair B - longer evaluation windows. A pure compute change, no n
                pre-register, and it separates "not enough samples" from "wrong monitor" for both
                policies at once.
 ```
+
+---
+
+```
+DATE:          3 September 2026
+EXPERIMENT:    E18-R3
+OBSERVATION:   Evaluation window was the binding variable. P1 runs in band: 12/30 at n=200 rising
+               monotonically to 30/30 at n=3200. Scaling slope -0.739 (P1), -0.918 (P3); both
+               steeper than the -0.5 independent-sampling floor. Drift/SD 0.05 and 0.08 - the
+               confounder guard passed, so the design isolated its variable. n=3200 at 20 Hz is
+               160 s of driving. P3 reached only 5/30, but its variance collapsed too: its median
+               FAR converged to 1.16 %, below the 2.5 % floor - bias, not instability.
+DECISION:      Record PASS-R3. Supersede the E18-R2 conclusion. Unblock E19 for P1 only, pending a
+               detection check. Do not fix P3 inside R3.
+RATIONALE:     The frozen criterion was P1 >= 24/30 at n=3200; the result is 30/30 and unambiguous.
+               The R2 claim was not wrong, it was under-qualified: "cannot deliver per-run-stable
+               false alarms" was true only on 200-tick windows, and that qualifier turned out to be
+               load-bearing.
+ALTERNATIVES   (a) Recalibrate P3 on the long window inside R3 - rejected: changes two variables
+REJECTED:          and destroys the one-variable design. It is E18-R4.
+               (b) Claim the monitor works - rejected: R3 measured clean data only. Detection is
+                   untested and E18 found two faults undetectable at any severity.
+               (c) Quote the steeper-than-binomial slope as a finding - rejected: unexplained, in
+                   the favourable direction, and probably a quantisation artefact at short windows.
+IMPACT ON      "OD-8 cannot deliver per-run-stable false alarms" -> SUPERSEDED.
+CLAIMS:        "OD-8 is stable on P1 at a 160 s window" -> Established.
+               "The P1 limitation was precision" -> Established.
+               "P3's residual failure is threshold bias" -> Supported.
+NEXT ACTION:   E18-R3b - faulted evaluation at n=3200 against the frozen threshold. A monitor with
+               perfect false-alarm control and no detection is still useless.
+```
