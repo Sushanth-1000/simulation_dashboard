@@ -1,0 +1,8 @@
+  [  60/360] R1_one_liar P1  126s
+  [ 120/360] R1_one_liar P2  238s
+  [ 180/360] R1_one_liar P3  447s
+  [ 240/360] R2_two_liars P1  598s
+  [ 300/360] R2_two_liars P2  773s
+  [ 360/360] R2_two_liars P3  976s
+
+  360 records -> results\E17_POSITION\position_runs.json

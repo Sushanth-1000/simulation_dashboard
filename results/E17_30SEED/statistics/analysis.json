@@ -1,0 +1,1834 @@
+{
+  "n_runs": 90,
+  "n_records": 540,
+  "policies": [
+    "P1",
+    "P2",
+    "P3"
+  ],
+  "prereg": "manifests/PREREGISTRATION.md",
+  "tableA_stage_profiles": {
+    "P1|imu_dropout": {
+      "L1": {
+        "median": 0.9975,
+        "lo": 0.9975,
+        "hi": 0.9975,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.86,
+        "lo": 0.723375,
+        "hi": 0.8899125,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.758175,
+        "lo": 0.7126250000000001,
+        "hi": 0.908375,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.85991875,
+        "lo": 0.7237125,
+        "hi": 0.8896625,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.7369375,
+        "lo": 0.675225,
+        "hi": 0.7766500000000001,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.53125,
+        "lo": 0.505,
+        "hi": 0.55,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.9875,
+        "lo": 0.9875,
+        "hi": 0.9875,
+        "degenerate": true,
+        "n_finite": 30
+      }
+    },
+    "P1|position_bias": {
+      "L1": {
+        "median": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      }
+    },
+    "P1|position_drift": {
+      "L1": {
+        "median": 0.9700249999999999,
+        "lo": 0.9668625,
+        "hi": 0.9723375000000001,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      }
+    },
+    "P1|speed_stuck": {
+      "L1": {
+        "median": 0.9625,
+        "lo": 0.9199999999999999,
+        "hi": 0.9825,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.5628875,
+        "lo": 0.5609034977438185,
+        "hi": 0.5658375,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.5299875000000001,
+        "lo": 0.5190625,
+        "hi": 0.5378,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.5613125,
+        "lo": 0.5582125,
+        "hi": 0.5656625,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.5132749999999999,
+        "lo": 0.5069625,
+        "hi": 0.5321375,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      }
+    },
+    "P1|speed_bias": {
+      "L1": {
+        "median": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.5157499999999999,
+        "lo": 0.511075,
+        "hi": 0.522625,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.6829875000000001,
+        "lo": 0.67055,
+        "hi": 0.7004250000000001,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.511,
+        "lo": 0.5057,
+        "hi": 0.518275,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.6286625,
+        "lo": 0.567275,
+        "hi": 0.6598625,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      }
+    },
+    "P1|lateral_noise": {
+      "L1": {
+        "median": 0.999425,
+        "lo": 0.99885,
+        "hi": 0.9997875,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.9793499999999999,
+        "lo": 0.97695,
+        "hi": 0.9815,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.9349624999999999,
+        "lo": 0.9119,
+        "hi": 0.9488624999999999,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.97870625,
+        "lo": 0.9767139590336698,
+        "hi": 0.9814375,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.655025,
+        "lo": 0.567675,
+        "hi": 0.700025,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.79625,
+        "lo": 0.725,
+        "hi": 0.8425,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.86625,
+        "lo": 0.7333109009669372,
+        "hi": 0.8975,
+        "degenerate": false,
+        "n_finite": 30
+      }
+    },
+    "P2|imu_dropout": {
+      "L1": {
+        "median": 0.9975,
+        "lo": 0.9975,
+        "hi": 0.9975,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.8011874999999999,
+        "lo": 0.694075,
+        "hi": 0.8794,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.8455375,
+        "lo": 0.7449,
+        "hi": 0.9225125000000001,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.8019125,
+        "lo": 0.6928125,
+        "hi": 0.8725875,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.80335,
+        "lo": 0.6354375,
+        "hi": 0.9132750000000001,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.5025,
+        "lo": 0.5,
+        "hi": 0.525,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5125,
+        "degenerate": false,
+        "n_finite": 30
+      }
+    },
+    "P2|position_bias": {
+      "L1": {
+        "median": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      }
+    },
+    "P2|position_drift": {
+      "L1": {
+        "median": 0.9695125,
+        "lo": 0.9664125,
+        "hi": 0.971475,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      }
+    },
+    "P2|speed_stuck": {
+      "L1": {
+        "median": 0.875,
+        "lo": 0.7075,
+        "hi": 0.95,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.673,
+        "lo": 0.6463375,
+        "hi": 0.7219875,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.5519875000000001,
+        "lo": 0.5323125,
+        "hi": 0.5934875,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.67254375,
+        "lo": 0.6466016699812642,
+        "hi": 0.7219187499999999,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.7206874999999999,
+        "lo": 0.5928875,
+        "hi": 0.8245,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.51125,
+        "lo": 0.5,
+        "hi": 0.55,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5025,
+        "degenerate": false,
+        "n_finite": 30
+      }
+    },
+    "P2|speed_bias": {
+      "L1": {
+        "median": 1.0,
+        "lo": 0.704979894105882,
+        "hi": 1.0,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.5973375,
+        "lo": 0.5860000000000001,
+        "hi": 0.60755,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.5420750000000001,
+        "lo": 0.5253,
+        "hi": 0.5618624999999999,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.6027750000000001,
+        "lo": 0.5957625,
+        "hi": 0.6143624999999999,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.9937875,
+        "lo": 0.84295,
+        "hi": 1.0,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.68,
+        "lo": 0.6375,
+        "hi": 0.7025,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.505,
+        "degenerate": false,
+        "n_finite": 30
+      }
+    },
+    "P2|lateral_noise": {
+      "L1": {
+        "median": 0.991025,
+        "lo": 0.9568543407676726,
+        "hi": 0.9992624999999999,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.9448125,
+        "lo": 0.84655,
+        "hi": 0.9614125,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.53209375,
+        "lo": 0.519275,
+        "hi": 0.7319249999999999,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.9439187499999999,
+        "lo": 0.8396125,
+        "hi": 0.9614437499999999,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.91655,
+        "lo": 0.8206,
+        "hi": 0.935625,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.5025,
+        "lo": 0.5,
+        "hi": 0.5025,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.54,
+        "degenerate": false,
+        "n_finite": 30
+      }
+    },
+    "P3|imu_dropout": {
+      "L1": {
+        "median": 0.9975,
+        "lo": 0.9975,
+        "hi": 0.9975,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.8026500000000001,
+        "lo": 0.691975,
+        "hi": 0.83115,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.6335625,
+        "lo": 0.571975,
+        "hi": 0.7206250000000001,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.80263125,
+        "lo": 0.6909375,
+        "hi": 0.8311625,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.7092,
+        "lo": 0.5946499999999999,
+        "hi": 0.774775,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5025,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.9875,
+        "lo": 0.9875,
+        "hi": 0.9875,
+        "degenerate": true,
+        "n_finite": 30
+      }
+    },
+    "P3|position_bias": {
+      "L1": {
+        "median": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      }
+    },
+    "P3|position_drift": {
+      "L1": {
+        "median": 0.97085,
+        "lo": 0.9687625,
+        "hi": 0.9740875,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      }
+    },
+    "P3|speed_stuck": {
+      "L1": {
+        "median": 0.9875,
+        "lo": 0.9775,
+        "hi": 0.9925,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.5586125,
+        "lo": 0.5547375,
+        "hi": 0.5610875,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.5087375000000001,
+        "lo": 0.5044625,
+        "hi": 0.5136875000000001,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.5575875,
+        "lo": 0.5543437499999999,
+        "hi": 0.560775,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.630425,
+        "lo": 0.6141125000000001,
+        "hi": 0.6631875,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      }
+    },
+    "P3|speed_bias": {
+      "L1": {
+        "median": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "degenerate": true,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.5131749999999999,
+        "lo": 0.508625,
+        "hi": 0.52555,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.6208875,
+        "lo": 0.5899,
+        "hi": 0.698,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.50833125,
+        "lo": 0.504725,
+        "hi": 0.521875,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.96295,
+        "lo": 0.901125,
+        "hi": 0.972475,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.5,
+        "lo": 0.5,
+        "hi": 0.5,
+        "degenerate": true,
+        "n_finite": 30
+      }
+    },
+    "P3|lateral_noise": {
+      "L1": {
+        "median": 1.0,
+        "lo": 0.9991832408898235,
+        "hi": 1.0,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2a": {
+        "median": 0.9798625000000001,
+        "lo": 0.9778,
+        "hi": 0.982425,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L2b": {
+        "median": 0.9008499999999999,
+        "lo": 0.876525,
+        "hi": 0.932125,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L3": {
+        "median": 0.980075,
+        "lo": 0.9778687500000001,
+        "hi": 0.9824625,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L6": {
+        "median": 0.9883625,
+        "lo": 0.980025,
+        "hi": 0.994175,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L7": {
+        "median": 0.765,
+        "lo": 0.74125,
+        "hi": 0.795,
+        "degenerate": false,
+        "n_finite": 30
+      },
+      "L8": {
+        "median": 0.845,
+        "lo": 0.69,
+        "hi": 0.88125,
+        "degenerate": false,
+        "n_finite": 30
+      }
+    }
+  },
+  "tableB_primary_test": {
+    "P1": {
+      "imu_dropout": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 1.0,
+          "W_plus": 464.0,
+          "W_minus": 1.0,
+          "z": -4.751286390980538,
+          "p": 2.021266116147835e-06
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.13750000000000007,
+          "lo": 0.10475000000000001,
+          "hi": 0.256425,
+          "degenerate": false,
+          "method": "BCa",
+          "z0": -0.07878957024029087,
+          "a": 3.2276515082367866e-16,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 2.021266116147835e-06,
+          "p_holm": 9.121139997181338e-06,
+          "reject": true
+        },
+        "primary": false
+      },
+      "position_bias": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 0.0,
+          "W_plus": 465.0,
+          "W_minus": 0.0,
+          "z": -5.465446595320367,
+          "p": 4.617427962205767e-08
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.5,
+          "lo": 0.5,
+          "hi": 0.5,
+          "degenerate": true,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 4.617427962205767e-08,
+          "p_holm": 2.77045677732346e-07,
+          "reject": true
+        },
+        "primary": true
+      },
+      "position_drift": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 0.0,
+          "W_plus": 465.0,
+          "W_minus": 0.0,
+          "z": -4.771980908124905,
+          "p": 1.8242279994362676e-06
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.47002499999999997,
+          "lo": 0.46686249999999996,
+          "hi": 0.4723375,
+          "degenerate": false,
+          "method": "BCa",
+          "z0": -0.07778384164691525,
+          "a": -3.118238312308634e-14,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 1.8242279994362676e-06,
+          "p_holm": 9.121139997181338e-06,
+          "reject": true
+        },
+        "primary": true
+      },
+      "speed_stuck": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 0.0,
+          "W_plus": 465.0,
+          "W_minus": 0.0,
+          "z": -4.771854730335432,
+          "p": 1.825371456321001e-06
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.3971,
+          "lo": 0.3603124999999999,
+          "hi": 0.41818750000000005,
+          "degenerate": false,
+          "method": "BCa",
+          "z0": -0.10749032548488599,
+          "a": 0.0,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 1.825371456321001e-06,
+          "p_holm": 9.121139997181338e-06,
+          "reject": true
+        },
+        "primary": false
+      },
+      "speed_bias": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 0.0,
+          "W_plus": 465.0,
+          "W_minus": 0.0,
+          "z": -4.771854730335432,
+          "p": 1.825371456321001e-06
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.48425,
+          "lo": 0.4768,
+          "hi": 0.488175,
+          "degenerate": false,
+          "method": "BCa",
+          "z0": -0.04413097794761491,
+          "a": 6.539947663107997e-15,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 1.825371456321001e-06,
+          "p_holm": 9.121139997181338e-06,
+          "reject": true
+        },
+        "primary": false
+      },
+      "lateral_noise": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 0.0,
+          "W_plus": 465.0,
+          "W_minus": 0.0,
+          "z": -4.771854730335432,
+          "p": 1.825371456321001e-06
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.019287499999999957,
+          "lo": 0.016449999999999965,
+          "hi": 0.021600000000000008,
+          "degenerate": false,
+          "method": "BCa",
+          "z0": -0.06496734527788303,
+          "a": 7.247685125216302e-19,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 1.825371456321001e-06,
+          "p_holm": 9.121139997181338e-06,
+          "reject": true
+        },
+        "primary": false
+      }
+    },
+    "P2": {
+      "imu_dropout": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 0.0,
+          "W_plus": 465.0,
+          "W_minus": 0.0,
+          "z": -4.771854730335432,
+          "p": 1.825371456321001e-06
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.19631250000000006,
+          "lo": 0.10185,
+          "hi": 0.26631250000000006,
+          "degenerate": false,
+          "method": "BCa",
+          "z0": -0.09086482514711734,
+          "a": 2.6330039601821082e-15,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 1.825371456321001e-06,
+          "p_holm": 9.126857281605005e-06,
+          "reject": true
+        },
+        "primary": false
+      },
+      "position_bias": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 0.0,
+          "W_plus": 465.0,
+          "W_minus": 0.0,
+          "z": -5.465446595320367,
+          "p": 4.617427962205767e-08
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.5,
+          "lo": 0.5,
+          "hi": 0.5,
+          "degenerate": true,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 4.617427962205767e-08,
+          "p_holm": 2.77045677732346e-07,
+          "reject": true
+        },
+        "primary": true
+      },
+      "position_drift": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 0.0,
+          "W_plus": 465.0,
+          "W_minus": 0.0,
+          "z": -4.771854730335432,
+          "p": 1.825371456321001e-06
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.4695125,
+          "lo": 0.4664125,
+          "hi": 0.471475,
+          "degenerate": false,
+          "method": "BCa",
+          "z0": -0.05241251788185768,
+          "a": 2.0269592120308807e-13,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 1.825371456321001e-06,
+          "p_holm": 9.126857281605005e-06,
+          "reject": true
+        },
+        "primary": true
+      },
+      "speed_stuck": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 105.0,
+          "W_plus": 360.0,
+          "W_minus": 105.0,
+          "z": -2.612179098071551,
+          "p": 0.008996710944473074
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.17573750000000005,
+          "lo": 0.025987500000000052,
+          "hi": 0.24511249999999996,
+          "degenerate": false,
+          "method": "BCa",
+          "z0": -0.05592695179372389,
+          "a": 1.8545628734426723e-16,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 0.008996710944473074,
+          "p_holm": 0.008996710944473074,
+          "reject": true
+        },
+        "primary": false
+      },
+      "speed_bias": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 24.0,
+          "W_plus": 441.0,
+          "W_minus": 24.0,
+          "z": -4.278214585817974,
+          "p": 1.8839835739803412e-05
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.361825,
+          "lo": 0.16932499999999995,
+          "hi": 0.3982375,
+          "degenerate": false,
+          "method": "BCa",
+          "z0": -0.053918622045274,
+          "a": -7.52162304643693e-16,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 1.8839835739803412e-05,
+          "p_holm": 3.7679671479606824e-05,
+          "reject": true
+        },
+        "primary": false
+      },
+      "lateral_noise": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 0.0,
+          "W_plus": 465.0,
+          "W_minus": 0.0,
+          "z": -4.771854730335432,
+          "p": 1.825371456321001e-06
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.04403750000000001,
+          "lo": 0.031974999999999976,
+          "hi": 0.06777499999999992,
+          "degenerate": false,
+          "method": "BCa",
+          "z0": -0.09867036414020375,
+          "a": -5.543072600940785e-16,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 1.825371456321001e-06,
+          "p_holm": 9.126857281605005e-06,
+          "reject": true
+        },
+        "primary": false
+      }
+    },
+    "P3": {
+      "imu_dropout": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 1.0,
+          "W_plus": 464.0,
+          "W_minus": 1.0,
+          "z": -4.751286390980538,
+          "p": 2.021266116147835e-06
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.19485000000000002,
+          "lo": 0.16622500000000007,
+          "hi": 0.2826000000000001,
+          "degenerate": false,
+          "method": "BCa",
+          "z0": -0.08281329193188118,
+          "a": -7.32608188234276e-16,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 2.021266116147835e-06,
+          "p_holm": 9.126857281605005e-06,
+          "reject": true
+        },
+        "primary": false
+      },
+      "position_bias": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 0.0,
+          "W_plus": 465.0,
+          "W_minus": 0.0,
+          "z": -5.465446595320367,
+          "p": 4.617427962205767e-08
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.5,
+          "lo": 0.5,
+          "hi": 0.5,
+          "degenerate": true,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 4.617427962205767e-08,
+          "p_holm": 2.77045677732346e-07,
+          "reject": true
+        },
+        "primary": true
+      },
+      "position_drift": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 0.0,
+          "W_plus": 465.0,
+          "W_minus": 0.0,
+          "z": -4.771854730335432,
+          "p": 1.825371456321001e-06
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.47085,
+          "lo": 0.46876249999999997,
+          "hi": 0.4740875,
+          "degenerate": false,
+          "method": "BCa",
+          "z0": -0.11051620356204167,
+          "a": 1.6215675007222006e-13,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 1.825371456321001e-06,
+          "p_holm": 9.126857281605005e-06,
+          "reject": true
+        },
+        "primary": true
+      },
+      "speed_stuck": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 0.0,
+          "W_plus": 465.0,
+          "W_minus": 0.0,
+          "z": -4.771854730335432,
+          "p": 1.825371456321001e-06
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.4282000000000001,
+          "lo": 0.41761250000000005,
+          "hi": 0.43207500000000004,
+          "degenerate": false,
+          "method": "BCa",
+          "z0": -0.06898695897232804,
+          "a": -2.758313961723973e-19,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 1.825371456321001e-06,
+          "p_holm": 9.126857281605005e-06,
+          "reject": true
+        },
+        "primary": false
+      },
+      "speed_bias": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 0.0,
+          "W_plus": 465.0,
+          "W_minus": 0.0,
+          "z": -4.771854730335432,
+          "p": 1.825371456321001e-06
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.486825,
+          "lo": 0.47245000000000004,
+          "hi": 0.4907625,
+          "degenerate": false,
+          "method": "BCa",
+          "z0": -0.0800468431825492,
+          "a": 3.8004128184000895e-14,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 1.825371456321001e-06,
+          "p_holm": 9.126857281605005e-06,
+          "reject": true
+        },
+        "primary": false
+      },
+      "lateral_noise": {
+        "wilcoxon": {
+          "n": 30,
+          "n_dropped": 0,
+          "W": 0.0,
+          "W_plus": 465.0,
+          "W_minus": 0.0,
+          "z": -4.771854730335432,
+          "p": 1.825371456321001e-06
+        },
+        "effect_L1_minus_L2a": {
+          "median": 0.019100000000000006,
+          "lo": 0.016924999999999968,
+          "hi": 0.021437500000000054,
+          "degenerate": false,
+          "method": "BCa",
+          "z0": -0.07099717982770037,
+          "a": 0.0,
+          "n": 30
+        },
+        "holm": {
+          "p_raw": 1.825371456321001e-06,
+          "p_holm": 9.126857281605005e-06,
+          "reject": true
+        },
+        "primary": false
+      }
+    }
+  },
+  "tableC_absorption_stability": {
+    "P1|imu_dropout": {
+      "absorption_counts": {
+        "L7": 18,
+        "L2a": 4,
+        "L6": 1,
+        "None": 4,
+        "L2b": 3
+      },
+      "modal": "L7",
+      "modal_fraction": 0.6,
+      "n_unique_absorption": 0,
+      "n": 30
+    },
+    "P1|position_bias": {
+      "absorption_counts": {
+        "L2a": 30
+      },
+      "modal": "L2a",
+      "modal_fraction": 1.0,
+      "n_unique_absorption": 30,
+      "n": 30
+    },
+    "P1|position_drift": {
+      "absorption_counts": {
+        "L2a": 30
+      },
+      "modal": "L2a",
+      "modal_fraction": 1.0,
+      "n_unique_absorption": 30,
+      "n": 30
+    },
+    "P1|speed_stuck": {
+      "absorption_counts": {
+        "L2a": 30
+      },
+      "modal": "L2a",
+      "modal_fraction": 1.0,
+      "n_unique_absorption": 30,
+      "n": 30
+    },
+    "P1|speed_bias": {
+      "absorption_counts": {
+        "L2a": 30
+      },
+      "modal": "L2a",
+      "modal_fraction": 1.0,
+      "n_unique_absorption": 0,
+      "n": 30
+    },
+    "P1|lateral_noise": {
+      "absorption_counts": {
+        "None": 15,
+        "L6": 12,
+        "L8": 3
+      },
+      "modal": "None",
+      "modal_fraction": 0.5,
+      "n_unique_absorption": 3,
+      "n": 30
+    },
+    "P2|imu_dropout": {
+      "absorption_counts": {
+        "L6": 6,
+        "L7": 12,
+        "L2a": 4,
+        "L8": 2,
+        "None": 2,
+        "L2b": 4
+      },
+      "modal": "L7",
+      "modal_fraction": 0.4,
+      "n_unique_absorption": 17,
+      "n": 30
+    },
+    "P2|position_bias": {
+      "absorption_counts": {
+        "L2a": 30
+      },
+      "modal": "L2a",
+      "modal_fraction": 1.0,
+      "n_unique_absorption": 30,
+      "n": 30
+    },
+    "P2|position_drift": {
+      "absorption_counts": {
+        "L2a": 30
+      },
+      "modal": "L2a",
+      "modal_fraction": 1.0,
+      "n_unique_absorption": 30,
+      "n": 30
+    },
+    "P2|speed_stuck": {
+      "absorption_counts": {
+        "L2b": 17,
+        "L6": 3,
+        "L2a": 4,
+        "L7": 1,
+        "L1": 3,
+        "L8": 2
+      },
+      "modal": "L2b",
+      "modal_fraction": 0.5666666666666667,
+      "n_unique_absorption": 4,
+      "n": 30
+    },
+    "P2|speed_bias": {
+      "absorption_counts": {
+        "L1": 6,
+        "L2b": 10,
+        "L2a": 12,
+        "L8": 2
+      },
+      "modal": "L2a",
+      "modal_fraction": 0.4,
+      "n_unique_absorption": 7,
+      "n": 30
+    },
+    "P2|lateral_noise": {
+      "absorption_counts": {
+        "None": 3,
+        "L7": 8,
+        "L2b": 18,
+        "L6": 1
+      },
+      "modal": "L2b",
+      "modal_fraction": 0.6,
+      "n_unique_absorption": 6,
+      "n": 30
+    },
+    "P3|imu_dropout": {
+      "absorption_counts": {
+        "L7": 9,
+        "L2b": 11,
+        "L6": 6,
+        "L2a": 4
+      },
+      "modal": "L2b",
+      "modal_fraction": 0.36666666666666664,
+      "n_unique_absorption": 0,
+      "n": 30
+    },
+    "P3|position_bias": {
+      "absorption_counts": {
+        "L2a": 30
+      },
+      "modal": "L2a",
+      "modal_fraction": 1.0,
+      "n_unique_absorption": 30,
+      "n": 30
+    },
+    "P3|position_drift": {
+      "absorption_counts": {
+        "L2a": 30
+      },
+      "modal": "L2a",
+      "modal_fraction": 1.0,
+      "n_unique_absorption": 30,
+      "n": 30
+    },
+    "P3|speed_stuck": {
+      "absorption_counts": {
+        "L2a": 30
+      },
+      "modal": "L2a",
+      "modal_fraction": 1.0,
+      "n_unique_absorption": 8,
+      "n": 30
+    },
+    "P3|speed_bias": {
+      "absorption_counts": {
+        "L2a": 30
+      },
+      "modal": "L2a",
+      "modal_fraction": 1.0,
+      "n_unique_absorption": 0,
+      "n": 30
+    },
+    "P3|lateral_noise": {
+      "absorption_counts": {
+        "None": 25,
+        "L8": 5
+      },
+      "modal": "None",
+      "modal_fraction": 0.8333333333333334,
+      "n_unique_absorption": 5,
+      "n": 30
+    }
+  },
+  "tableD_regime": {
+    "P1": {
+      "veto_rate": {
+        "median": 0.025,
+        "min": 0.0025,
+        "max": 0.51
+      },
+      "mean_speed": {
+        "median": 10.653912314688384,
+        "min": 5.620164396186846,
+        "max": 13.647956860487886
+      },
+      "regime_counts": {
+        "NORMAL": 142,
+        "INTERMEDIATE": 36,
+        "DEGRADED": 2
+      }
+    },
+    "P2": {
+      "veto_rate": {
+        "median": 0.86625,
+        "min": 0.605,
+        "max": 0.99
+      },
+      "mean_speed": {
+        "median": 3.3194124756285386,
+        "min": 2.2172709500504775,
+        "max": 11.614689659630326
+      },
+      "regime_counts": {
+        "DEGRADED": 180
+      }
+    },
+    "P3": {
+      "veto_rate": {
+        "median": 0.0075,
+        "min": 0.0,
+        "max": 0.4925
+      },
+      "mean_speed": {
+        "median": 11.07303215317944,
+        "min": 5.693203912093008,
+        "max": 14.058924315438746
+      },
+      "regime_counts": {
+        "NORMAL": 150,
+        "INTERMEDIATE": 30
+      }
+    }
+  },
+  "H_regime_secondary": {
+    "speed_bias": {
+      "spearman_D_L1_vs_veto_rate": {
+        "rho": -0.3413304116382544,
+        "p": 0.0008,
+        "n": 90,
+        "n_perm": 10000
+      },
+      "spearman_D_L1_vs_mean_speed": {
+        "rho": 0.3352890502274529,
+        "p": 0.0013,
+        "n": 90,
+        "n_perm": 10000
+      },
+      "note": "EXPLORATORY -- hypothesis generated from the n=1 observation it is tested on."
+    },
+    "speed_stuck": {
+      "spearman_D_L1_vs_veto_rate": {
+        "rho": -0.45706880081456897,
+        "p": 0.0001,
+        "n": 90,
+        "n_perm": 10000
+      },
+      "spearman_D_L1_vs_mean_speed": {
+        "rho": 0.39878350468111373,
+        "p": 0.0,
+        "n": 90,
+        "n_perm": 10000
+      },
+      "note": "EXPLORATORY -- hypothesis generated from the n=1 observation it is tested on."
+    }
+  },
+  "falsification_checks": [
+    {
+      "criterion": "F1: median D_L2a > 0.60",
+      "policy": "P1",
+      "fault": "position_bias",
+      "value": 0.5,
+      "falsified": false
+    },
+    {
+      "criterion": "F2: effect CI crosses zero",
+      "policy": "P1",
+      "fault": "position_bias",
+      "value": [
+        0.5,
+        0.5
+      ],
+      "falsified": false
+    },
+    {
+      "criterion": "F3: absorption stage varies across seeds",
+      "policy": "P1",
+      "fault": "position_bias",
+      "value": 1.0,
+      "falsified": false
+    },
+    {
+      "criterion": "F1: median D_L2a > 0.60",
+      "policy": "P1",
+      "fault": "position_drift",
+      "value": 0.5,
+      "falsified": false
+    },
+    {
+      "criterion": "F2: effect CI crosses zero",
+      "policy": "P1",
+      "fault": "position_drift",
+      "value": [
+        0.46686249999999996,
+        0.4723375
+      ],
+      "falsified": false
+    },
+    {
+      "criterion": "F3: absorption stage varies across seeds",
+      "policy": "P1",
+      "fault": "position_drift",
+      "value": 1.0,
+      "falsified": false
+    },
+    {
+      "criterion": "F1: median D_L2a > 0.60",
+      "policy": "P2",
+      "fault": "position_bias",
+      "value": 0.5,
+      "falsified": false
+    },
+    {
+      "criterion": "F2: effect CI crosses zero",
+      "policy": "P2",
+      "fault": "position_bias",
+      "value": [
+        0.5,
+        0.5
+      ],
+      "falsified": false
+    },
+    {
+      "criterion": "F3: absorption stage varies across seeds",
+      "policy": "P2",
+      "fault": "position_bias",
+      "value": 1.0,
+      "falsified": false
+    },
+    {
+      "criterion": "F1: median D_L2a > 0.60",
+      "policy": "P2",
+      "fault": "position_drift",
+      "value": 0.5,
+      "falsified": false
+    },
+    {
+      "criterion": "F2: effect CI crosses zero",
+      "policy": "P2",
+      "fault": "position_drift",
+      "value": [
+        0.4664125,
+        0.471475
+      ],
+      "falsified": false
+    },
+    {
+      "criterion": "F3: absorption stage varies across seeds",
+      "policy": "P2",
+      "fault": "position_drift",
+      "value": 1.0,
+      "falsified": false
+    },
+    {
+      "criterion": "F1: median D_L2a > 0.60",
+      "policy": "P3",
+      "fault": "position_bias",
+      "value": 0.5,
+      "falsified": false
+    },
+    {
+      "criterion": "F2: effect CI crosses zero",
+      "policy": "P3",
+      "fault": "position_bias",
+      "value": [
+        0.5,
+        0.5
+      ],
+      "falsified": false
+    },
+    {
+      "criterion": "F3: absorption stage varies across seeds",
+      "policy": "P3",
+      "fault": "position_bias",
+      "value": 1.0,
+      "falsified": false
+    },
+    {
+      "criterion": "F1: median D_L2a > 0.60",
+      "policy": "P3",
+      "fault": "position_drift",
+      "value": 0.5,
+      "falsified": false
+    },
+    {
+      "criterion": "F2: effect CI crosses zero",
+      "policy": "P3",
+      "fault": "position_drift",
+      "value": [
+        0.46876249999999997,
+        0.4740875
+      ],
+      "falsified": false
+    },
+    {
+      "criterion": "F3: absorption stage varies across seeds",
+      "policy": "P3",
+      "fault": "position_drift",
+      "value": 1.0,
+      "falsified": false
+    }
+  ],
+  "any_falsified": false
+}

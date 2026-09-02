@@ -1,0 +1,19 @@
+policy,fault,severity,modal_A_f,modal_pct,seeds_with_unique_absorption,n,stable_across_seeds,A_f_well_posed,threshold,validity
+P1,imu_dropout,suppress IMU,L7,60.0,0,30,False,False,0.6,VALID
+P1,position_bias,1.0 m,L2a,100.0,30,30,True,True,0.6,INVALID
+P1,position_drift,2.0 m final,L2a,100.0,30,30,True,True,0.6,INVALID
+P1,speed_stuck,hold,L2a,100.0,30,30,True,True,0.6,VALID
+P1,speed_bias,3.0 m/s,L2a,100.0,0,30,True,False,0.6,VALID
+P1,lateral_noise,sigma x25,None,50.0,3,30,False,False,0.6,VALID
+P2,imu_dropout,suppress IMU,L7,40.0,17,30,False,False,0.6,VALID
+P2,position_bias,1.0 m,L2a,100.0,30,30,True,True,0.6,INVALID
+P2,position_drift,2.0 m final,L2a,100.0,30,30,True,True,0.6,INVALID
+P2,speed_stuck,hold,L2b,56.7,4,30,False,False,0.6,VALID
+P2,speed_bias,3.0 m/s,L2a,40.0,7,30,False,False,0.6,VALID
+P2,lateral_noise,sigma x25,L2b,60.0,6,30,False,False,0.6,VALID
+P3,imu_dropout,suppress IMU,L2b,36.7,0,30,False,False,0.6,VALID
+P3,position_bias,1.0 m,L2a,100.0,30,30,True,True,0.6,INVALID
+P3,position_drift,2.0 m final,L2a,100.0,30,30,True,True,0.6,INVALID
+P3,speed_stuck,hold,L2a,100.0,8,30,True,False,0.6,VALID
+P3,speed_bias,3.0 m/s,L2a,100.0,0,30,True,False,0.6,VALID
+P3,lateral_noise,sigma x25,None,83.3,5,30,False,False,0.6,VALID

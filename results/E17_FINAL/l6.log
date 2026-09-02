@@ -1,0 +1,26 @@
+  P1 imu_dropout     done
+  P1 speed_stuck     done
+  P1 speed_bias      done
+  P1 lateral_noise   done
+  P2 imu_dropout     done
+  P2 speed_stuck     done
+  P2 speed_bias      done
+  P2 lateral_noise   done
+  P3 imu_dropout     done
+  P3 speed_stuck     done
+  P3 speed_bias      done
+  P3 lateral_noise   done
+
+policy  fault            score_clean     shift  threshold  headroom    ratio  fires?
+P1      imu_dropout           3.6872    0.0069     5.4129    1.7258   0.0040   False
+P1      speed_stuck           3.6872    0.0005     5.4264    1.7393   0.0003   False
+P1      speed_bias            3.6872    0.0033     5.4275    1.7404   0.0019   False
+P1      lateral_noise         3.6872    0.1425     5.4097    1.7225   0.0828   False
+P2      imu_dropout           5.1488    0.4804     5.4093    0.2605   1.5732    True
+P2      speed_stuck           5.1488    0.4733     5.4115    0.2627   1.3716    True
+P2      speed_bias            5.1488    0.7826     5.4145    0.2657   1.1724    True
+P2      lateral_noise         5.1488    0.6947     5.4142    0.2654   1.3701    True
+P3      imu_dropout           3.3833    0.0052     5.4138    2.0306   0.0026   False
+P3      speed_stuck           3.3833    0.0010     5.4268    2.0435   0.0005   False
+P3      speed_bias            3.3833    0.0076     5.4274    2.0441   0.0037   False
+P3      lateral_noise         3.3833    0.2352     5.4103    2.0270   0.1161   False

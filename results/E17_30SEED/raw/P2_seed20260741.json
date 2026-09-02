@@ -1,0 +1,485 @@
+{
+  "run_id": "P2_seed20260741",
+  "policy": "P2",
+  "checkpoint": "var\\policy\\long.pt",
+  "seed": 20260741,
+  "ticks": 400,
+  "git_commit": "6383676a3491dc82d70f2db20cdafb942e5c588a",
+  "final_status": "ok",
+  "scenarios": {
+    "imu_dropout": {
+      "stages": [
+        {
+          "stage": "L1",
+          "label": "stream health (dropout)",
+          "D": 0.9975,
+          "ci_lo": 0.9925,
+          "ci_hi": 1.0,
+          "n": 200,
+          "R": 1.0
+        },
+        {
+          "stage": "L2a",
+          "label": "innovation (pre-settle)",
+          "D": 0.800225,
+          "ci_lo": 0.7511737500000001,
+          "ci_hi": 0.84841625,
+          "n": 200,
+          "R": 0.6034673366834169
+        },
+        {
+          "stage": "L2b",
+          "label": "estimated state",
+          "D": 0.717525,
+          "ci_lo": 0.665716875,
+          "ci_hi": 0.7661525,
+          "n": 200,
+          "R": 0.4372361809045225
+        },
+        {
+          "stage": "L3",
+          "label": "trust index",
+          "D": 0.8003125,
+          "ci_lo": 0.7516871875000001,
+          "ci_hi": 0.848415625,
+          "n": 200,
+          "R": 0.603643216080402
+        },
+        {
+          "stage": "L6",
+          "label": "non-conformity score",
+          "D": 0.87165,
+          "ci_lo": 0.828515625,
+          "ci_hi": 0.910153125,
+          "n": 200,
+          "R": 0.7470351758793969
+        },
+        {
+          "stage": "L7",
+          "label": "gate verdict",
+          "D": 0.6575,
+          "ci_lo": 0.6174999999999999,
+          "ci_hi": 0.7,
+          "n": 200,
+          "R": 0.31658291457286425
+        },
+        {
+          "stage": "L8",
+          "label": "fail-safe posture",
+          "D": 0.525,
+          "ci_lo": 0.5025,
+          "ci_hi": 0.5625,
+          "n": 200,
+          "R": 0.05025125628140707
+        }
+      ],
+      "absorption_point": "L8",
+      "threshold_crossings": 1,
+      "unique_absorption": true,
+      "regime": {
+        "veto_rate_clean": 0.815,
+        "veto_rate_faulted": 0.6575,
+        "mean_speed_clean": 3.9767359954792116,
+        "mean_speed_faulted": 3.4581343364279165,
+        "speed_std_faulted": 3.7512049549405475,
+        "total_ticks": 400,
+        "veto_ticks_faulted": 263
+      }
+    },
+    "position_bias": {
+      "stages": [
+        {
+          "stage": "L1",
+          "label": "raw measured channel",
+          "D": 1.0,
+          "ci_lo": 1.0,
+          "ci_hi": 1.0,
+          "n": 200,
+          "R": 1.0
+        },
+        {
+          "stage": "L2a",
+          "label": "innovation (pre-settle)",
+          "D": 0.5,
+          "ci_lo": 0.5008871874999999,
+          "ci_hi": 0.565894375,
+          "n": 200,
+          "R": 0.0
+        },
+        {
+          "stage": "L2b",
+          "label": "estimated state",
+          "D": 0.5,
+          "ci_lo": 0.5008996875,
+          "ci_hi": 0.5637453124999999,
+          "n": 200,
+          "R": 0.0
+        },
+        {
+          "stage": "L3",
+          "label": "trust index",
+          "D": 0.5,
+          "ci_lo": 0.5010118750000001,
+          "ci_hi": 0.5655934375,
+          "n": 200,
+          "R": 0.0
+        },
+        {
+          "stage": "L6",
+          "label": "non-conformity score",
+          "D": 0.5,
+          "ci_lo": 0.5007615625,
+          "ci_hi": 0.5637515624999999,
+          "n": 200,
+          "R": 0.0
+        },
+        {
+          "stage": "L7",
+          "label": "gate verdict",
+          "D": 0.5,
+          "ci_lo": 0.5,
+          "ci_hi": 0.535,
+          "n": 200,
+          "R": 0.0
+        },
+        {
+          "stage": "L8",
+          "label": "fail-safe posture",
+          "D": 0.5,
+          "ci_lo": 0.5,
+          "ci_hi": 0.545,
+          "n": 200,
+          "R": 0.0
+        }
+      ],
+      "absorption_point": "L2a",
+      "threshold_crossings": 1,
+      "unique_absorption": true,
+      "regime": {
+        "veto_rate_clean": 0.815,
+        "veto_rate_faulted": 0.815,
+        "mean_speed_clean": 3.9767359954792116,
+        "mean_speed_faulted": 3.9767359954792116,
+        "speed_std_faulted": 3.605324161913505,
+        "total_ticks": 400,
+        "veto_ticks_faulted": 326
+      }
+    },
+    "position_drift": {
+      "stages": [
+        {
+          "stage": "L1",
+          "label": "raw measured channel",
+          "D": 0.9726125,
+          "ci_lo": 0.9546184375,
+          "ci_hi": 0.98675125,
+          "n": 200,
+          "R": 1.0
+        },
+        {
+          "stage": "L2a",
+          "label": "innovation (pre-settle)",
+          "D": 0.5,
+          "ci_lo": 0.5008871874999999,
+          "ci_hi": 0.565894375,
+          "n": 200,
+          "R": 0.0
+        },
+        {
+          "stage": "L2b",
+          "label": "estimated state",
+          "D": 0.5,
+          "ci_lo": 0.5008996875,
+          "ci_hi": 0.5637453124999999,
+          "n": 200,
+          "R": 0.0
+        },
+        {
+          "stage": "L3",
+          "label": "trust index",
+          "D": 0.5,
+          "ci_lo": 0.5010118750000001,
+          "ci_hi": 0.5655934375,
+          "n": 200,
+          "R": 0.0
+        },
+        {
+          "stage": "L6",
+          "label": "non-conformity score",
+          "D": 0.5,
+          "ci_lo": 0.5007615625,
+          "ci_hi": 0.5637515624999999,
+          "n": 200,
+          "R": 0.0
+        },
+        {
+          "stage": "L7",
+          "label": "gate verdict",
+          "D": 0.5,
+          "ci_lo": 0.5,
+          "ci_hi": 0.535,
+          "n": 200,
+          "R": 0.0
+        },
+        {
+          "stage": "L8",
+          "label": "fail-safe posture",
+          "D": 0.5,
+          "ci_lo": 0.5,
+          "ci_hi": 0.545,
+          "n": 200,
+          "R": 0.0
+        }
+      ],
+      "absorption_point": "L2a",
+      "threshold_crossings": 1,
+      "unique_absorption": true,
+      "regime": {
+        "veto_rate_clean": 0.815,
+        "veto_rate_faulted": 0.815,
+        "mean_speed_clean": 3.9767359954792116,
+        "mean_speed_faulted": 3.9767359954792116,
+        "speed_std_faulted": 3.605324161913505,
+        "total_ticks": 400,
+        "veto_ticks_faulted": 326
+      }
+    },
+    "speed_stuck": {
+      "stages": [
+        {
+          "stage": "L1",
+          "label": "raw measured channel",
+          "D": 0.9975,
+          "ci_lo": 0.9925,
+          "ci_hi": 1.0,
+          "n": 200,
+          "R": 1.0
+        },
+        {
+          "stage": "L2a",
+          "label": "innovation (pre-settle)",
+          "D": 0.7503875,
+          "ci_lo": 0.702495,
+          "ci_hi": 0.7955765625,
+          "n": 200,
+          "R": 0.5032914572864321
+        },
+        {
+          "stage": "L2b",
+          "label": "estimated state",
+          "D": 0.5529625,
+          "ci_lo": 0.506064375,
+          "ci_hi": 0.6087018750000001,
+          "n": 200,
+          "R": 0.10645728643216083
+        },
+        {
+          "stage": "L3",
+          "label": "trust index",
+          "D": 0.750075,
+          "ci_lo": 0.702460625,
+          "ci_hi": 0.7955521874999999,
+          "n": 200,
+          "R": 0.5026633165829146
+        },
+        {
+          "stage": "L6",
+          "label": "non-conformity score",
+          "D": 0.8146375,
+          "ci_lo": 0.7599737500000001,
+          "ci_hi": 0.8647553124999998,
+          "n": 200,
+          "R": 0.6324371859296481
+        },
+        {
+          "stage": "L7",
+          "label": "gate verdict",
+          "D": 0.6825,
+          "ci_lo": 0.6425000000000001,
+          "ci_hi": 0.7224999999999999,
+          "n": 200,
+          "R": 0.36683417085427134
+        },
+        {
+          "stage": "L8",
+          "label": "fail-safe posture",
+          "D": 0.54,
+          "ci_lo": 0.5049375,
+          "ci_hi": 0.5825,
+          "n": 200,
+          "R": 0.08040201005025131
+        }
+      ],
+      "absorption_point": "L2b",
+      "threshold_crossings": 3,
+      "unique_absorption": false,
+      "regime": {
+        "veto_rate_clean": 0.815,
+        "veto_rate_faulted": 0.6325,
+        "mean_speed_clean": 3.9767359954792116,
+        "mean_speed_faulted": 3.4581343364279165,
+        "speed_std_faulted": 3.7512049549405475,
+        "total_ticks": 400,
+        "veto_ticks_faulted": 253
+      }
+    },
+    "speed_bias": {
+      "stages": [
+        {
+          "stage": "L1",
+          "label": "raw measured channel",
+          "D": 0.802175,
+          "ci_lo": 0.747755,
+          "ci_hi": 0.85300375,
+          "n": 200,
+          "R": 1.0
+        },
+        {
+          "stage": "L2a",
+          "label": "innovation (pre-settle)",
+          "D": 0.595275,
+          "ci_lo": 0.539416875,
+          "ci_hi": 0.650325,
+          "n": 200,
+          "R": 0.3152974269876727
+        },
+        {
+          "stage": "L2b",
+          "label": "estimated state",
+          "D": 0.714,
+          "ci_lo": 0.6627000000000001,
+          "ci_hi": 0.7642543749999999,
+          "n": 200,
+          "R": 0.7081988913708943
+        },
+        {
+          "stage": "L3",
+          "label": "trust index",
+          "D": 0.6011625,
+          "ci_lo": 0.5448993750000001,
+          "ci_hi": 0.6553765625,
+          "n": 200,
+          "R": 0.3347811698519072
+        },
+        {
+          "stage": "L6",
+          "label": "non-conformity score",
+          "D": 0.79345,
+          "ci_lo": 0.7363225,
+          "ci_hi": 0.843715625,
+          "n": 200,
+          "R": 0.9711260031438737
+        },
+        {
+          "stage": "L7",
+          "label": "gate verdict",
+          "D": 0.6950000000000001,
+          "ci_lo": 0.6549375000000001,
+          "ci_hi": 0.735,
+          "n": 200,
+          "R": 0.6453214197071236
+        },
+        {
+          "stage": "L8",
+          "label": "fail-safe posture",
+          "D": 0.51,
+          "ci_lo": 0.5,
+          "ci_hi": 0.5475,
+          "n": 200,
+          "R": 0.03309340613882687
+        }
+      ],
+      "absorption_point": "L2a",
+      "threshold_crossings": 3,
+      "unique_absorption": false,
+      "regime": {
+        "veto_rate_clean": 0.815,
+        "veto_rate_faulted": 0.62,
+        "mean_speed_clean": 3.9767359954792116,
+        "mean_speed_faulted": 3.6195038558767623,
+        "speed_std_faulted": 3.6496440689704346,
+        "total_ticks": 400,
+        "veto_ticks_faulted": 248
+      }
+    },
+    "lateral_noise": {
+      "stages": [
+        {
+          "stage": "L1",
+          "label": "raw channel dispersion (w=10)",
+          "D": 0.946025,
+          "ci_lo": 0.9215237500000001,
+          "ci_hi": 0.966775,
+          "n": 200,
+          "R": 1.0
+        },
+        {
+          "stage": "L2a",
+          "label": "innovation (pre-settle)",
+          "D": 0.87825,
+          "ci_lo": 0.8418712500000001,
+          "ci_hi": 0.912950625,
+          "n": 200,
+          "R": 0.8480466341572781
+        },
+        {
+          "stage": "L2b",
+          "label": "estimated state",
+          "D": 0.97685,
+          "ci_lo": 0.95695,
+          "ci_hi": 0.99255125,
+          "n": 200,
+          "R": 1.0691104758701866
+        },
+        {
+          "stage": "L3",
+          "label": "trust index",
+          "D": 0.8784125,
+          "ci_lo": 0.8418234375,
+          "ci_hi": 0.91215375,
+          "n": 200,
+          "R": 0.8484109635110141
+        },
+        {
+          "stage": "L6",
+          "label": "non-conformity score",
+          "D": 0.935575,
+          "ci_lo": 0.9030425,
+          "ci_hi": 0.9633762499999999,
+          "n": 200,
+          "R": 0.9765708200212994
+        },
+        {
+          "stage": "L7",
+          "label": "gate verdict",
+          "D": 0.55,
+          "ci_lo": 0.5275,
+          "ci_hi": 0.5725,
+          "n": 200,
+          "R": 0.11210133961100845
+        },
+        {
+          "stage": "L8",
+          "label": "fail-safe posture",
+          "D": 0.58,
+          "ci_lo": 0.55,
+          "ci_hi": 0.61,
+          "n": 200,
+          "R": 0.17936214337761328
+        }
+      ],
+      "absorption_point": "L7",
+      "threshold_crossings": 1,
+      "unique_absorption": true,
+      "regime": {
+        "veto_rate_clean": 0.815,
+        "veto_rate_faulted": 0.865,
+        "mean_speed_clean": 3.9767359954792116,
+        "mean_speed_faulted": 3.548613799045998,
+        "speed_std_faulted": 3.7288136711033504,
+        "total_ticks": 400,
+        "veto_ticks_faulted": 346
+      }
+    }
+  }
+}

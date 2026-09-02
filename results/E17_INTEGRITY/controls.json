@@ -1,0 +1,99 @@
+{
+  "A_unconsumed_channel": {
+    "L1": 1.0,
+    "L2a": 0.5,
+    "L2b": 0.5,
+    "L3": 0.5,
+    "L6": 0.5,
+    "L7": 0.5,
+    "L8": 0.5
+  },
+  "B_consumed_channel": {
+    "L1": 1.0,
+    "L2a": 0.507825,
+    "L2b": 0.69225,
+    "L3": 0.5035875000000001,
+    "L6": 0.694725,
+    "L7": 0.5,
+    "L8": 0.5
+  },
+  "C_bypass_on": [
+    {
+      "fault": "position_bias",
+      "severity": "1.0 m",
+      "channel": "y",
+      "injector_corrupts": true,
+      "injector_magnitude": 1.500088477214385,
+      "reaches_L1": false,
+      "L1_magnitude": 0.0,
+      "reaches_estimator": false,
+      "estimator_magnitude": 0.0,
+      "reaches_downstream": false,
+      "innovation_magnitude": 0.0,
+      "est_state_magnitude": 0.0,
+      "ground_truth_bypass": true,
+      "verdict": "INVALID"
+    },
+    {
+      "fault": "position_drift",
+      "severity": "2.0 m final",
+      "channel": "y",
+      "injector_corrupts": true,
+      "injector_magnitude": 2.230629773477309,
+      "reaches_L1": false,
+      "L1_magnitude": 0.0,
+      "reaches_estimator": false,
+      "estimator_magnitude": 0.0,
+      "reaches_downstream": false,
+      "innovation_magnitude": 0.0,
+      "est_state_magnitude": 0.0,
+      "ground_truth_bypass": true,
+      "verdict": "INVALID"
+    }
+  ],
+  "C_bypass_off": [
+    {
+      "fault": "position_bias",
+      "severity": "1.0 m",
+      "channel": "y",
+      "injector_corrupts": true,
+      "injector_magnitude": 1.0000208012516947,
+      "reaches_L1": true,
+      "L1_magnitude": 1.0000208012516947,
+      "reaches_estimator": true,
+      "estimator_magnitude": 3.17967233248055,
+      "reaches_downstream": true,
+      "innovation_magnitude": 2.0463059172649642,
+      "est_state_magnitude": 1.0687591589729815,
+      "ground_truth_bypass": false,
+      "verdict": "VALID"
+    },
+    {
+      "fault": "position_drift",
+      "severity": "2.0 m final",
+      "channel": "y",
+      "injector_corrupts": true,
+      "injector_magnitude": 0.10245536132233724,
+      "reaches_L1": true,
+      "L1_magnitude": 0.10245536132233724,
+      "reaches_estimator": true,
+      "estimator_magnitude": 0.5331401620060205,
+      "reaches_downstream": true,
+      "innovation_magnitude": 0.036661464199369304,
+      "est_state_magnitude": 0.10150993506589095,
+      "ground_truth_bypass": false,
+      "verdict": "VALID"
+    }
+  ],
+  "C_verdict": "BYPASS CONFIRMED - redundancy blocks the fault; disabling it restores propagation",
+  "D_clean_vs_clean": {
+    "L1": 0.520925,
+    "L2a": 0.525875,
+    "L2b": 0.52725,
+    "L3": 0.5263375,
+    "L6": 0.5645249999999999,
+    "L7": 0.5075,
+    "L8": 0.5
+  },
+  "D_verdict": "OK - no stage manufactures strong evidence"
+}

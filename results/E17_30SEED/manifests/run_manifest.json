@@ -1,0 +1,17 @@
+{
+  "experiment_id": "E17_30SEED",
+  "git_commit": "6383676a3491dc82d70f2db20cdafb942e5c588a",
+  "base_seed": 20260731,
+  "n_seeds": 30,
+  "ticks": 400,
+  "absorption_threshold": 0.6,
+  "policies": {
+    "P1": "var\\policy\\synthetic.pt",
+    "P2": "var\\policy\\long.pt",
+    "P3": "var\\policy\\jerkscaled.pt"
+  },
+  "protocol_note": "6 scenarios at one severity each, as implemented in benchmarks/fault_study.py. The 13-fault x 3-severity registry in ASTRA_RESEARCH_FREEZE.md is a plan, not built; running it would require new fault definitions, which the freeze forbids.",
+  "python": "3.12.9",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "started_at": "2026-08-31T23:27:02"
+}

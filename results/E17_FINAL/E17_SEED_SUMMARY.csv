@@ -1,0 +1,541 @@
+seed,policy,fault,severity,A_f,unique_absorption,threshold_crossings,veto_rate,mean_speed,failure_status,validity
+20260731,P1,imu_dropout,suppress IMU,L7,False,2,0.012500,5.9494,ok,VALID
+20260731,P1,position_bias,1.0 m,L2a,True,1,0.007500,10.5769,ok,INVALID
+20260731,P1,position_drift,2.0 m final,L2a,True,1,0.007500,10.5769,ok,INVALID
+20260731,P1,speed_stuck,hold,L2a,True,1,0.007500,10.6195,ok,VALID
+20260731,P1,speed_bias,3.0 m/s,L2a,False,5,0.007500,10.2287,ok,VALID
+20260731,P1,lateral_noise,sigma x25,,False,0,0.340000,7.9291,ok,VALID
+20260732,P1,imu_dropout,suppress IMU,L7,False,2,0.022500,6.1868,ok,VALID
+20260732,P1,position_bias,1.0 m,L2a,True,1,0.020000,10.9064,ok,INVALID
+20260732,P1,position_drift,2.0 m final,L2a,True,1,0.020000,10.9064,ok,INVALID
+20260732,P1,speed_stuck,hold,L2a,True,1,0.020000,10.9351,ok,VALID
+20260732,P1,speed_bias,3.0 m/s,L2a,False,5,0.020000,10.5538,ok,VALID
+20260732,P1,lateral_noise,sigma x25,,False,0,0.370000,8.9934,ok,VALID
+20260733,P1,imu_dropout,suppress IMU,L7,False,2,0.015000,8.0528,ok,VALID
+20260733,P1,position_bias,1.0 m,L2a,True,1,0.017500,13.4949,ok,INVALID
+20260733,P1,position_drift,2.0 m final,L2a,True,1,0.017500,13.4949,ok,INVALID
+20260733,P1,speed_stuck,hold,L2a,True,1,0.017500,13.4862,ok,VALID
+20260733,P1,speed_bias,3.0 m/s,L2a,False,3,0.017500,13.1187,ok,VALID
+20260733,P1,lateral_noise,sigma x25,L6,False,2,0.235000,11.1946,ok,VALID
+20260734,P1,imu_dropout,suppress IMU,L7,False,2,0.157500,7.6895,ok,VALID
+20260734,P1,position_bias,1.0 m,L2a,True,1,0.062500,12.9966,ok,INVALID
+20260734,P1,position_drift,2.0 m final,L2a,True,1,0.062500,12.9966,ok,INVALID
+20260734,P1,speed_stuck,hold,L2a,True,1,0.062500,12.9923,ok,VALID
+20260734,P1,speed_bias,3.0 m/s,L2a,False,3,0.060000,12.6228,ok,VALID
+20260734,P1,lateral_noise,sigma x25,L6,False,2,0.510000,9.5953,ok,VALID
+20260735,P1,imu_dropout,suppress IMU,L2a,False,4,0.005000,7.1393,ok,VALID
+20260735,P1,position_bias,1.0 m,L2a,True,1,0.007500,12.2088,ok,INVALID
+20260735,P1,position_drift,2.0 m final,L2a,True,1,0.007500,12.2088,ok,INVALID
+20260735,P1,speed_stuck,hold,L2a,True,1,0.007500,12.2161,ok,VALID
+20260735,P1,speed_bias,3.0 m/s,L2a,False,3,0.005000,11.8467,ok,VALID
+20260735,P1,lateral_noise,sigma x25,,False,0,0.315000,8.9180,ok,VALID
+20260736,P1,imu_dropout,suppress IMU,L7,False,2,0.102500,6.6702,ok,VALID
+20260736,P1,position_bias,1.0 m,L2a,True,1,0.017500,11.5871,ok,INVALID
+20260736,P1,position_drift,2.0 m final,L2a,True,1,0.017500,11.5871,ok,INVALID
+20260736,P1,speed_stuck,hold,L2a,True,1,0.017500,11.6127,ok,VALID
+20260736,P1,speed_bias,3.0 m/s,L2a,False,5,0.017500,11.2277,ok,VALID
+20260736,P1,lateral_noise,sigma x25,,False,0,0.300000,8.5608,ok,VALID
+20260737,P1,imu_dropout,suppress IMU,L6,False,2,0.017500,6.6799,ok,VALID
+20260737,P1,position_bias,1.0 m,L2a,True,1,0.025000,11.5802,ok,INVALID
+20260737,P1,position_drift,2.0 m final,L2a,True,1,0.025000,11.5802,ok,INVALID
+20260737,P1,speed_stuck,hold,L2a,True,1,0.025000,11.5952,ok,VALID
+20260737,P1,speed_bias,3.0 m/s,L2a,False,5,0.025000,11.2222,ok,VALID
+20260737,P1,lateral_noise,sigma x25,,False,0,0.452500,8.0706,ok,VALID
+20260738,P1,imu_dropout,suppress IMU,L7,False,2,0.100000,6.4505,ok,VALID
+20260738,P1,position_bias,1.0 m,L2a,True,1,0.015000,11.3078,ok,INVALID
+20260738,P1,position_drift,2.0 m final,L2a,True,1,0.015000,11.3078,ok,INVALID
+20260738,P1,speed_stuck,hold,L2a,True,1,0.015000,11.3338,ok,VALID
+20260738,P1,speed_bias,3.0 m/s,L2a,False,5,0.017500,10.9503,ok,VALID
+20260738,P1,lateral_noise,sigma x25,L6,False,2,0.490000,7.9654,ok,VALID
+20260739,P1,imu_dropout,suppress IMU,L7,False,2,0.037500,8.1460,ok,VALID
+20260739,P1,position_bias,1.0 m,L2a,True,1,0.002500,13.6480,ok,INVALID
+20260739,P1,position_drift,2.0 m final,L2a,True,1,0.002500,13.6480,ok,INVALID
+20260739,P1,speed_stuck,hold,L2a,True,1,0.002500,13.6266,ok,VALID
+20260739,P1,speed_bias,3.0 m/s,L2a,False,3,0.005000,13.2714,ok,VALID
+20260739,P1,lateral_noise,sigma x25,L8,True,1,0.175000,12.1468,ok,VALID
+20260740,P1,imu_dropout,suppress IMU,L7,False,2,0.010000,6.3479,ok,VALID
+20260740,P1,position_bias,1.0 m,L2a,True,1,0.010000,11.1657,ok,INVALID
+20260740,P1,position_drift,2.0 m final,L2a,True,1,0.010000,11.1657,ok,INVALID
+20260740,P1,speed_stuck,hold,L2a,True,1,0.010000,11.1980,ok,VALID
+20260740,P1,speed_bias,3.0 m/s,L2a,False,5,0.010000,10.8084,ok,VALID
+20260740,P1,lateral_noise,sigma x25,,False,0,0.222500,9.5417,ok,VALID
+20260741,P1,imu_dropout,suppress IMU,L7,False,2,0.005000,6.2623,ok,VALID
+20260741,P1,position_bias,1.0 m,L2a,True,1,0.007500,11.0415,ok,INVALID
+20260741,P1,position_drift,2.0 m final,L2a,True,1,0.007500,11.0415,ok,INVALID
+20260741,P1,speed_stuck,hold,L2a,True,1,0.007500,11.0728,ok,VALID
+20260741,P1,speed_bias,3.0 m/s,L2a,False,5,0.007500,10.6883,ok,VALID
+20260741,P1,lateral_noise,sigma x25,L6,False,2,0.315000,8.8047,ok,VALID
+20260742,P1,imu_dropout,suppress IMU,,False,0,0.450000,5.8628,ok,VALID
+20260742,P1,position_bias,1.0 m,L2a,True,1,0.010000,10.4927,ok,INVALID
+20260742,P1,position_drift,2.0 m final,L2a,True,1,0.010000,10.4927,ok,INVALID
+20260742,P1,speed_stuck,hold,L2a,True,1,0.010000,10.5271,ok,VALID
+20260742,P1,speed_bias,3.0 m/s,L2a,False,5,0.010000,10.1414,ok,VALID
+20260742,P1,lateral_noise,sigma x25,,False,0,0.345000,7.8141,ok,VALID
+20260743,P1,imu_dropout,suppress IMU,L2b,False,4,0.025000,5.8488,ok,VALID
+20260743,P1,position_bias,1.0 m,L2a,True,1,0.030000,10.4007,ok,INVALID
+20260743,P1,position_drift,2.0 m final,L2a,True,1,0.030000,10.4007,ok,INVALID
+20260743,P1,speed_stuck,hold,L2a,True,1,0.030000,10.4333,ok,VALID
+20260743,P1,speed_bias,3.0 m/s,L2a,False,5,0.030000,10.0590,ok,VALID
+20260743,P1,lateral_noise,sigma x25,L6,False,2,0.510000,7.1447,ok,VALID
+20260744,P1,imu_dropout,suppress IMU,L2b,False,2,0.190000,5.7905,ok,VALID
+20260744,P1,position_bias,1.0 m,L2a,True,1,0.007500,10.4075,ok,INVALID
+20260744,P1,position_drift,2.0 m final,L2a,True,1,0.007500,10.4075,ok,INVALID
+20260744,P1,speed_stuck,hold,L2a,True,1,0.010000,10.4476,ok,VALID
+20260744,P1,speed_bias,3.0 m/s,L2a,False,5,0.010000,10.0639,ok,VALID
+20260744,P1,lateral_noise,sigma x25,L6,False,2,0.487500,7.1015,ok,VALID
+20260745,P1,imu_dropout,suppress IMU,L7,False,2,0.045000,6.6927,ok,VALID
+20260745,P1,position_bias,1.0 m,L2a,True,1,0.025000,11.6847,ok,INVALID
+20260745,P1,position_drift,2.0 m final,L2a,True,1,0.025000,11.6847,ok,INVALID
+20260745,P1,speed_stuck,hold,L2a,True,1,0.025000,11.7167,ok,VALID
+20260745,P1,speed_bias,3.0 m/s,L2a,False,5,0.025000,11.3223,ok,VALID
+20260745,P1,lateral_noise,sigma x25,L6,False,2,0.310000,9.3673,ok,VALID
+20260746,P1,imu_dropout,suppress IMU,L7,False,2,0.072500,7.6437,ok,VALID
+20260746,P1,position_bias,1.0 m,L2a,True,1,0.035000,12.8974,ok,INVALID
+20260746,P1,position_drift,2.0 m final,L2a,True,1,0.035000,12.8974,ok,INVALID
+20260746,P1,speed_stuck,hold,L2a,True,1,0.035000,12.8942,ok,VALID
+20260746,P1,speed_bias,3.0 m/s,L2a,False,3,0.035000,12.5243,ok,VALID
+20260746,P1,lateral_noise,sigma x25,,False,0,0.357500,9.6916,ok,VALID
+20260747,P1,imu_dropout,suppress IMU,,False,0,0.462500,5.6202,ok,VALID
+20260747,P1,position_bias,1.0 m,L2a,True,1,0.067500,10.1612,ok,INVALID
+20260747,P1,position_drift,2.0 m final,L2a,True,1,0.067500,10.1612,ok,INVALID
+20260747,P1,speed_stuck,hold,L2a,True,1,0.070000,10.2055,ok,VALID
+20260747,P1,speed_bias,3.0 m/s,L2a,False,5,0.070000,9.8309,ok,VALID
+20260747,P1,lateral_noise,sigma x25,L6,False,2,0.295000,7.9555,ok,VALID
+20260748,P1,imu_dropout,suppress IMU,L7,False,2,0.035000,6.4830,ok,VALID
+20260748,P1,position_bias,1.0 m,L2a,True,1,0.017500,11.3016,ok,INVALID
+20260748,P1,position_drift,2.0 m final,L2a,True,1,0.017500,11.3016,ok,INVALID
+20260748,P1,speed_stuck,hold,L2a,True,1,0.020000,11.3230,ok,VALID
+20260748,P1,speed_bias,3.0 m/s,L2a,False,5,0.017500,10.9488,ok,VALID
+20260748,P1,lateral_noise,sigma x25,L8,True,1,0.217500,9.5789,ok,VALID
+20260749,P1,imu_dropout,suppress IMU,L7,False,2,0.092500,7.2335,ok,VALID
+20260749,P1,position_bias,1.0 m,L2a,True,1,0.060000,12.4356,ok,INVALID
+20260749,P1,position_drift,2.0 m final,L2a,True,1,0.060000,12.4356,ok,INVALID
+20260749,P1,speed_stuck,hold,L2a,True,1,0.060000,12.4402,ok,VALID
+20260749,P1,speed_bias,3.0 m/s,L2a,False,3,0.060000,12.0665,ok,VALID
+20260749,P1,lateral_noise,sigma x25,,False,0,0.277500,10.7824,ok,VALID
+20260750,P1,imu_dropout,suppress IMU,L7,False,2,0.075000,5.9016,ok,VALID
+20260750,P1,position_bias,1.0 m,L2a,True,1,0.015000,10.5348,ok,INVALID
+20260750,P1,position_drift,2.0 m final,L2a,True,1,0.015000,10.5348,ok,INVALID
+20260750,P1,speed_stuck,hold,L2a,True,1,0.017500,10.5725,ok,VALID
+20260750,P1,speed_bias,3.0 m/s,L2a,False,5,0.012500,10.1918,ok,VALID
+20260750,P1,lateral_noise,sigma x25,L6,False,2,0.292500,8.3298,ok,VALID
+20260751,P1,imu_dropout,suppress IMU,L2a,False,2,0.070000,5.9380,ok,VALID
+20260751,P1,position_bias,1.0 m,L2a,True,1,0.067500,10.5283,ok,INVALID
+20260751,P1,position_drift,2.0 m final,L2a,True,1,0.067500,10.5283,ok,INVALID
+20260751,P1,speed_stuck,hold,L2a,True,1,0.067500,10.5677,ok,VALID
+20260751,P1,speed_bias,3.0 m/s,L2a,False,5,0.067500,10.1810,ok,VALID
+20260751,P1,lateral_noise,sigma x25,L8,True,1,0.257500,8.8799,ok,VALID
+20260752,P1,imu_dropout,suppress IMU,L7,False,2,0.082500,8.1717,ok,VALID
+20260752,P1,position_bias,1.0 m,L2a,True,1,0.027500,13.5957,ok,INVALID
+20260752,P1,position_drift,2.0 m final,L2a,True,1,0.027500,13.5957,ok,INVALID
+20260752,P1,speed_stuck,hold,L2a,True,1,0.027500,13.5817,ok,VALID
+20260752,P1,speed_bias,3.0 m/s,L2a,False,3,0.027500,13.2200,ok,VALID
+20260752,P1,lateral_noise,sigma x25,L6,False,2,0.480000,9.9663,ok,VALID
+20260753,P1,imu_dropout,suppress IMU,,False,0,0.495000,6.9404,ok,VALID
+20260753,P1,position_bias,1.0 m,L2a,True,1,0.027500,11.9793,ok,INVALID
+20260753,P1,position_drift,2.0 m final,L2a,True,1,0.027500,11.9793,ok,INVALID
+20260753,P1,speed_stuck,hold,L2a,True,1,0.027500,11.9886,ok,VALID
+20260753,P1,speed_bias,3.0 m/s,L2a,False,3,0.027500,11.6172,ok,VALID
+20260753,P1,lateral_noise,sigma x25,L6,False,2,0.492500,8.4471,ok,VALID
+20260754,P1,imu_dropout,suppress IMU,L2a,False,4,0.027500,6.2745,ok,VALID
+20260754,P1,position_bias,1.0 m,L2a,True,1,0.022500,10.9538,ok,INVALID
+20260754,P1,position_drift,2.0 m final,L2a,True,1,0.022500,10.9538,ok,INVALID
+20260754,P1,speed_stuck,hold,L2a,True,1,0.022500,10.9743,ok,VALID
+20260754,P1,speed_bias,3.0 m/s,L2a,False,5,0.022500,10.6103,ok,VALID
+20260754,P1,lateral_noise,sigma x25,,False,0,0.452500,8.2319,ok,VALID
+20260755,P1,imu_dropout,suppress IMU,L7,False,2,0.062500,6.1689,ok,VALID
+20260755,P1,position_bias,1.0 m,L2a,True,1,0.005000,10.9546,ok,INVALID
+20260755,P1,position_drift,2.0 m final,L2a,True,1,0.005000,10.9546,ok,INVALID
+20260755,P1,speed_stuck,hold,L2a,True,1,0.005000,10.9847,ok,VALID
+20260755,P1,speed_bias,3.0 m/s,L2a,False,5,0.005000,10.6014,ok,VALID
+20260755,P1,lateral_noise,sigma x25,,False,0,0.212500,9.3079,ok,VALID
+20260756,P1,imu_dropout,suppress IMU,,False,0,0.142500,5.6522,ok,VALID
+20260756,P1,position_bias,1.0 m,L2a,True,1,0.005000,10.2194,ok,INVALID
+20260756,P1,position_drift,2.0 m final,L2a,True,1,0.005000,10.2194,ok,INVALID
+20260756,P1,speed_stuck,hold,L2a,True,1,0.005000,10.2643,ok,VALID
+20260756,P1,speed_bias,3.0 m/s,L2a,False,5,0.005000,9.8755,ok,VALID
+20260756,P1,lateral_noise,sigma x25,L6,False,2,0.245000,8.5794,ok,VALID
+20260757,P1,imu_dropout,suppress IMU,L7,False,2,0.047500,6.3493,ok,VALID
+20260757,P1,position_bias,1.0 m,L2a,True,1,0.017500,11.1673,ok,INVALID
+20260757,P1,position_drift,2.0 m final,L2a,True,1,0.017500,11.1673,ok,INVALID
+20260757,P1,speed_stuck,hold,L2a,True,1,0.017500,11.1966,ok,VALID
+20260757,P1,speed_bias,3.0 m/s,L2a,False,5,0.017500,10.8119,ok,VALID
+20260757,P1,lateral_noise,sigma x25,,False,0,0.235000,9.6586,ok,VALID
+20260758,P1,imu_dropout,suppress IMU,L2a,False,6,0.077500,7.5971,ok,VALID
+20260758,P1,position_bias,1.0 m,L2a,True,1,0.075000,12.9039,ok,INVALID
+20260758,P1,position_drift,2.0 m final,L2a,True,1,0.075000,12.9039,ok,INVALID
+20260758,P1,speed_stuck,hold,L2a,True,1,0.072500,12.9029,ok,VALID
+20260758,P1,speed_bias,3.0 m/s,L2a,False,3,0.075000,12.5363,ok,VALID
+20260758,P1,lateral_noise,sigma x25,,False,0,0.300000,11.1750,ok,VALID
+20260759,P1,imu_dropout,suppress IMU,L7,False,2,0.060000,7.6074,ok,VALID
+20260759,P1,position_bias,1.0 m,L2a,True,1,0.017500,12.8782,ok,INVALID
+20260759,P1,position_drift,2.0 m final,L2a,True,1,0.017500,12.8782,ok,INVALID
+20260759,P1,speed_stuck,hold,L2a,True,1,0.017500,12.8703,ok,VALID
+20260759,P1,speed_bias,3.0 m/s,L2a,False,3,0.017500,12.5092,ok,VALID
+20260759,P1,lateral_noise,sigma x25,,False,0,0.240000,11.3284,ok,VALID
+20260760,P1,imu_dropout,suppress IMU,L2b,False,4,0.045000,8.1055,ok,VALID
+20260760,P1,position_bias,1.0 m,L2a,True,1,0.015000,13.4702,ok,INVALID
+20260760,P1,position_drift,2.0 m final,L2a,True,1,0.015000,13.4702,ok,INVALID
+20260760,P1,speed_stuck,hold,L2a,True,1,0.015000,13.4489,ok,VALID
+20260760,P1,speed_bias,3.0 m/s,L2a,False,3,0.015000,13.0934,ok,VALID
+20260760,P1,lateral_noise,sigma x25,,False,0,0.407500,9.9677,ok,VALID
+20260731,P2,imu_dropout,suppress IMU,L6,False,2,0.780000,3.8893,ok,VALID
+20260731,P2,position_bias,1.0 m,L2a,True,1,0.695000,5.2070,ok,INVALID
+20260731,P2,position_drift,2.0 m final,L2a,True,1,0.695000,5.2070,ok,INVALID
+20260731,P2,speed_stuck,hold,L2b,False,3,0.645000,8.2013,ok,VALID
+20260731,P2,speed_bias,3.0 m/s,L1,True,0,0.627500,4.0702,ok,VALID
+20260731,P2,lateral_noise,sigma x25,,False,0,0.845000,3.6577,ok,VALID
+20260732,P2,imu_dropout,suppress IMU,L6,False,2,0.842500,3.9555,ok,VALID
+20260732,P2,position_bias,1.0 m,L2a,True,1,0.702500,5.2238,ok,INVALID
+20260732,P2,position_drift,2.0 m final,L2a,True,1,0.702500,5.2238,ok,INVALID
+20260732,P2,speed_stuck,hold,L6,False,2,0.612500,3.3963,ok,VALID
+20260732,P2,speed_bias,3.0 m/s,L1,True,0,0.635000,4.1460,ok,VALID
+20260732,P2,lateral_noise,sigma x25,L7,False,2,0.790000,3.8652,ok,VALID
+20260733,P2,imu_dropout,suppress IMU,L7,True,1,0.877500,3.4576,ok,VALID
+20260733,P2,position_bias,1.0 m,L2a,True,1,0.870000,3.4619,ok,INVALID
+20260733,P2,position_drift,2.0 m final,L2a,True,1,0.870000,3.4619,ok,INVALID
+20260733,P2,speed_stuck,hold,L2b,False,3,0.667500,3.4576,ok,VALID
+20260733,P2,speed_bias,3.0 m/s,L2b,False,3,0.667500,3.4576,ok,VALID
+20260733,P2,lateral_noise,sigma x25,L7,True,1,0.877500,3.4619,ok,VALID
+20260734,P2,imu_dropout,suppress IMU,L2a,False,5,0.960000,2.5816,ok,VALID
+20260734,P2,position_bias,1.0 m,L2a,True,1,0.960000,2.5857,ok,INVALID
+20260734,P2,position_drift,2.0 m final,L2a,True,1,0.960000,2.5857,ok,INVALID
+20260734,P2,speed_stuck,hold,L2a,False,5,0.960000,4.0891,ok,VALID
+20260734,P2,speed_bias,3.0 m/s,L2a,False,3,0.732500,2.5816,ok,VALID
+20260734,P2,lateral_noise,sigma x25,L2b,False,3,0.960000,2.5911,ok,VALID
+20260735,P2,imu_dropout,suppress IMU,L7,True,1,0.960000,3.9706,ok,VALID
+20260735,P2,position_bias,1.0 m,L2a,True,1,0.960000,2.4526,ok,INVALID
+20260735,P2,position_drift,2.0 m final,L2a,True,1,0.960000,2.4526,ok,INVALID
+20260735,P2,speed_stuck,hold,L2b,False,3,0.960000,2.4481,ok,VALID
+20260735,P2,speed_bias,3.0 m/s,L2b,False,3,0.737500,2.4481,ok,VALID
+20260735,P2,lateral_noise,sigma x25,L2b,False,3,0.960000,2.4552,ok,VALID
+20260736,P2,imu_dropout,suppress IMU,L7,True,1,0.927500,2.6919,ok,VALID
+20260736,P2,position_bias,1.0 m,L2a,True,1,0.927500,2.6963,ok,INVALID
+20260736,P2,position_drift,2.0 m final,L2a,True,1,0.927500,2.6963,ok,INVALID
+20260736,P2,speed_stuck,hold,L7,True,1,0.927500,4.1994,ok,VALID
+20260736,P2,speed_bias,3.0 m/s,L2a,False,3,0.717500,2.6919,ok,VALID
+20260736,P2,lateral_noise,sigma x25,L2b,False,3,0.927500,2.6996,ok,VALID
+20260737,P2,imu_dropout,suppress IMU,L6,True,1,0.927500,2.7924,ok,VALID
+20260737,P2,position_bias,1.0 m,L2a,True,1,0.927500,2.7970,ok,INVALID
+20260737,P2,position_drift,2.0 m final,L2a,True,1,0.927500,2.7970,ok,INVALID
+20260737,P2,speed_stuck,hold,L1,False,4,0.927500,2.7924,ok,VALID
+20260737,P2,speed_bias,3.0 m/s,L2b,False,3,0.670000,2.7924,ok,VALID
+20260737,P2,lateral_noise,sigma x25,L2b,False,3,0.927500,2.7990,ok,VALID
+20260738,P2,imu_dropout,suppress IMU,L8,True,1,0.640000,4.7288,ok,VALID
+20260738,P2,position_bias,1.0 m,L2a,True,1,0.797500,4.2336,ok,INVALID
+20260738,P2,position_drift,2.0 m final,L2a,True,1,0.797500,4.2336,ok,INVALID
+20260738,P2,speed_stuck,hold,L2b,False,3,0.647500,3.4738,ok,VALID
+20260738,P2,speed_bias,3.0 m/s,L2a,False,4,0.640000,3.9961,ok,VALID
+20260738,P2,lateral_noise,sigma x25,L7,True,1,0.840000,3.8156,ok,VALID
+20260739,P2,imu_dropout,suppress IMU,,False,0,0.827500,4.9240,ok,VALID
+20260739,P2,position_bias,1.0 m,L2a,True,1,0.712500,5.6572,ok,INVALID
+20260739,P2,position_drift,2.0 m final,L2a,True,1,0.712500,5.6572,ok,INVALID
+20260739,P2,speed_stuck,hold,L2b,False,4,0.605000,4.0560,ok,VALID
+20260739,P2,speed_bias,3.0 m/s,L2a,False,3,0.615000,4.9108,ok,VALID
+20260739,P2,lateral_noise,sigma x25,L7,False,2,0.752500,4.9528,ok,VALID
+20260740,P2,imu_dropout,suppress IMU,L6,False,2,0.865000,3.5657,ok,VALID
+20260740,P2,position_bias,1.0 m,L2a,True,1,0.762500,4.6462,ok,INVALID
+20260740,P2,position_drift,2.0 m final,L2a,True,1,0.762500,4.6462,ok,INVALID
+20260740,P2,speed_stuck,hold,L6,False,2,0.680000,3.8217,ok,VALID
+20260740,P2,speed_bias,3.0 m/s,L1,False,3,0.650000,3.4381,ok,VALID
+20260740,P2,lateral_noise,sigma x25,L7,False,2,0.850000,3.7035,ok,VALID
+20260741,P2,imu_dropout,suppress IMU,L8,True,1,0.657500,3.4581,ok,VALID
+20260741,P2,position_bias,1.0 m,L2a,True,1,0.815000,3.9767,ok,INVALID
+20260741,P2,position_drift,2.0 m final,L2a,True,1,0.815000,3.9767,ok,INVALID
+20260741,P2,speed_stuck,hold,L2b,False,3,0.632500,3.4581,ok,VALID
+20260741,P2,speed_bias,3.0 m/s,L2a,False,3,0.620000,3.6195,ok,VALID
+20260741,P2,lateral_noise,sigma x25,L7,True,1,0.865000,3.5486,ok,VALID
+20260742,P2,imu_dropout,suppress IMU,,False,0,0.817500,4.2487,ok,VALID
+20260742,P2,position_bias,1.0 m,L2a,True,1,0.620000,5.9902,ok,INVALID
+20260742,P2,position_drift,2.0 m final,L2a,True,1,0.620000,5.9902,ok,INVALID
+20260742,P2,speed_stuck,hold,L2b,False,3,0.642500,11.3289,ok,VALID
+20260742,P2,speed_bias,3.0 m/s,L1,True,0,0.622500,4.5175,ok,VALID
+20260742,P2,lateral_noise,sigma x25,,False,0,0.815000,4.0122,ok,VALID
+20260743,P2,imu_dropout,suppress IMU,L6,True,1,0.927500,2.6435,ok,VALID
+20260743,P2,position_bias,1.0 m,L2a,True,1,0.927500,2.6516,ok,INVALID
+20260743,P2,position_drift,2.0 m final,L2a,True,1,0.927500,2.6516,ok,INVALID
+20260743,P2,speed_stuck,hold,L2a,False,3,0.927500,2.6435,ok,VALID
+20260743,P2,speed_bias,3.0 m/s,L2b,False,3,0.752500,2.6435,ok,VALID
+20260743,P2,lateral_noise,sigma x25,L2b,False,3,0.927500,2.6516,ok,VALID
+20260744,P2,imu_dropout,suppress IMU,L7,True,1,0.977500,2.4235,ok,VALID
+20260744,P2,position_bias,1.0 m,L2a,True,1,0.977500,2.4275,ok,INVALID
+20260744,P2,position_drift,2.0 m final,L2a,True,1,0.977500,2.4275,ok,INVALID
+20260744,P2,speed_stuck,hold,L6,True,1,0.977500,4.0337,ok,VALID
+20260744,P2,speed_bias,3.0 m/s,L2a,False,3,0.830000,2.4235,ok,VALID
+20260744,P2,lateral_noise,sigma x25,L2b,False,3,0.977500,2.4307,ok,VALID
+20260745,P2,imu_dropout,suppress IMU,L6,True,1,0.925000,2.8194,ok,VALID
+20260745,P2,position_bias,1.0 m,L2a,True,1,0.925000,2.8235,ok,INVALID
+20260745,P2,position_drift,2.0 m final,L2a,True,1,0.925000,2.8235,ok,INVALID
+20260745,P2,speed_stuck,hold,L2b,False,3,0.925000,2.8194,ok,VALID
+20260745,P2,speed_bias,3.0 m/s,L2a,False,3,0.722500,2.8194,ok,VALID
+20260745,P2,lateral_noise,sigma x25,L2b,False,3,0.925000,2.8235,ok,VALID
+20260746,P2,imu_dropout,suppress IMU,L2b,False,4,0.685000,4.2830,ok,VALID
+20260746,P2,position_bias,1.0 m,L2a,True,1,0.650000,5.7835,ok,INVALID
+20260746,P2,position_drift,2.0 m final,L2a,True,1,0.650000,5.7835,ok,INVALID
+20260746,P2,speed_stuck,hold,L2b,False,3,0.642500,10.9070,ok,VALID
+20260746,P2,speed_bias,3.0 m/s,L1,True,0,0.647500,4.3752,ok,VALID
+20260746,P2,lateral_noise,sigma x25,L2b,False,2,0.850000,3.7575,ok,VALID
+20260747,P2,imu_dropout,suppress IMU,L7,True,1,0.967500,2.2173,ok,VALID
+20260747,P2,position_bias,1.0 m,L2a,True,1,0.967500,2.2215,ok,INVALID
+20260747,P2,position_drift,2.0 m final,L2a,True,1,0.967500,2.2215,ok,INVALID
+20260747,P2,speed_stuck,hold,L2b,False,3,0.967500,2.2173,ok,VALID
+20260747,P2,speed_bias,3.0 m/s,L2a,False,3,0.800000,2.2173,ok,VALID
+20260747,P2,lateral_noise,sigma x25,L2b,False,3,0.965000,2.2267,ok,VALID
+20260748,P2,imu_dropout,suppress IMU,L7,True,1,0.947500,4.4010,ok,VALID
+20260748,P2,position_bias,1.0 m,L2a,True,1,0.947500,2.7833,ok,INVALID
+20260748,P2,position_drift,2.0 m final,L2a,True,1,0.947500,2.7833,ok,INVALID
+20260748,P2,speed_stuck,hold,L2b,False,3,0.947500,2.7785,ok,VALID
+20260748,P2,speed_bias,3.0 m/s,L2a,False,3,0.785000,2.7785,ok,VALID
+20260748,P2,lateral_noise,sigma x25,L2b,False,3,0.947500,2.7876,ok,VALID
+20260749,P2,imu_dropout,suppress IMU,L7,True,1,0.872500,3.5407,ok,VALID
+20260749,P2,position_bias,1.0 m,L2a,True,1,0.867500,3.5454,ok,INVALID
+20260749,P2,position_drift,2.0 m final,L2a,True,1,0.867500,3.5454,ok,INVALID
+20260749,P2,speed_stuck,hold,L2b,False,3,0.645000,3.5408,ok,VALID
+20260749,P2,speed_bias,3.0 m/s,L8,True,1,0.657500,3.5239,ok,VALID
+20260749,P2,lateral_noise,sigma x25,L7,True,1,0.857500,3.5532,ok,VALID
+20260750,P2,imu_dropout,suppress IMU,L7,True,1,0.882500,3.2298,ok,VALID
+20260750,P2,position_bias,1.0 m,L2a,True,1,0.882500,3.2344,ok,INVALID
+20260750,P2,position_drift,2.0 m final,L2a,True,1,0.882500,3.2344,ok,INVALID
+20260750,P2,speed_stuck,hold,L2b,False,3,0.670000,3.2298,ok,VALID
+20260750,P2,speed_bias,3.0 m/s,L2b,False,3,0.680000,3.2298,ok,VALID
+20260750,P2,lateral_noise,sigma x25,L2b,False,3,0.882500,3.2344,ok,VALID
+20260751,P2,imu_dropout,suppress IMU,L2b,False,3,0.927500,2.6586,ok,VALID
+20260751,P2,position_bias,1.0 m,L2a,True,1,0.927500,2.6630,ok,INVALID
+20260751,P2,position_drift,2.0 m final,L2a,True,1,0.927500,2.6630,ok,INVALID
+20260751,P2,speed_stuck,hold,L1,False,4,0.927500,2.6586,ok,VALID
+20260751,P2,speed_bias,3.0 m/s,L2a,False,3,0.715000,2.6586,ok,VALID
+20260751,P2,lateral_noise,sigma x25,L2b,False,3,0.927500,2.6649,ok,VALID
+20260752,P2,imu_dropout,suppress IMU,L2a,False,3,0.957500,2.5669,ok,VALID
+20260752,P2,position_bias,1.0 m,L2a,True,1,0.957500,2.5728,ok,INVALID
+20260752,P2,position_drift,2.0 m final,L2a,True,1,0.957500,2.5728,ok,INVALID
+20260752,P2,speed_stuck,hold,L1,False,4,0.957500,2.5669,ok,VALID
+20260752,P2,speed_bias,3.0 m/s,L2b,False,3,0.750000,2.5669,ok,VALID
+20260752,P2,lateral_noise,sigma x25,L2b,False,3,0.957500,2.5773,ok,VALID
+20260753,P2,imu_dropout,suppress IMU,L2a,False,5,0.952500,3.8672,ok,VALID
+20260753,P2,position_bias,1.0 m,L2a,True,1,0.952500,2.3489,ok,INVALID
+20260753,P2,position_drift,2.0 m final,L2a,True,1,0.952500,2.3489,ok,INVALID
+20260753,P2,speed_stuck,hold,L2b,False,3,0.952500,2.3447,ok,VALID
+20260753,P2,speed_bias,3.0 m/s,L2a,False,3,0.742500,2.3447,ok,VALID
+20260753,P2,lateral_noise,sigma x25,L2b,False,3,0.952500,2.3541,ok,VALID
+20260754,P2,imu_dropout,suppress IMU,L2b,False,3,0.870000,3.3194,ok,VALID
+20260754,P2,position_bias,1.0 m,L2a,True,1,0.867500,3.3260,ok,INVALID
+20260754,P2,position_drift,2.0 m final,L2a,True,1,0.867500,3.3260,ok,INVALID
+20260754,P2,speed_stuck,hold,L2b,False,3,0.845000,3.3194,ok,VALID
+20260754,P2,speed_bias,3.0 m/s,L2b,False,3,0.660000,3.3194,ok,VALID
+20260754,P2,lateral_noise,sigma x25,L2b,False,3,0.870000,3.3291,ok,VALID
+20260755,P2,imu_dropout,suppress IMU,L2b,False,4,0.677500,3.7207,ok,VALID
+20260755,P2,position_bias,1.0 m,L2a,True,1,0.620000,6.3578,ok,INVALID
+20260755,P2,position_drift,2.0 m final,L2a,True,1,0.620000,6.3578,ok,INVALID
+20260755,P2,speed_stuck,hold,L2b,False,3,0.635000,11.6147,ok,VALID
+20260755,P2,speed_bias,3.0 m/s,L1,True,0,0.625000,4.8241,ok,VALID
+20260755,P2,lateral_noise,sigma x25,,False,0,0.755000,4.9915,ok,VALID
+20260756,P2,imu_dropout,suppress IMU,L7,True,1,0.860000,3.5004,ok,VALID
+20260756,P2,position_bias,1.0 m,L2a,True,1,0.815000,3.9745,ok,INVALID
+20260756,P2,position_drift,2.0 m final,L2a,True,1,0.815000,3.9745,ok,INVALID
+20260756,P2,speed_stuck,hold,L8,True,1,0.692500,3.3684,ok,VALID
+20260756,P2,speed_bias,3.0 m/s,L8,True,1,0.707500,3.5540,ok,VALID
+20260756,P2,lateral_noise,sigma x25,L6,True,1,0.842500,3.4942,ok,VALID
+20260757,P2,imu_dropout,suppress IMU,L7,True,1,0.865000,3.5365,ok,VALID
+20260757,P2,position_bias,1.0 m,L2a,True,1,0.840000,3.5234,ok,INVALID
+20260757,P2,position_drift,2.0 m final,L2a,True,1,0.840000,3.5234,ok,INVALID
+20260757,P2,speed_stuck,hold,L8,True,1,0.655000,3.3996,ok,VALID
+20260757,P2,speed_bias,3.0 m/s,L2b,False,3,0.655000,3.3996,ok,VALID
+20260757,P2,lateral_noise,sigma x25,L7,True,1,0.862500,3.4942,ok,VALID
+20260758,P2,imu_dropout,suppress IMU,L7,True,1,0.990000,2.3049,ok,VALID
+20260758,P2,position_bias,1.0 m,L2a,True,1,0.942500,2.3167,ok,INVALID
+20260758,P2,position_drift,2.0 m final,L2a,True,1,0.942500,2.3167,ok,INVALID
+20260758,P2,speed_stuck,hold,L2a,False,5,0.990000,2.3049,ok,VALID
+20260758,P2,speed_bias,3.0 m/s,L2b,False,3,0.780000,2.3049,ok,VALID
+20260758,P2,lateral_noise,sigma x25,L2b,False,3,0.990000,2.3106,ok,VALID
+20260759,P2,imu_dropout,suppress IMU,L7,True,1,0.942500,5.1742,ok,VALID
+20260759,P2,position_bias,1.0 m,L2a,True,1,0.940000,2.6294,ok,INVALID
+20260759,P2,position_drift,2.0 m final,L2a,True,1,0.940000,2.6294,ok,INVALID
+20260759,P2,speed_stuck,hold,L2a,False,5,0.945000,2.6179,ok,VALID
+20260759,P2,speed_bias,3.0 m/s,L2a,False,5,0.860000,2.6179,ok,VALID
+20260759,P2,lateral_noise,sigma x25,L2b,False,3,0.942500,2.6300,ok,VALID
+20260760,P2,imu_dropout,suppress IMU,L2a,False,5,0.965000,3.9808,ok,VALID
+20260760,P2,position_bias,1.0 m,L2a,True,1,0.965000,2.4628,ok,INVALID
+20260760,P2,position_drift,2.0 m final,L2a,True,1,0.965000,2.4628,ok,INVALID
+20260760,P2,speed_stuck,hold,L2b,False,3,0.965000,2.4583,ok,VALID
+20260760,P2,speed_bias,3.0 m/s,L2b,False,3,0.770000,2.4583,ok,VALID
+20260760,P2,lateral_noise,sigma x25,L2b,False,3,0.962500,2.4655,ok,VALID
+20260731,P3,imu_dropout,suppress IMU,L7,False,2,0.007500,5.8847,ok,VALID
+20260731,P3,position_bias,1.0 m,L2a,True,1,0.007500,10.5431,ok,INVALID
+20260731,P3,position_drift,2.0 m final,L2a,True,1,0.007500,10.5431,ok,INVALID
+20260731,P3,speed_stuck,hold,L2a,False,3,0.007500,10.5703,ok,VALID
+20260731,P3,speed_bias,3.0 m/s,L2a,False,3,0.007500,10.2439,ok,VALID
+20260731,P3,lateral_noise,sigma x25,,False,0,0.302500,8.5620,ok,VALID
+20260732,P3,imu_dropout,suppress IMU,L2b,False,4,0.012500,6.2630,ok,VALID
+20260732,P3,position_bias,1.0 m,L2a,True,1,0.002500,11.1094,ok,INVALID
+20260732,P3,position_drift,2.0 m final,L2a,True,1,0.002500,11.1094,ok,INVALID
+20260732,P3,speed_stuck,hold,L2a,False,3,0.002500,11.1301,ok,VALID
+20260732,P3,speed_bias,3.0 m/s,L2a,False,3,0.002500,10.7773,ok,VALID
+20260732,P3,lateral_noise,sigma x25,,False,0,0.380000,9.2702,ok,VALID
+20260733,P3,imu_dropout,suppress IMU,L2b,False,4,0.015000,8.1507,ok,VALID
+20260733,P3,position_bias,1.0 m,L2a,True,1,0.007500,13.7081,ok,INVALID
+20260733,P3,position_drift,2.0 m final,L2a,True,1,0.007500,13.7081,ok,INVALID
+20260733,P3,speed_stuck,hold,L2a,True,1,0.007500,13.6872,ok,VALID
+20260733,P3,speed_bias,3.0 m/s,L2a,False,3,0.007500,13.2439,ok,VALID
+20260733,P3,lateral_noise,sigma x25,,False,0,0.292500,11.3439,ok,VALID
+20260734,P3,imu_dropout,suppress IMU,L2b,False,4,0.017500,8.1294,ok,VALID
+20260734,P3,position_bias,1.0 m,L2a,True,1,0.010000,13.7055,ok,INVALID
+20260734,P3,position_drift,2.0 m final,L2a,True,1,0.010000,13.7055,ok,INVALID
+20260734,P3,speed_stuck,hold,L2a,False,3,0.010000,13.6797,ok,VALID
+20260734,P3,speed_bias,3.0 m/s,L2a,False,5,0.010000,13.2482,ok,VALID
+20260734,P3,lateral_noise,sigma x25,,False,0,0.472500,10.0101,ok,VALID
+20260735,P3,imu_dropout,suppress IMU,L2b,False,4,0.002500,7.3515,ok,VALID
+20260735,P3,position_bias,1.0 m,L2a,True,1,0.000000,12.6504,ok,INVALID
+20260735,P3,position_drift,2.0 m final,L2a,True,1,0.000000,12.6504,ok,INVALID
+20260735,P3,speed_stuck,hold,L2a,True,1,0.000000,12.6497,ok,VALID
+20260735,P3,speed_bias,3.0 m/s,L2a,False,5,0.000000,12.2317,ok,VALID
+20260735,P3,lateral_noise,sigma x25,,False,0,0.202500,10.6663,ok,VALID
+20260736,P3,imu_dropout,suppress IMU,L6,False,2,0.012500,6.6831,ok,VALID
+20260736,P3,position_bias,1.0 m,L2a,True,1,0.012500,11.6975,ok,INVALID
+20260736,P3,position_drift,2.0 m final,L2a,True,1,0.012500,11.6975,ok,INVALID
+20260736,P3,speed_stuck,hold,L2a,True,1,0.012500,11.7157,ok,VALID
+20260736,P3,speed_bias,3.0 m/s,L2a,False,5,0.012500,11.3284,ok,VALID
+20260736,P3,lateral_noise,sigma x25,,False,0,0.307500,8.6642,ok,VALID
+20260737,P3,imu_dropout,suppress IMU,L2a,False,4,0.010000,6.6735,ok,VALID
+20260737,P3,position_bias,1.0 m,L2a,True,1,0.010000,11.6961,ok,INVALID
+20260737,P3,position_drift,2.0 m final,L2a,True,1,0.010000,11.6961,ok,INVALID
+20260737,P3,speed_stuck,hold,L2a,False,3,0.010000,11.7123,ok,VALID
+20260737,P3,speed_bias,3.0 m/s,L2a,False,5,0.010000,11.3276,ok,VALID
+20260737,P3,lateral_noise,sigma x25,,False,0,0.397500,8.6697,ok,VALID
+20260738,P3,imu_dropout,suppress IMU,L7,False,2,0.007500,6.5385,ok,VALID
+20260738,P3,position_bias,1.0 m,L2a,True,1,0.007500,11.5370,ok,INVALID
+20260738,P3,position_drift,2.0 m final,L2a,True,1,0.007500,11.5370,ok,INVALID
+20260738,P3,speed_stuck,hold,L2a,True,1,0.007500,11.5532,ok,VALID
+20260738,P3,speed_bias,3.0 m/s,L2a,False,3,0.007500,11.1798,ok,VALID
+20260738,P3,lateral_noise,sigma x25,,False,0,0.470000,8.3770,ok,VALID
+20260739,P3,imu_dropout,suppress IMU,L2a,False,4,0.000000,8.2763,ok,VALID
+20260739,P3,position_bias,1.0 m,L2a,True,1,0.000000,13.8885,ok,INVALID
+20260739,P3,position_drift,2.0 m final,L2a,True,1,0.000000,13.8885,ok,INVALID
+20260739,P3,speed_stuck,hold,L2a,False,3,0.000000,13.8520,ok,VALID
+20260739,P3,speed_bias,3.0 m/s,L2a,False,5,0.000000,13.4214,ok,VALID
+20260739,P3,lateral_noise,sigma x25,L8,True,1,0.197500,12.8427,ok,VALID
+20260740,P3,imu_dropout,suppress IMU,L6,False,2,0.002500,6.4670,ok,VALID
+20260740,P3,position_bias,1.0 m,L2a,True,1,0.002500,11.4140,ok,INVALID
+20260740,P3,position_drift,2.0 m final,L2a,True,1,0.002500,11.4140,ok,INVALID
+20260740,P3,speed_stuck,hold,L2a,False,3,0.002500,11.4334,ok,VALID
+20260740,P3,speed_bias,3.0 m/s,L2a,False,3,0.002500,11.0564,ok,VALID
+20260740,P3,lateral_noise,sigma x25,L8,True,1,0.187500,10.1700,ok,VALID
+20260741,P3,imu_dropout,suppress IMU,L6,False,2,0.002500,6.4318,ok,VALID
+20260741,P3,position_bias,1.0 m,L2a,True,1,0.002500,11.3721,ok,INVALID
+20260741,P3,position_drift,2.0 m final,L2a,True,1,0.002500,11.3721,ok,INVALID
+20260741,P3,speed_stuck,hold,L2a,False,3,0.002500,11.3932,ok,VALID
+20260741,P3,speed_bias,3.0 m/s,L2a,False,5,0.002500,11.0172,ok,VALID
+20260741,P3,lateral_noise,sigma x25,,False,0,0.380000,9.6039,ok,VALID
+20260742,P3,imu_dropout,suppress IMU,L2b,False,4,0.072500,5.7437,ok,VALID
+20260742,P3,position_bias,1.0 m,L2a,True,1,0.002500,10.3642,ok,INVALID
+20260742,P3,position_drift,2.0 m final,L2a,True,1,0.002500,10.3642,ok,INVALID
+20260742,P3,speed_stuck,hold,L2a,False,3,0.002500,10.3847,ok,VALID
+20260742,P3,speed_bias,3.0 m/s,L2a,False,3,0.002500,10.0749,ok,VALID
+20260742,P3,lateral_noise,sigma x25,,False,0,0.267500,8.3415,ok,VALID
+20260743,P3,imu_dropout,suppress IMU,L2b,False,4,0.005000,5.9203,ok,VALID
+20260743,P3,position_bias,1.0 m,L2a,True,1,0.005000,10.5958,ok,INVALID
+20260743,P3,position_drift,2.0 m final,L2a,True,1,0.005000,10.5958,ok,INVALID
+20260743,P3,speed_stuck,hold,L2a,False,3,0.005000,10.6165,ok,VALID
+20260743,P3,speed_bias,3.0 m/s,L2a,False,5,0.005000,10.3001,ok,VALID
+20260743,P3,lateral_noise,sigma x25,,False,0,0.492500,7.2910,ok,VALID
+20260744,P3,imu_dropout,suppress IMU,L7,False,2,0.010000,5.9277,ok,VALID
+20260744,P3,position_bias,1.0 m,L2a,True,1,0.000000,10.6733,ok,INVALID
+20260744,P3,position_drift,2.0 m final,L2a,True,1,0.000000,10.6733,ok,INVALID
+20260744,P3,speed_stuck,hold,L2a,False,3,0.000000,10.6942,ok,VALID
+20260744,P3,speed_bias,3.0 m/s,L2a,False,5,0.000000,10.3666,ok,VALID
+20260744,P3,lateral_noise,sigma x25,,False,0,0.480000,7.4999,ok,VALID
+20260745,P3,imu_dropout,suppress IMU,L2b,False,4,0.005000,6.8189,ok,VALID
+20260745,P3,position_bias,1.0 m,L2a,True,1,0.005000,11.9384,ok,INVALID
+20260745,P3,position_drift,2.0 m final,L2a,True,1,0.005000,11.9384,ok,INVALID
+20260745,P3,speed_stuck,hold,L2a,True,1,0.005000,11.9565,ok,VALID
+20260745,P3,speed_bias,3.0 m/s,L2a,False,5,0.005000,11.5490,ok,VALID
+20260745,P3,lateral_noise,sigma x25,,False,0,0.260000,9.8980,ok,VALID
+20260746,P3,imu_dropout,suppress IMU,L2b,False,4,0.007500,7.8010,ok,VALID
+20260746,P3,position_bias,1.0 m,L2a,True,1,0.010000,13.2406,ok,INVALID
+20260746,P3,position_drift,2.0 m final,L2a,True,1,0.010000,13.2406,ok,INVALID
+20260746,P3,speed_stuck,hold,L2a,False,3,0.010000,13.2257,ok,VALID
+20260746,P3,speed_bias,3.0 m/s,L2a,False,5,0.010000,12.8014,ok,VALID
+20260746,P3,lateral_noise,sigma x25,,False,0,0.297500,10.1447,ok,VALID
+20260747,P3,imu_dropout,suppress IMU,L7,False,2,0.027500,5.9484,ok,VALID
+20260747,P3,position_bias,1.0 m,L2a,True,1,0.010000,10.6348,ok,INVALID
+20260747,P3,position_drift,2.0 m final,L2a,True,1,0.010000,10.6348,ok,INVALID
+20260747,P3,speed_stuck,hold,L2a,False,3,0.010000,10.6554,ok,VALID
+20260747,P3,speed_bias,3.0 m/s,L2a,False,3,0.010000,10.3386,ok,VALID
+20260747,P3,lateral_noise,sigma x25,L8,True,1,0.207500,9.6852,ok,VALID
+20260748,P3,imu_dropout,suppress IMU,L6,False,2,0.005000,6.6821,ok,VALID
+20260748,P3,position_bias,1.0 m,L2a,True,1,0.005000,11.7051,ok,INVALID
+20260748,P3,position_drift,2.0 m final,L2a,True,1,0.005000,11.7051,ok,INVALID
+20260748,P3,speed_stuck,hold,L2a,True,1,0.005000,11.7168,ok,VALID
+20260748,P3,speed_bias,3.0 m/s,L2a,False,3,0.005000,11.3402,ok,VALID
+20260748,P3,lateral_noise,sigma x25,L8,True,1,0.217500,10.2438,ok,VALID
+20260749,P3,imu_dropout,suppress IMU,L6,False,2,0.012500,7.6184,ok,VALID
+20260749,P3,position_bias,1.0 m,L2a,True,1,0.012500,13.0403,ok,INVALID
+20260749,P3,position_drift,2.0 m final,L2a,True,1,0.012500,13.0403,ok,INVALID
+20260749,P3,speed_stuck,hold,L2a,False,3,0.012500,13.0318,ok,VALID
+20260749,P3,speed_bias,3.0 m/s,L2a,False,5,0.012500,12.6045,ok,VALID
+20260749,P3,lateral_noise,sigma x25,,False,0,0.327500,10.9367,ok,VALID
+20260750,P3,imu_dropout,suppress IMU,L7,False,2,0.000000,5.9876,ok,VALID
+20260750,P3,position_bias,1.0 m,L2a,True,1,0.000000,10.7392,ok,INVALID
+20260750,P3,position_drift,2.0 m final,L2a,True,1,0.000000,10.7392,ok,INVALID
+20260750,P3,speed_stuck,hold,L2a,False,3,0.000000,10.7617,ok,VALID
+20260750,P3,speed_bias,3.0 m/s,L2a,False,3,0.000000,10.4311,ok,VALID
+20260750,P3,lateral_noise,sigma x25,,False,0,0.245000,8.9810,ok,VALID
+20260751,P3,imu_dropout,suppress IMU,L2a,False,6,0.010000,6.3415,ok,VALID
+20260751,P3,position_bias,1.0 m,L2a,True,1,0.010000,11.2132,ok,INVALID
+20260751,P3,position_drift,2.0 m final,L2a,True,1,0.010000,11.2132,ok,INVALID
+20260751,P3,speed_stuck,hold,L2a,False,3,0.010000,11.2334,ok,VALID
+20260751,P3,speed_bias,3.0 m/s,L2a,False,5,0.010000,10.8801,ok,VALID
+20260751,P3,lateral_noise,sigma x25,L8,True,1,0.217500,9.9394,ok,VALID
+20260752,P3,imu_dropout,suppress IMU,L2b,False,4,0.005000,8.4375,ok,VALID
+20260752,P3,position_bias,1.0 m,L2a,True,1,0.005000,14.0589,ok,INVALID
+20260752,P3,position_drift,2.0 m final,L2a,True,1,0.005000,14.0589,ok,INVALID
+20260752,P3,speed_stuck,hold,L2a,False,3,0.005000,14.0209,ok,VALID
+20260752,P3,speed_bias,3.0 m/s,L2a,False,3,0.005000,13.5894,ok,VALID
+20260752,P3,lateral_noise,sigma x25,,False,0,0.477500,10.2004,ok,VALID
+20260753,P3,imu_dropout,suppress IMU,L7,False,2,0.075000,7.0413,ok,VALID
+20260753,P3,position_bias,1.0 m,L2a,True,1,0.012500,12.2554,ok,INVALID
+20260753,P3,position_drift,2.0 m final,L2a,True,1,0.012500,12.2554,ok,INVALID
+20260753,P3,speed_stuck,hold,L2a,True,1,0.012500,12.2625,ok,VALID
+20260753,P3,speed_bias,3.0 m/s,L2a,False,5,0.012500,11.8632,ok,VALID
+20260753,P3,lateral_noise,sigma x25,,False,0,0.272500,9.3363,ok,VALID
+20260754,P3,imu_dropout,suppress IMU,L2a,False,2,0.002500,6.4038,ok,VALID
+20260754,P3,position_bias,1.0 m,L2a,True,1,0.002500,11.2892,ok,INVALID
+20260754,P3,position_drift,2.0 m final,L2a,True,1,0.002500,11.2892,ok,INVALID
+20260754,P3,speed_stuck,hold,L2a,True,1,0.002500,11.3032,ok,VALID
+20260754,P3,speed_bias,3.0 m/s,L2a,False,3,0.002500,10.9544,ok,VALID
+20260754,P3,lateral_noise,sigma x25,,False,0,0.260000,9.2693,ok,VALID
+20260755,P3,imu_dropout,suppress IMU,L7,False,2,0.000000,6.3062,ok,VALID
+20260755,P3,position_bias,1.0 m,L2a,True,1,0.002500,11.2190,ok,INVALID
+20260755,P3,position_drift,2.0 m final,L2a,True,1,0.002500,11.2190,ok,INVALID
+20260755,P3,speed_stuck,hold,L2a,False,3,0.002500,11.2379,ok,VALID
+20260755,P3,speed_bias,3.0 m/s,L2a,False,3,0.002500,10.8741,ok,VALID
+20260755,P3,lateral_noise,sigma x25,,False,0,0.190000,10.0240,ok,VALID
+20260756,P3,imu_dropout,suppress IMU,L7,False,2,0.017500,5.6932,ok,VALID
+20260756,P3,position_bias,1.0 m,L2a,True,1,0.000000,10.3072,ok,INVALID
+20260756,P3,position_drift,2.0 m final,L2a,True,1,0.000000,10.3072,ok,INVALID
+20260756,P3,speed_stuck,hold,L2a,False,3,0.000000,10.3335,ok,VALID
+20260756,P3,speed_bias,3.0 m/s,L2a,False,5,0.000000,10.0239,ok,VALID
+20260756,P3,lateral_noise,sigma x25,,False,0,0.265000,8.7347,ok,VALID
+20260757,P3,imu_dropout,suppress IMU,L7,False,2,0.015000,6.2505,ok,VALID
+20260757,P3,position_bias,1.0 m,L2a,True,1,0.015000,11.0897,ok,INVALID
+20260757,P3,position_drift,2.0 m final,L2a,True,1,0.015000,11.0897,ok,INVALID
+20260757,P3,speed_stuck,hold,L2a,False,3,0.015000,11.1110,ok,VALID
+20260757,P3,speed_bias,3.0 m/s,L2a,False,5,0.015000,10.7536,ok,VALID
+20260757,P3,lateral_noise,sigma x25,,False,0,0.252500,9.9794,ok,VALID
+20260758,P3,imu_dropout,suppress IMU,L2b,False,4,0.010000,8.1344,ok,VALID
+20260758,P3,position_bias,1.0 m,L2a,True,1,0.010000,13.6943,ok,INVALID
+20260758,P3,position_drift,2.0 m final,L2a,True,1,0.010000,13.6943,ok,INVALID
+20260758,P3,speed_stuck,hold,L2a,False,3,0.010000,13.6641,ok,VALID
+20260758,P3,speed_bias,3.0 m/s,L2a,False,5,0.010000,13.2324,ok,VALID
+20260758,P3,lateral_noise,sigma x25,,False,0,0.255000,12.4077,ok,VALID
+20260759,P3,imu_dropout,suppress IMU,L2b,False,4,0.017500,7.5916,ok,VALID
+20260759,P3,position_bias,1.0 m,L2a,True,1,0.010000,12.9855,ok,INVALID
+20260759,P3,position_drift,2.0 m final,L2a,True,1,0.010000,12.9855,ok,INVALID
+20260759,P3,speed_stuck,hold,L2a,False,3,0.010000,12.9763,ok,VALID
+20260759,P3,speed_bias,3.0 m/s,L2a,False,5,0.010000,12.5550,ok,VALID
+20260759,P3,lateral_noise,sigma x25,,False,0,0.245000,11.8309,ok,VALID
+20260760,P3,imu_dropout,suppress IMU,L6,False,2,0.002500,8.2527,ok,VALID
+20260760,P3,position_bias,1.0 m,L2a,True,1,0.002500,13.8284,ok,INVALID
+20260760,P3,position_drift,2.0 m final,L2a,True,1,0.002500,13.8284,ok,INVALID
+20260760,P3,speed_stuck,hold,L2a,False,3,0.002500,13.7896,ok,VALID
+20260760,P3,speed_bias,3.0 m/s,L2a,False,5,0.005000,13.3687,ok,VALID
+20260760,P3,lateral_noise,sigma x25,,False,0,0.380000,11.2482,ok,VALID
