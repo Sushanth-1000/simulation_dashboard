@@ -247,6 +247,8 @@ class RedundantSensing:
     drift_per_tick: float
     opens_at: int
     generator: random.Random
+    bias: float = 0.0
+    also_faulted: tuple[SensorModality, ...] = ()
 
     @classmethod
     def build(
@@ -257,6 +259,8 @@ class RedundantSensing:
         faulted: SensorModality | None = None,
         drift_per_tick: float = 0.0,
         opens_at: int = 0,
+        bias: float = 0.0,
+        also_faulted: tuple[SensorModality, ...] = (),
     ) -> RedundantSensing:
         """Build a redundancy spec with a disjointly seeded generator.
 
@@ -266,6 +270,16 @@ class RedundantSensing:
             faulted: The channel to corrupt, or ``None``.
             drift_per_tick: Metres per tick of drift.
             opens_at: The tick the drift opens on.
+            bias: A constant offset in metres, added from ``opens_at``. Drift
+                and bias compose, so a channel can lie by a step, a ramp, or
+                both. Added 1 September 2026: ``FaultInjector`` cannot reach the
+                position channel at all once redundancy is the driven path,
+                because ``_publish_state`` regenerates ``y`` per channel from
+                ground truth. This is the per-channel path that can.
+            also_faulted: Further channels that lie identically. The median over
+                three position readings rejects one liar and follows two, so
+                this is the control that separates *redundancy rejecting a
+                fault* from *the estimator absorbing one*.
 
         Returns:
             The spec.
@@ -276,6 +290,8 @@ class RedundantSensing:
             drift_per_tick=drift_per_tick,
             opens_at=opens_at,
             generator=random.Random(seed ^ _REDUNDANT_SEED_OFFSET),
+            bias=bias,
+            also_faulted=tuple(also_faulted),
         )
 
     def draw(self, modality: SensorModality) -> float:
@@ -283,10 +299,17 @@ class RedundantSensing:
         return self.generator.gauss(0.0, self.sigmas[modality])
 
     def offset(self, modality: SensorModality, tick: int) -> float:
-        """Return the fault's current magnitude for a channel, or zero."""
-        if modality is not self.faulted or tick < self.opens_at:
+        """Return the fault's current magnitude for a channel, or zero.
+
+        A channel lies if it is ``faulted`` or listed in ``also_faulted``. The
+        magnitude is ``bias + drift_per_tick * elapsed``, so a step and a ramp
+        compose rather than being alternatives.
+        """
+        if tick < self.opens_at:
             return 0.0
-        return self.drift_per_tick * (tick - self.opens_at)
+        if modality is not self.faulted and modality not in self.also_faulted:
+            return 0.0
+        return self.bias + self.drift_per_tick * (tick - self.opens_at)
 
 
 def _publish_state(
@@ -458,6 +481,8 @@ class TickSample:
     shadow_failsafe: str | None = None
     fault_active: bool = False
     measured_lateral_acceleration_mps2: float | None = None
+    measured_position_m: float | None = None
+    measured_speed_mps: float | None = None
 
 
 @dataclass(slots=True)
@@ -582,6 +607,8 @@ def _sample(
     duration_ns: int,
     faulted: bool,
     measured_lateral: float | None,
+    measured_position: float | None = None,
+    measured_speed: float | None = None,
 ) -> TickSample:
     """Assemble one observer sample from a tick's outcome and the plant's truth.
 
@@ -621,6 +648,8 @@ def _sample(
         shadow_failsafe=None if shadow is None else shadow.shadow_failsafe,
         fault_active=faulted,
         measured_lateral_acceleration_mps2=measured_lateral,
+        measured_position_m=measured_position,
+        measured_speed_mps=measured_speed,
     )
 
 
@@ -820,6 +849,8 @@ def drive_closed_loop(
                     duration_ns=duration_ns,
                     faulted=faulted,
                     measured_lateral=None if published is None else published["a"],
+                    measured_position=None if published is None else published["y"],
+                    measured_speed=None if published is None else published["v"],
                 )
             )
         clock.advance(period)
