@@ -1,0 +1,11 @@
+frozen threshold (v3, not recomputed): P1 = 3.7024
+faults sustained ticks 200-3399
+
+  position_bias    n=200   100%  ->  n=3200   100%   [431s]
+  position_drift   n=200     0%  ->  n=3200   100%   [823s]
+  speed_bias       n=200     0%  ->  n=3200     0%   [1282s]
+  lateral_noise    n=200    87%  ->  n=3200   100%   [1741s]
+  speed_stuck      n=200     3%  ->  n=3200    37%   [2129s]
+  imu_dropout      n=200     0%  ->  n=3200     0%   [2551s]
+
+  180 runs -> experiments\phase5_od8_h7\E18_R3c\raw_results\faulted_sustained.json
