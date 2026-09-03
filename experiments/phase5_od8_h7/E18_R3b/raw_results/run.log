@@ -1,0 +1,12 @@
+frozen threshold (v3, not recomputed): P1 = 3.7024
+6 faults x 30 seeds x 3400 ticks, faulted arm only
+
+  position_bias    n=200   100%  ->  n=3200   100%   [490s]
+  position_drift   n=200   100%  ->  n=3200   100%   [963s]
+  speed_bias       n=200     0%  ->  n=3200    50%   [1476s]
+  lateral_noise    n=200    87%  ->  n=3200   100%   [1883s]
+  speed_stuck      n=200     3%  ->  n=3200    10%   [2392s]
+  imu_dropout      n=200     0%  ->  n=3200   100%   [3037s]
+
+  180 runs -> experiments\phase5_od8_h7\E18_R3b\raw_results\faulted_long.json
+  per-tick series -> experiments\phase5_od8_h7\E18_R3b\raw_results\tick_series.json (6.1 MB)

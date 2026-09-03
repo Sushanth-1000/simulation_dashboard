@@ -244,3 +244,37 @@ CLAIMS:        "OD-8 is stable on P1 at a 160 s window" -> Established.
 NEXT ACTION:   E18-R3b - faulted evaluation at n=3200 against the frozen threshold. A monitor with
                perfect false-alarm control and no detection is still useless.
 ```
+
+---
+
+```
+DATE:          3 September 2026
+EXPERIMENT:    E18-R3b
+OBSERVATION:   4 of 6 faults reach 100 % detection at n=3200, meeting the frozen bar. But the
+               pre-registered red flag fired: imu_dropout went 0 % -> 100 % despite a score shift of
+               -0.71 sigma, away from the alarm region.
+               Investigation of the per-tick series: the fault occupies ticks 200-399 only, so it is
+               6 % of the evaluation window and detection should have been diluted. Instead,
+               imu_dropout's mean score sits BELOW threshold during the fault (alarm rate 0.4 %,
+               quieter than clean) and jumps to 4.1092 immediately after it ends (99.1 %), staying
+               elevated for thousands of ticks. The same shape holds for position_bias (87 % -> 100 %)
+               and lateral_noise (41 % -> 89 %). speed_bias and speed_stuck are flat in every phase.
+DECISION:      Record PASS on the frozen criterion, and record the pre-registered MECHANISM as
+               REFUTED. Replace it with post-fault transient coverage. Require phase-resolved
+               detection reporting from here on.
+RATIONALE:     The criterion was 4 of 6 at >= 90 % and that is met. But the stated reason - more
+               statistical power on a persistent shift - is contradicted by the data: the fault's
+               own ticks are the least informative part of the window. Reporting the pass without
+               the mechanism correction would leave a false explanation in the record.
+ALTERNATIVES   (a) Report 4/6 as a clean win - rejected: the red flag fired and the explanation is
+REJECTED:          wrong. This is exactly what the flag existed to prevent.
+               (b) Call it INVALID - rejected: the criterion was met and the detection is real. The
+                   error is in the explanation, not the measurement.
+               (c) Quietly rewrite the hypothesis to match - rejected outright.
+IMPACT ON      "OD-8 detects 4 of 6 faults at 160 s on P1" -> Established.
+CLAIMS:        "A fault can be undetectable while active and detectable after it ends" -> Established.
+               "Longer windows help via statistical power" -> Refuted.
+               "imu_dropout is undetectable at any severity" -> Superseded.
+NEXT ACTION:   E18-R3c - hold the fault active for the whole evaluation window and compare. That
+               separates aftermath detection from sustained-fault detection.
+```
