@@ -556,12 +556,16 @@ for (const b of document.querySelectorAll("button[data-control]"))
   b.addEventListener("click", () => post(`/control/${b.dataset.control}`, (a) => {
     if (b.dataset.control === "reset") {
       history = [];
+      renderTrace();
       note(a.tick || "—", "SIMULATION RESET — RECOVERED TO CENTER LANE", "Vehicle returned to 0.0m lane center. Fail-safe state reset to NOMINAL.", "PASS");
     }
   }));
 
 if ($("story-start")) $("story-start").addEventListener("click", () => post("/story/start"));
 if ($("story-next")) $("story-next").addEventListener("click", () => post("/story/next"));
+
+// Render baseline trace immediately on page load
+renderTrace();
 if ($("story-back")) $("story-back").addEventListener("click", () => post("/story/back"));
 if ($("story-exit")) $("story-exit").addEventListener("click", () => post("/story/exit"));
 </script>
