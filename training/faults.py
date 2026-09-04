@@ -444,6 +444,24 @@ class FaultInjector:
         """
         self._specs = (*self._specs, spec)
 
+    def stand_down(self) -> None:
+        """Drop every armed fault and forget the state they accumulated.
+
+        **For the interactive demonstration only**, and symmetric with
+        :meth:`arm`. No measurement calls it: a study builds its injector with
+        every specification up front, which is what makes the run reproducible
+        from its seed, and a study that stood a fault down mid-run would have no
+        way to describe what it had measured.
+
+        The frozen values are cleared alongside the specifications. A
+        ``STUCK_AT`` holds the reading it first saw, so an injector that kept
+        that value across a stand-down would resume a *stale* freeze rather than
+        a fresh one, and the second demonstration of the same fault would not
+        match the first.
+        """
+        self._specs = ()
+        self._frozen.clear()
+
     def is_active(self, tick: int) -> bool:
         """Return whether any fault applies to a tick.
 

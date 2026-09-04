@@ -57,7 +57,13 @@ from astra.kernel.identifiers import ComponentId, RunId, TickId
 from astra.kernel.matrix import SymmetricMatrix
 from astra.kernel.time import Instant, Timeline
 from astra.kernel.units import MetresPerSecond, Probability
-from demo.dashboard import FAULT_WINDOW_TICKS, Frame, build_injector
+from demo.dashboard import (
+    FAULT_WINDOW_TICKS,
+    POSITION_FAULTS,
+    Frame,
+    FrameStream,
+    build_injector,
+)
 from training.closed_loop import TickSample
 
 RUN = RunId("run-dashboardtest01")
@@ -347,7 +353,7 @@ def test_the_frame_is_json_serialisable() -> None:
 
 
 @pytest.mark.parametrize(
-    "kind", ["dropout", "position_bias", "position_drift", "speed_stuck", "lateral_noise"]
+    "kind", ["dropout", "speed_stuck", "speed_bias", "lateral_noise"]
 )
 def test_every_offered_fault_builds_a_valid_specification(kind: str) -> None:
     spec = build_injector(kind, tick=500, seed=0)
@@ -355,6 +361,18 @@ def test_every_offered_fault_builds_a_valid_specification(kind: str) -> None:
     assert spec.first_tick == 500
     assert spec.last_tick == 500 + FAULT_WINDOW_TICKS
     assert spec.tick_count == FAULT_WINDOW_TICKS + 1
+
+
+@pytest.mark.parametrize("kind", ["position_bias", "position_drift"])
+def test_a_position_fault_is_not_built_on_the_injector_path(kind: str) -> None:
+    # Regression guard. A POSITION_Y fault armed on the injector is overwritten
+    # with ground truth by ``_publish_state`` and reaches nothing at all, which
+    # is what made this demonstration's position buttons inert. The two faults
+    # travel the sensing path instead, so ``build_injector`` must refuse them
+    # rather than hand back a specification that would silently do nothing.
+    assert kind in POSITION_FAULTS
+    with pytest.raises(ValueError, match="not a fault this demonstration offers"):
+        build_injector(kind, tick=500, seed=0)
 
 
 def test_a_fault_the_demonstration_does_not_offer_is_refused() -> None:
@@ -372,9 +390,45 @@ def test_arming_a_fault_mid_run_affects_no_earlier_tick() -> None:
     clean = {"y": 0.1, "v": 13.0, "a": 0.0}
 
     before = injector.corrupt(clean, tick=100)
-    injector.arm(build_injector("position_bias", tick=101, seed=0))
+    injector.arm(build_injector("speed_bias", tick=101, seed=0))
     after = injector.corrupt(clean, tick=101)
 
     assert before == clean
     assert after is not None
-    assert after["y"] != clean["y"]
+    assert after["v"] != clean["v"]
+
+
+def test_a_position_fault_is_armed_on_the_sensing_path_and_reaches_the_estimator() -> None:
+    # The paired check that caught the inert buttons: arm each position fault the
+    # way the page does and require the offset the estimator will actually see to
+    # be non-zero. An assertion on the *offset* rather than on downstream state is
+    # deliberate -- the vehicle steers to null a position bias, so an end-to-end
+    # comparison can read near-zero even when the injection is working perfectly.
+    from astra.kernel.enums import SensorModality  # noqa: PLC0415
+    from training.closed_loop import (  # noqa: PLC0415
+        CHANNEL_SIGMAS,
+        DEFAULT_CHANNEL_SIGMAS,
+        RedundantSensing,
+    )
+    from training.faults import FaultInjector  # noqa: PLC0415
+
+    for kind in ("position_bias", "position_drift"):
+        sensing = RedundantSensing.build(sigmas=DEFAULT_CHANNEL_SIGMAS, seed=3)
+        stream = FrameStream(
+            FaultInjector((), seed=1, sigmas=CHANNEL_SIGMAS),
+            sensing=sensing,
+            period_s=0.0,
+        )
+        stream.arm(kind)
+
+        assert stream.fault_path == "RedundantSensing"
+        late = stream.tick + 1 + FAULT_WINDOW_TICKS
+        assert sensing.offset(SensorModality.IMU, late) != 0.0
+        assert sensing.offset(SensorModality.GPS, late) != 0.0
+        # Two of three, so the median the estimator fuses follows the liars. A
+        # single faulted channel would be out-voted and demonstrate nothing.
+        assert sensing.offset(SensorModality.LIDAR, late) == 0.0
+
+        stream.clear_fault()
+        assert sensing.offset(SensorModality.IMU, late) == 0.0
+        assert stream.fault_name is None
