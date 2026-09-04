@@ -190,8 +190,8 @@ FOG = (0.2, 0.95, 0.85)
 """``(visibility, traffic dynamicity, road complexity)`` of heavy fog and dense traffic.
 """
 
-FAULT_WINDOW_TICKS = 100
-"""How long an armed fault lasts. Five seconds at 20 Hz.
+FAULT_WINDOW_TICKS = 60
+"""How long an armed fault lasts. Three seconds at 20 Hz.
 """
 
 
