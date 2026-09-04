@@ -278,7 +278,8 @@ function renderGates(f) {
 
 function renderTrace() {
   const w = 900, h = 250, mid = h / 2, span = 3.5, scale = mid / span;
-  const step = w / Math.max(1, WINDOW - 1);
+  const count = Math.max(1, history.length);
+  const step = count > 1 ? w / (count - 1) : w;
   const yPixel = (val) => mid - Math.max(-span, Math.min(span, val)) * scale;
 
   let decay = 0;
