@@ -311,7 +311,7 @@ class RedundantSensing:
         """
         if tick < self.opens_at:
             return 0.0
-        if self.closes_at > 0 and tick >= self.closes_at:
+        if self.closes_at > 0 and tick > self.closes_at:
             return 0.0
         if modality is not self.faulted and modality not in self.also_faulted:
             return 0.0

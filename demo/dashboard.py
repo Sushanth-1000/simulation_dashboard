@@ -571,6 +571,7 @@ class FrameStream:
         "_step_once",
         "_subscribers",
         "_tick",
+        "context_name",
         "dropped",
         "fault_name",
         "fault_path",
@@ -605,6 +606,7 @@ class FrameStream:
         self._recorder = recorder
         self.fault_name: str | None = None
         self.fault_path: str | None = None
+        self.context_name: str = "certified road"
         self.period_s = period_s
         self.pipeline: object | None = None
         self._lock = threading.Lock()
@@ -665,16 +667,18 @@ class FrameStream:
         if self.pipeline is None:
             message = "the drive has not started yet"
             raise RuntimeError(message)
-        # Assigning a private slot on an object this module was handed. The
-        # alternative is a public setter on the pipeline for a demonstration's
-        # benefit, which would put a mid-run configuration change into the
-        # safety surface -- a worse trade than one narrow reach from a
-        # module that ships no verdict.
-        self.pipeline._context = cold_path(where)  # type: ignore[attr-defined]  # noqa: SLF001
+        ctx_obj = cold_path(where)
+        if hasattr(self.pipeline, "enter_context"):
+            self.pipeline.enter_context(ctx_obj)
+        else:
+            self.pipeline._context = ctx_obj  # type: ignore[attr-defined]  # noqa: SLF001
         if where == TUNNEL:
+            self.context_name = "tunnel"
             return "tunnel"
         if where == FOG:
+            self.context_name = "heavy fog & traffic"
             return "heavy fog & traffic"
+        self.context_name = "certified road"
         return "certified road"
 
     def arm(self, kind: str) -> FaultSpec:
@@ -787,6 +791,8 @@ class FrameStream:
         """
         self.clear_fault()
         self.story_index = None
+        if self.started and self.pipeline is not None:
+            self.enter(CERTIFIED)
         self._reset_failsafe()
         self.resume()
 
@@ -882,6 +888,7 @@ class FrameStream:
                 "tick": self._tick,
                 "fault_name": self.fault_name,
                 "fault_path": self.fault_path,
+                "scenario": self.context_name,
                 "story": self.story_state(),
             },
             separators=(",", ":"),
@@ -925,6 +932,7 @@ class FrameStream:
                 "paused": self.paused,
                 "fault_name": self.fault_name,
                 "fault_path": self.fault_path,
+                "scenario": self.context_name,
                 "story": self.story_state(),
             },
             separators=(",", ":"),
