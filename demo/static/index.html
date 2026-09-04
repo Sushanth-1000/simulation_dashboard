@@ -276,14 +276,30 @@ function renderGates(f) {
 }
 
 function renderTrace() {
-  const w = 900, h = 250, mid = h / 2, scale = mid / SPAN;
+  const w = 900, h = 250, mid = h / 2;
   const refY = (history.length > 0 && history[0].truth_y !== null && history[0].truth_y !== undefined)
     ? history[0].truth_y
     : 0;
 
+  let minV = -CORRIDOR, maxV = CORRIDOR;
+  for (const f of history) {
+    if (f.truth_y !== null && f.truth_y !== undefined) {
+      const relT = f.truth_y - refY;
+      minV = Math.min(minV, relT);
+      maxV = Math.max(maxV, relT);
+    }
+    if (f.estimate_y !== null && f.estimate_y !== undefined) {
+      const relE = f.estimate_y - refY;
+      minV = Math.min(minV, relE);
+      maxV = Math.max(maxV, relE);
+    }
+  }
+  const span = Math.max(2.5, Math.max(Math.abs(minV), Math.abs(maxV)) * 1.2);
+  const scale = mid / span;
+
   const y = (v) => {
     const rel = (v === null || v === undefined) ? 0 : (v - refY);
-    return mid - Math.max(-SPAN, Math.min(SPAN, rel)) * scale;
+    return mid - Math.max(-span, Math.min(span, rel)) * scale;
   };
   const step = w / Math.max(1, WINDOW - 1);
   const line = (pick) => history.map((f, i) => {
