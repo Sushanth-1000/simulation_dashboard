@@ -287,13 +287,22 @@ function renderTrace() {
     let relT = 0.0; // 100% Merged Ground Truth baseline (0.0m)
     let relE = 0.0; // 100% Merged Estimate baseline (0.0m)
 
-    if (f.fault_active) {
+    const isFault = !!(f.fault_engaged || f.fault_active);
+
+    if (isFault) {
       decay = 20; // 1 second recovery window (20 ticks @ 20Hz)
-      if (f.fault_kind === "dropout") {
+      const fname = f.fault_name || f.fault_kind || "";
+      if (fname === "dropout") {
         relT = -1.8;
         relE = 0.0;
-      } else if (f.estimate_y !== null && f.truth_y !== null) {
+      } else if (f.estimate_y !== null && f.truth_y !== null && Math.abs(f.estimate_y - f.truth_y) > 0.01) {
         relE = f.estimate_y - f.truth_y;
+        relT = 0.0;
+      } else if (fname === "position_bias") {
+        relE = 1.0;
+        relT = 0.0;
+      } else if (fname === "position_drift") {
+        relE = 1.5;
         relT = 0.0;
       } else {
         relE = 1.0;
@@ -326,12 +335,12 @@ function renderTrace() {
   let i = 0;
   while (i < history.length) {
     const f = history[i];
-    if (f.fault_active || f.exploring) {
-      const isFault = Boolean(f.fault_active);
+    const isFault = !!(f.fault_engaged || f.fault_active);
+    if (isFault || f.exploring) {
       const fill = isFault ? "var(--fault)" : "var(--explore)";
       const opacity = isFault ? "0.14" : "0.08";
       let j = i;
-      while (j < history.length && (isFault ? history[j].fault_active : history[j].exploring)) {
+      while (j < history.length && (isFault ? !!(history[j].fault_engaged || history[j].fault_active) : history[j].exploring)) {
         j++;
       }
       const x = (i * step).toFixed(1);
