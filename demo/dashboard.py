@@ -750,6 +750,11 @@ class FrameStream:
         self._injector.stand_down()
         self.fault_name = None
         self.fault_path = None
+        if hasattr(self, "plant") and self.plant is not None:
+            self.plant._state[1] = 0.0
+            self.plant._state[2] = float(self.plant.spec_.reference_speed_mps)
+            self.plant._state[3] = 0.0
+            self.plant._state[4] = 0.0
 
     @property
     def paused(self) -> bool:
@@ -919,16 +924,28 @@ class FrameStream:
         if self._step_once:
             self._step_once = False
             self._gate.clear()
-        frame = Frame.from_sample(sample)
         position_active = bool(
             self._sensing is not None
             and self._sensing.closes_at > 0
             and self._sensing.opens_at <= sample.tick <= self._sensing.closes_at
         )
+        if self._sensing is not None and self._sensing.closes_at > 0 and sample.tick > self._sensing.closes_at:
+            self._sensing.faulted = None
+            self._sensing.also_faulted = ()
+            self._sensing.bias = 0.0
+            self._sensing.drift_per_tick = 0.0
+            self._sensing.closes_at = 0
+
         engaged = bool(frame.fault_active or position_active)
-        if not engaged and not frame.fault_active and not position_active:
+        if not engaged:
             self.fault_name = None
             self.fault_path = None
+            if hasattr(self, "plant") and self.plant is not None:
+                self.plant._state[1] *= 0.85
+                if abs(float(self.plant._state[1])) < 0.01:
+                    self.plant._state[1] = 0.0
+                if float(self.plant._state[2]) < float(self.plant.spec_.reference_speed_mps):
+                    self.plant._state[2] = float(self.plant.spec_.reference_speed_mps)
         payload = json.dumps(
             {
                 **asdict(frame),
