@@ -364,6 +364,15 @@ function note(tick, what, why, kind) {
 
 let last = {};
 function narrate(f) {
+  if (f.scenario !== last.scenario && f.scenario) {
+    const text = {
+      tunnel: "Context shifted to Tunnel — uncertified domain. L9 RCM engages Bounded Safe Exploration.",
+      fog: "Context shifted to Heavy Fog & Traffic — dynamic calibration shift.",
+      road: "Context restored to Certified Road — full certified operational envelope."
+    }[f.scenario] || `Context shifted to ${f.scenario}`;
+    if (last.scenario !== undefined) note(f.tick, `SCENARIO → ${f.scenario.toUpperCase()}`, text, "PASS");
+    last.scenario = f.scenario;
+  }
   if (f.arbitration !== last.arbitration && f.arbitration) {
     const why = {
       SAFE_EXPLORATION: "No certified profile covers this context. Rather than stop, RCM narrows the envelope — half the nearest certified speed, a ±15° steering cone, no lane changes — and keeps issuing commands.",
@@ -375,13 +384,14 @@ function narrate(f) {
     note(f.tick, `RCM → ${f.arbitration}`, why, f.exploring ? "EXPL" : "");
     last.arbitration = f.arbitration;
   }
-  if (f.fault_active !== last.fault) {
-    note(f.tick, f.fault_active ? "FAULT OPENED" : "fault closed",
-      f.fault_active
-        ? "A sensor is now lying. Watch the estimate and the truth separate — and watch the gate panel not react."
+  const faultActive = !!(f.fault_engaged || f.fault_active);
+  if (faultActive !== last.fault) {
+    note(f.tick, faultActive ? `FAULT OPENED (${(f.fault_name || "sensor").toUpperCase()})` : "fault closed",
+      faultActive
+        ? "A sensor is now lying. Watch the estimate and the truth separate — and watch the gate panel react."
         : "The sensor is telling the truth again. If the vehicle departed, the gates can finally see it.",
-      f.fault_active ? "VETO" : "PASS");
-    last.fault = f.fault_active;
+      faultActive ? "VETO" : "PASS");
+    last.fault = faultActive;
   }
   if (f.failsafe_state !== last.fs) {
     const why = {
