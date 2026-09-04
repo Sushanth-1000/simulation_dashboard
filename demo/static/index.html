@@ -276,35 +276,21 @@ function renderGates(f) {
 }
 
 function renderTrace() {
-  const w = 900, h = 250, mid = h / 2;
-  const refY = (history.length > 0 && history[0].truth_y !== null && history[0].truth_y !== undefined)
-    ? history[0].truth_y
-    : 0;
-
-  let minV = -CORRIDOR, maxV = CORRIDOR;
-  for (const f of history) {
-    if (f.truth_y !== null && f.truth_y !== undefined) {
-      const relT = f.truth_y - refY;
-      minV = Math.min(minV, relT);
-      maxV = Math.max(maxV, relT);
-    }
-    if (f.estimate_y !== null && f.estimate_y !== undefined) {
-      const relE = f.estimate_y - refY;
-      minV = Math.min(minV, relE);
-      maxV = Math.max(maxV, relE);
-    }
-  }
-  const span = Math.max(2.5, Math.max(Math.abs(minV), Math.abs(maxV)) * 1.2);
-  const scale = mid / span;
-
-  const y = (v) => {
-    const rel = (v === null || v === undefined) ? 0 : (v - refY);
-    return mid - Math.max(-span, Math.min(span, rel)) * scale;
-  };
+  const w = 900, h = 250, mid = h / 2, span = 3.5, scale = mid / span;
   const step = w / Math.max(1, WINDOW - 1);
+
+  const y0 = (history.length > 0 && history[0].truth_y !== null && history[0].truth_y !== undefined) ? history[0].truth_y : 0;
+  const yN = (history.length > 0 && history[history.length - 1].truth_y !== null && history[history.length - 1].truth_y !== undefined) ? history[history.length - 1].truth_y : y0;
+  const slope = (history.length > 1) ? (yN - y0) / (history.length - 1) : 0;
+
+  const yPixel = (relVal) => mid - Math.max(-span, Math.min(span, relVal)) * scale;
+
   const line = (pick) => history.map((f, i) => {
     const v = pick(f);
-    return (v === null || v === undefined) ? null : `${(i * step).toFixed(1)},${y(v).toFixed(1)}`;
+    if (v === null || v === undefined) return null;
+    const refLine = y0 + slope * i;
+    const rel = v - refLine;
+    return `${(i * step).toFixed(1)},${yPixel(rel).toFixed(1)}`;
   }).filter(Boolean).join(" ");
 
   let bands = "";
@@ -329,9 +315,9 @@ function renderTrace() {
   }
 
   $("trace").innerHTML = `${bands}
-    <line x1="0" y1="${y(refY)}" x2="${w}" y2="${y(refY)}" stroke="var(--line)"/>
-    <line x1="0" y1="${y(refY + CORRIDOR)}" x2="${w}" y2="${y(refY + CORRIDOR)}" stroke="var(--line)" stroke-dasharray="5 5"/>
-    <line x1="0" y1="${y(refY - CORRIDOR)}" x2="${w}" y2="${y(refY - CORRIDOR)}" stroke="var(--line)" stroke-dasharray="5 5"/>
+    <line x1="0" y1="${mid}" x2="${w}" y2="${mid}" stroke="var(--line)"/>
+    <line x1="0" y1="${yPixel(CORRIDOR)}" x2="${w}" y2="${yPixel(CORRIDOR)}" stroke="var(--line)" stroke-dasharray="5 5"/>
+    <line x1="0" y1="${yPixel(-CORRIDOR)}" x2="${w}" y2="${yPixel(-CORRIDOR)}" stroke="var(--line)" stroke-dasharray="5 5"/>
     <polyline fill="none" stroke="var(--truth)" stroke-width="2.5" points="${line((f)=>f.truth_y)}"/>
     <polyline fill="none" stroke="var(--estimate)" stroke-width="2.5" points="${line((f)=>f.estimate_y)}"/>`;
 }
