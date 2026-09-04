@@ -281,19 +281,36 @@ function renderTrace() {
   const step = w / Math.max(1, WINDOW - 1);
   const line = (pick) => history.map((f, i) => {
     const v = pick(f);
-    return (v === null || v === undefined) ? null : `${i * step},${y(v)}`;
+    return (v === null || v === undefined) ? null : `${(i * step).toFixed(1)},${y(v).toFixed(1)}`;
   }).filter(Boolean).join(" ");
-  const bands = history.map((f, i) => {
-    if (f.fault_active) return `<rect x="${i*step}" y="0" width="${step+0.7}" height="${h}" fill="var(--fault)" opacity=".15"/>`;
-    if (f.exploring) return `<rect x="${i*step}" y="0" width="${step+0.7}" height="${h}" fill="var(--explore)" opacity=".07"/>`;
-    return "";
-  }).join("");
+
+  let bands = "";
+  let i = 0;
+  while (i < history.length) {
+    const f = history[i];
+    if (f.fault_active || f.exploring) {
+      const isFault = Boolean(f.fault_active);
+      const fill = isFault ? "var(--fault)" : "var(--explore)";
+      const opacity = isFault ? "0.22" : "0.10";
+      let j = i;
+      while (j < history.length && (isFault ? history[j].fault_active : history[j].exploring)) {
+        j++;
+      }
+      const x = (i * step).toFixed(1);
+      const width = (Math.max(step, (j - i) * step)).toFixed(1);
+      bands += `<rect x="${x}" y="0" width="${width}" height="${h}" fill="${fill}" opacity="${opacity}"/>`;
+      i = j;
+    } else {
+      i++;
+    }
+  }
+
   $("trace").innerHTML = `${bands}
     <line x1="0" y1="${y(0)}" x2="${w}" y2="${y(0)}" stroke="var(--line)"/>
     <line x1="0" y1="${y(CORRIDOR)}" x2="${w}" y2="${y(CORRIDOR)}" stroke="var(--line)" stroke-dasharray="5 5"/>
     <line x1="0" y1="${y(-CORRIDOR)}" x2="${w}" y2="${y(-CORRIDOR)}" stroke="var(--line)" stroke-dasharray="5 5"/>
-    <polyline fill="none" stroke="var(--truth)" stroke-width="2" points="${line((f)=>f.truth_y)}"/>
-    <polyline fill="none" stroke="var(--estimate)" stroke-width="2" points="${line((f)=>f.estimate_y)}"/>`;
+    <polyline fill="none" stroke="var(--truth)" stroke-width="2.5" points="${line((f)=>f.truth_y)}"/>
+    <polyline fill="none" stroke="var(--estimate)" stroke-width="2.5" points="${line((f)=>f.estimate_y)}"/>`;
 }
 
 /* The narrator. Each entry says what happened AND why it matters, because a
