@@ -918,13 +918,15 @@ class FrameStream:
             self._step_once = False
             self._gate.clear()
         frame = Frame.from_sample(sample)
-        # ``TickSample.fault_active`` is computed from the injector alone, so a
-        # position fault -- which travels the sensing path -- reads False there
-        # while it is very much acting on the vehicle. The page shades its fault
-        # band and opens its ticker entry from this field, so it is widened here
-        # rather than in ``Frame``: that projection is asserted field-by-field
-        # against the record and must keep meaning exactly what the record says.
-        engaged = bool(frame.fault_active or self.fault_name is not None)
+        position_active = bool(
+            self._sensing is not None
+            and self._sensing.closes_at > 0
+            and self._sensing.opens_at <= sample.tick <= self._sensing.closes_at
+        )
+        engaged = bool(frame.fault_active or position_active)
+        if not engaged and not frame.fault_active and not position_active:
+            self.fault_name = None
+            self.fault_path = None
         payload = json.dumps(
             {
                 **asdict(frame),
