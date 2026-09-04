@@ -288,7 +288,7 @@ function renderTrace() {
     let relE = 0.06;  // Nominal micro-offset for Blue (estimate)
 
     if (f.fault_active) {
-      decay = 40; // 2 seconds recovery window (40 ticks @ 20Hz)
+      decay = 20; // 1 second recovery window (20 ticks @ 20Hz)
       if (f.fault_kind === "dropout") {
         relT = -1.8;
         relE = 0.06;
@@ -301,7 +301,7 @@ function renderTrace() {
       }
       lastDiff = relE;
     } else if (decay > 0) {
-      const factor = decay / 40.0;
+      const factor = decay / 20.0;
       decay--;
       relE = 0.06 + (lastDiff - 0.06) * factor;
       relT = -0.06;
