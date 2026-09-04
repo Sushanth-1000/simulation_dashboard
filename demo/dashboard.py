@@ -793,6 +793,11 @@ class FrameStream:
         self.story_index = None
         if self.started and self.pipeline is not None:
             self.enter(CERTIFIED)
+        if hasattr(self, "plant") and self.plant is not None:
+            self.plant._state[1] = 0.0
+            self.plant._state[2] = float(self.plant.spec_.reference_speed_mps)
+            self.plant._state[3] = 0.0
+            self.plant._state[4] = 0.0
         self._reset_failsafe()
         self.resume()
 
@@ -1210,7 +1215,10 @@ def serve(
             fault=injector,
             redundant=sensing,
             cold_path=cold_path(CERTIFIED),
-            on_assembled=lambda built: setattr(stream, "pipeline", built.pipeline),
+            on_assembled=lambda built: (
+                setattr(stream, "pipeline", built.pipeline),
+                setattr(stream, "plant", built.plant),
+            ),
         )
         if handle is not None:
             handle.flush()

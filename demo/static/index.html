@@ -69,6 +69,7 @@
   <span class="muted">profile <b id="profile" class="b">—</b></span>
   <span class="muted">ablation <b id="ablation" class="b">—</b></span>
   <span id="conn" class="muted">connecting…</span>
+  <button data-control="reset" style="background:#27181c;border:1px solid var(--veto);color:var(--veto);font-weight:700;margin-left:auto;padding:5px 12px;cursor:pointer;border-radius:4px;font-size:11px">🔄 RESTART / RECOVER</button>
 </header>
 
 <main>
@@ -547,7 +548,12 @@ for (const b of document.querySelectorAll("button[data-context]"))
     if (a.entered) updateContextButtons(null, null, a.entered);
   }));
 for (const b of document.querySelectorAll("button[data-control]"))
-  b.addEventListener("click", () => post(`/control/${b.dataset.control}`));
+  b.addEventListener("click", () => post(`/control/${b.dataset.control}`, (a) => {
+    if (b.dataset.control === "reset") {
+      history = [];
+      note(a.tick || "—", "SIMULATION RESET — RECOVERED TO CENTER LANE", "Vehicle returned to 0.0m lane center. Fail-safe state reset to NOMINAL.", "PASS");
+    }
+  }));
 
 if ($("story-start")) $("story-start").addEventListener("click", () => post("/story/start"));
 if ($("story-next")) $("story-next").addEventListener("click", () => post("/story/next"));
