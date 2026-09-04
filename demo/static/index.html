@@ -394,10 +394,16 @@ function narrate(f) {
       f.failsafe_state === "NOMINAL" ? "PASS" : "VETO");
     last.fs = f.failsafe_state;
   }
-  if (f.blocking) {
-    const fired = f.gates.filter((g) => g[1] === "VETO");
-    note(f.tick, `VETO — ${fired.map((g) => g[0]).join(", ")}`,
-      fired.map((g) => `${g[0]}: ${g[2]}`).join(" · "), "VETO");
+  const blockingKey = f.blocking ? f.gates.filter((g) => g[1] === "VETO").map((g) => g[0] + ":" + g[2]).join("|") : "";
+  if (blockingKey !== last.blockingKey) {
+    if (f.blocking) {
+      const fired = f.gates.filter((g) => g[1] === "VETO");
+      note(f.tick, `VETO — ${fired.map((g) => g[0]).join(", ")}`,
+        fired.map((g) => `${g[0]}: ${g[2]}`).join(" · "), "VETO");
+    } else if (last.blockingKey) {
+      note(f.tick, "VETO CLEARED — gates passing", "All gates returned to PASS.", "PASS");
+    }
+    last.blockingKey = blockingKey;
   }
   const out = Math.abs(f.truth_y) > CORRIDOR;
   if (out !== last.out) {
