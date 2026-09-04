@@ -277,7 +277,14 @@ function renderGates(f) {
 
 function renderTrace() {
   const w = 900, h = 250, mid = h / 2, scale = mid / SPAN;
-  const y = (v) => mid - Math.max(-SPAN, Math.min(SPAN, v)) * scale;
+  const refY = (history.length > 0 && history[0].truth_y !== null && history[0].truth_y !== undefined)
+    ? history[0].truth_y
+    : 0;
+
+  const y = (v) => {
+    const rel = (v === null || v === undefined) ? 0 : (v - refY);
+    return mid - Math.max(-SPAN, Math.min(SPAN, rel)) * scale;
+  };
   const step = w / Math.max(1, WINDOW - 1);
   const line = (pick) => history.map((f, i) => {
     const v = pick(f);
@@ -291,7 +298,7 @@ function renderTrace() {
     if (f.fault_active || f.exploring) {
       const isFault = Boolean(f.fault_active);
       const fill = isFault ? "var(--fault)" : "var(--explore)";
-      const opacity = isFault ? "0.22" : "0.10";
+      const opacity = isFault ? "0.14" : "0.08";
       let j = i;
       while (j < history.length && (isFault ? history[j].fault_active : history[j].exploring)) {
         j++;
@@ -306,9 +313,9 @@ function renderTrace() {
   }
 
   $("trace").innerHTML = `${bands}
-    <line x1="0" y1="${y(0)}" x2="${w}" y2="${y(0)}" stroke="var(--line)"/>
-    <line x1="0" y1="${y(CORRIDOR)}" x2="${w}" y2="${y(CORRIDOR)}" stroke="var(--line)" stroke-dasharray="5 5"/>
-    <line x1="0" y1="${y(-CORRIDOR)}" x2="${w}" y2="${y(-CORRIDOR)}" stroke="var(--line)" stroke-dasharray="5 5"/>
+    <line x1="0" y1="${y(refY)}" x2="${w}" y2="${y(refY)}" stroke="var(--line)"/>
+    <line x1="0" y1="${y(refY + CORRIDOR)}" x2="${w}" y2="${y(refY + CORRIDOR)}" stroke="var(--line)" stroke-dasharray="5 5"/>
+    <line x1="0" y1="${y(refY - CORRIDOR)}" x2="${w}" y2="${y(refY - CORRIDOR)}" stroke="var(--line)" stroke-dasharray="5 5"/>
     <polyline fill="none" stroke="var(--truth)" stroke-width="2.5" points="${line((f)=>f.truth_y)}"/>
     <polyline fill="none" stroke="var(--estimate)" stroke-width="2.5" points="${line((f)=>f.estimate_y)}"/>`;
 }
