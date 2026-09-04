@@ -279,9 +279,18 @@ function renderTrace() {
   const w = 900, h = 250, mid = h / 2, span = 3.5, scale = mid / span;
   const step = w / Math.max(1, WINDOW - 1);
 
-  const y0 = (history.length > 0 && history[0].truth_y !== null && history[0].truth_y !== undefined) ? history[0].truth_y : 0;
-  const yN = (history.length > 0 && history[history.length - 1].truth_y !== null && history[history.length - 1].truth_y !== undefined) ? history[history.length - 1].truth_y : y0;
-  const slope = (history.length > 1) ? (yN - y0) / (history.length - 1) : 0;
+  // Compute nominal track heading slope strictly from non-faulted initial frames
+  let y0 = 0, slope = 0;
+  if (history.length > 0) {
+    y0 = (history[0].truth_y !== null && history[0].truth_y !== undefined) ? history[0].truth_y : 0;
+    let sampleEnd = 0;
+    while (sampleEnd < Math.min(40, history.length) && !history[sampleEnd].fault_active) {
+      sampleEnd++;
+    }
+    if (sampleEnd > 1 && history[sampleEnd - 1].truth_y !== null && history[sampleEnd - 1].truth_y !== undefined) {
+      slope = (history[sampleEnd - 1].truth_y - y0) / (sampleEnd - 1);
+    }
+  }
 
   const yPixel = (relVal) => mid - Math.max(-span, Math.min(span, relVal)) * scale;
 
