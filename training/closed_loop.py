@@ -249,6 +249,7 @@ class RedundantSensing:
     generator: random.Random
     bias: float = 0.0
     also_faulted: tuple[SensorModality, ...] = ()
+    closes_at: int = 0
 
     @classmethod
     def build(
@@ -261,6 +262,7 @@ class RedundantSensing:
         opens_at: int = 0,
         bias: float = 0.0,
         also_faulted: tuple[SensorModality, ...] = (),
+        closes_at: int = 0,
     ) -> RedundantSensing:
         """Build a redundancy spec with a disjointly seeded generator.
 
@@ -280,6 +282,7 @@ class RedundantSensing:
                 three position readings rejects one liar and follows two, so
                 this is the control that separates *redundancy rejecting a
                 fault* from *the estimator absorbing one*.
+            closes_at: Tick at which the fault closes and clears.
 
         Returns:
             The spec.
@@ -292,6 +295,7 @@ class RedundantSensing:
             generator=random.Random(seed ^ _REDUNDANT_SEED_OFFSET),
             bias=bias,
             also_faulted=tuple(also_faulted),
+            closes_at=closes_at,
         )
 
     def draw(self, modality: SensorModality) -> float:
@@ -306,6 +310,8 @@ class RedundantSensing:
         compose rather than being alternatives.
         """
         if tick < self.opens_at:
+            return 0.0
+        if self.closes_at > 0 and tick >= self.closes_at:
             return 0.0
         if modality is not self.faulted and modality not in self.also_faulted:
             return 0.0

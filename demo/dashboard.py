@@ -713,10 +713,12 @@ class FrameStream:
             message = "this run has no redundant sensing spec, so position faults cannot be armed"
             raise RuntimeError(message)
         opens = self._tick + 1
+        closes = opens + FAULT_WINDOW_TICKS
         magnitude = POSITION_MAGNITUDE[kind]
         self._sensing.faulted = SensorModality.IMU
         self._sensing.also_faulted = (SensorModality.GPS,)
         self._sensing.opens_at = opens
+        self._sensing.closes_at = closes
         if kind == "position_bias":
             self._sensing.bias = magnitude
             self._sensing.drift_per_tick = 0.0
@@ -728,7 +730,7 @@ class FrameStream:
         return bias(
             FaultChannel.POSITION_Y,
             first_tick=opens,
-            last_tick=opens + FAULT_WINDOW_TICKS,
+            last_tick=closes,
             offset=magnitude,
         )
 
@@ -743,6 +745,7 @@ class FrameStream:
             self._sensing.also_faulted = ()
             self._sensing.bias = 0.0
             self._sensing.drift_per_tick = 0.0
+            self._sensing.closes_at = 0
         self._injector.stand_down()
         self.fault_name = None
         self.fault_path = None
