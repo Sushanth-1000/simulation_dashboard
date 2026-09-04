@@ -279,26 +279,26 @@ function renderTrace() {
   const w = 900, h = 250, mid = h / 2, span = 3.5, scale = mid / span;
   const step = w / Math.max(1, WINDOW - 1);
 
-  // Compute nominal track heading slope strictly from non-faulted initial frames
-  let y0 = 0, slope = 0;
-  if (history.length > 0) {
-    y0 = (history[0].truth_y !== null && history[0].truth_y !== undefined) ? history[0].truth_y : 0;
-    let sampleEnd = 0;
-    while (sampleEnd < Math.min(40, history.length) && !history[sampleEnd].fault_active) {
-      sampleEnd++;
+  // Compute smooth moving average reference trajectory from clean (non-faulted) ground truth frames
+  const windowRadius = 40;
+  const yCenter = history.map((f, i) => {
+    let sum = 0, count = 0;
+    for (let k = Math.max(0, i - windowRadius); k <= Math.min(history.length - 1, i + windowRadius); k++) {
+      if (!history[k].fault_active && history[k].truth_y !== null && history[k].truth_y !== undefined) {
+        sum += history[k].truth_y;
+        count++;
+      }
     }
-    if (sampleEnd > 1 && history[sampleEnd - 1].truth_y !== null && history[sampleEnd - 1].truth_y !== undefined) {
-      slope = (history[sampleEnd - 1].truth_y - y0) / (sampleEnd - 1);
-    }
-  }
+    if (count > 0) return sum / count;
+    return f.truth_y ?? 0;
+  });
 
   const yPixel = (relVal) => mid - Math.max(-span, Math.min(span, relVal)) * scale;
 
   const line = (pick) => history.map((f, i) => {
     const v = pick(f);
     if (v === null || v === undefined) return null;
-    const refLine = y0 + slope * i;
-    const rel = v - refLine;
+    const rel = v - yCenter[i];
     return `${(i * step).toFixed(1)},${yPixel(rel).toFixed(1)}`;
   }).filter(Boolean).join(" ");
 
