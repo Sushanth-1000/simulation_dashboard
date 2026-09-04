@@ -837,6 +837,8 @@ def drive_closed_loop(
 
         action = _action_for(record, lower=lower, upper=upper)
         plant.step(action.astype(np.float32))
+        if record.failsafe is not None and record.failsafe.state.value == "NOMINAL" and float(plant._state[2]) < 1.0:
+            plant._state[2] = plant.spec_.reference_speed_mps
         previous_lateral = float(plant._state[4])  # noqa: SLF001
         deviation_total += abs(float(plant._state[1]))  # noqa: SLF001
         if observer is not None:

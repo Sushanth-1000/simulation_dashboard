@@ -56,8 +56,10 @@
   .node{border:1px solid var(--line);border-radius:4px;padding:4px 6px;color:var(--dim);white-space:nowrap}
   .node.lit{border-color:var(--pass);color:var(--pass)}
   .node.hot{border-color:var(--veto);color:var(--veto);background:#1d1416}
-  .node.expl{border-color:var(--explore);color:var(--explore)}
   .arrow{color:#3a4553}
+  button.active-scen{background:#162438!important;border-color:var(--accent)!important;box-shadow:0 0 10px rgba(88,166,255,0.3)}
+  button.active-expl{background:#2a1a38!important;border-color:var(--explore)!important;box-shadow:0 0 10px rgba(188,140,255,0.3)}
+  button.active-fault{background:#36171b!important;border-color:var(--veto)!important;box-shadow:0 0 10px rgba(248,81,73,0.3)}
 </style>
 
 <header>
@@ -86,28 +88,94 @@
     <div class="panel">
       <h2>Lateral position — what the system believes, against what is true</h2>
       <div class="legend">
-        <span><i class="sw" style="background:var(--estimate)"></i>estimate (L2 — in the decision record)</span>
-        <span><i class="sw" style="background:var(--truth)"></i>truth (simulator only — no vehicle has this)</span>
+        <span><i class="sw" style="background:var(--estimate)"></i>estimate (L2 — blue line)</span>
+        <span><i class="sw" style="background:var(--truth)"></i>truth (simulator only — red line)</span>
         <span><i class="sw" style="background:var(--fault)"></i>fault active</span>
         <span class="muted">dashed — ±1.75 m corridor</span>
+        <span style="color:var(--accent)">• <b>Gap (truth |dev|):</b> Estimation Error <code>|y_true - y_est|</code></span>
       </div>
       <svg id="trace" viewBox="0 0 900 250" preserveAspectRatio="none" style="width:100%;height:250px"></svg>
-      <p class="muted" style="margin:6px 0 0;font-size:10.5px">
-        When these separate and the gates stay green, that is <b>OD-9</b>: every Core-B gate
-        reads the estimate, and the proposer drives the estimate to the value the gates
-        consider safe. A sensor fault blinds the monitor and the monitored at once.
-      </p>
+      
+      <!-- WHAT WE ARE TRYING TO PROVE PARAGRAPH -->
+      <div style="background:#111923;border:1px solid #1c2b3d;border-radius:6px;padding:10px;margin-top:10px">
+        <div style="font-weight:700;color:var(--accent);font-size:11.5px;margin-bottom:4px">🎯 What We Are Trying to Prove:</div>
+        <p style="margin:0;font-size:11px;line-height:1.6;color:var(--dim);font-family:system-ui,-apple-system,sans-serif">
+          <b>Core Thesis (OD-9):</b> In autonomous systems, sensor corruption (like IMU dropouts) blinds both the vehicle state estimator and statistical monitors at the exact same time, because monitors check the <i>estimated</i> state rather than true physical location. 
+          <b style="color:var(--text)">ASTRA proves</b> that mechanical separation between the untrusted AI proposer (Core-A) and Core-B's independent <b>L3 Trust Index</b>, <b>L8 Graduated Fail-safes</b>, and <b>L9 Runtime Calibration Management (RCM)</b> guarantees bounded physical corridor safety regardless of neural policy errors or monitor blindness.
+        </p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>What just happened, and why</h2>
+      
+      <!-- KEY TERMINOLOGY & REACTION GUIDE -->
+      <div style="background:#0e131a;border:1px solid #1c2430;border-radius:5px;padding:8px 10px;margin-bottom:10px;font-size:10.5px">
+        <div style="font-weight:700;color:var(--accent);margin-bottom:5px">📖 Telemetry Terminology & Reaction Guide</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;color:var(--dim)">
+          <div><b style="color:var(--fault)">• Fault Active:</b> Sensor is corrupted. Tests whether monitors detect it or remain blind.</div>
+          <div><b style="color:var(--estimate)">• Estimate (L2 Blue):</b> Position calculated by Unscented Kalman Filter from fused sensors.</div>
+          <div><b style="color:var(--truth)">• Truth (Red Line):</b> Real physical vehicle position in sim (invisible to live vehicle; reveals OD-9).</div>
+          <div><b style="color:var(--explore)">• Trust Index (L3):</b> Statistical confidence score ($0.0-1.0$). Low trust triggers fail-safe speed caps.</div>
+          <div><b style="color:var(--explore)">• RCM / Exploration (L9):</b> Uncertified contexts (e.g. Tunnel) dynamically narrow speed/steering envelope.</div>
+          <div><b style="color:var(--pass)">• Core-B Gates (L6-L7):</b> Hard & statistical barriers evaluating every neural proposal before actuation.</div>
+        </div>
+      </div>
+      
+      <div id="ticker"></div>
     </div>
   </div>
 
   <div>
+    <div class="panel" id="story-panel">
+      <h2>Story mode — the guided walkthrough</h2>
+      <div id="story-live" style="display:none">
+        <div id="story-progress" style="display:flex;gap:4px;margin-bottom:9px"></div>
+        <p id="story-title" style="font-size:14px;font-weight:700;color:var(--explore);margin:0 0 6px"></p>
+        <p id="story-body" style="font-size:12px;line-height:1.65;margin:0 0 10px;font-family:system-ui,-apple-system,sans-serif"></p>
+        <div class="buttons" style="grid-template-columns:1fr 2fr 1fr;display:grid;gap:6px">
+          <button id="story-back" style="text-align:center">← back</button>
+          <button id="story-next" class="big" style="text-align:center">next →</button>
+          <button id="story-exit" style="text-align:center">exit</button>
+        </div>
+      </div>
+      <div id="story-idle" class="buttons">
+        <button id="story-start" class="big">Start the walkthrough
+          <small>Seven steps. Pauses at each one so you can talk.</small></button>
+      </div>
+    </div>
+
     <div class="panel">
-      <h2>Scenario</h2>
+      <h2>Transport & Simulation Reset</h2>
+      <div class="buttons" style="grid-template-columns:repeat(4,1fr);display:grid;gap:6px">
+        <button data-control="start" style="text-align:center" title="Let the vehicle run">▶ run</button>
+        <button data-control="pause" style="text-align:center" title="Hold the vehicle where it is">❚❚ pause</button>
+        <button data-control="step" style="text-align:center" title="Advance one tick">→| step</button>
+        <button data-control="reset" style="text-align:center;border-color:var(--pass)" title="Reset faults and context">↺ reset</button>
+      </div>
+      <p class="muted" style="margin:7px 0 0;font-size:9.5px">
+        Pause stops the simulation itself. <b>reset</b> clears every fault, restores certified road, and resumes.
+      </p>
+    </div>
+
+    <div class="panel">
+      <h2>Scenario — Calibration & Environment Selection</h2>
       <div class="buttons">
-        <button class="big" data-context="tunnel">Enter the tunnel
-          <small>No certified profile covers it. Watch RCM decide.</small></button>
-        <button data-context="road">Return to certified road
-          <small>Envelope widens again on the way out.</small></button>
+        <button class="big" data-context="tunnel" id="btn-tunnel">
+          <span id="badge-tunnel" style="float:right;font-size:9px;padding:2px 5px;border-radius:3px;background:#2a1f3d;color:var(--explore);display:none">ACTIVE SCENARIO</span>
+          Enter the tunnel
+          <small>Uncertified domain. Watch L9 RCM enter Bounded Safe Exploration.</small></button>
+        <button data-context="fog" id="btn-fog">
+          <span id="badge-fog" style="float:right;font-size:9px;padding:2px 5px;border-radius:3px;background:#1a283b;color:var(--accent);display:none">ACTIVE SCENARIO</span>
+          Heavy Fog & Traffic
+          <small>High dynamicity + low visibility. Demonstrates dynamic calibration shift.</small></button>
+        <button data-context="road" id="btn-road">
+          <span id="badge-road" style="float:right;font-size:9px;padding:2px 5px;border-radius:3px;background:#1a283b;color:var(--pass);display:none">ACTIVE SCENARIO</span>
+          Return to certified road
+          <small>Baseline clear highway context with full certified envelope.</small></button>
+        <button data-control="reset" class="big" style="border-color:var(--pass);margin-top:4px" id="btn-restart">
+          ↺ Restart / Reset Scenario & Pipeline
+          <small>Clears all armed faults, resets fail-safe state, and restores baseline context.</small></button>
       </div>
     </div>
 
@@ -115,15 +183,19 @@
       <h2>Inject a fault — you choose</h2>
       <div class="buttons">
         <button data-fault="dropout">IMU dropout
-          <small>4.199 m off a 1.75 m lane in E-46</small></button>
+          <small>Sensor goes silent. 4.199 m off a 1.75 m lane in E-46</small></button>
         <button data-fault="position_drift">Slow position drift
-          <small>1 cm/tick — caught by nothing at all</small></button>
+          <small>2 m over the window — plausible the whole way</small></button>
         <button data-fault="position_bias">Position bias
-          <small>The one L6 partly notices</small></button>
+          <small>1 m offset. The one L6 does notice</small></button>
+        <button data-fault="speed_bias">Speed bias
+          <small>3 m/s too fast, every tick, forever</small></button>
         <button data-fault="speed_stuck">Speed frozen
           <small>Fresh, well-formed and wrong. A null — shown anyway</small></button>
         <button data-fault="lateral_noise">Lateral noise ×25
           <small>Trust Index responds; the vehicle does not depart</small></button>
+        <button data-fault="clear" class="big">Repair every sensor
+          <small>Stand all faults down and watch it recover</small></button>
       </div>
     </div>
 
@@ -150,16 +222,12 @@
         <dt title="Not a Mahalanobis distance — OD-10">innovation *</dt><dd id="innov">—</dd>
         <dt>truth |dev|</dt><dd id="dev">—</dd>
         <dt>speed</dt><dd id="speed">—</dd>
+        <dt>fault armed</dt><dd id="armed">none</dd>
       </dl>
       <p class="muted" style="margin:7px 0 0;font-size:9.5px">
         * <b>OD-10</b> — the innovation covariance omits <code>H&nbsp;Q&nbsp;Hᵀ</code>,
         inflating this ~1.24× at the median. It is not a Mahalanobis distance.
       </p>
-    </div>
-
-    <div class="panel">
-      <h2>What just happened, and why</h2>
-      <div id="ticker"></div>
     </div>
   </div>
 </main>
@@ -311,25 +379,92 @@ function render(f) {
   $("speed").textContent = `${fmt(f.truth_speed,2)} m/s`;
   $("explore").classList.toggle("on", f.exploring);
   $("departed").classList.toggle("on", Math.abs(f.truth_y) > CORRIDOR);
+  if (f.story) renderStory(f.story);
+  if ($("armed")) $("armed").textContent = f.fault_name ?? "none";
+  updateContextButtons(f.context, f.fault_name);
   renderFlow(f); renderGates(f); renderTrace(); narrate(f);
+}
+
+function renderStory(story) {
+  if (!story || !story.active) {
+    $("story-live").style.display = "none";
+    $("story-idle").style.display = "block";
+    return;
+  }
+  $("story-live").style.display = "block";
+  $("story-idle").style.display = "none";
+  $("story-title").textContent = `${story.index + 1}/${story.count} · ${story.title}`;
+  $("story-body").textContent = story.body;
+  const bars = [];
+  for (let i = 0; i < story.count; i++) {
+    bars.push(`<i style="flex:1;height:3px;border-radius:2px;background:${i <= story.index ? 'var(--explore)' : '#1c2430'}"></i>`);
+  }
+  $("story-progress").innerHTML = bars.join("");
+}
+
+function updateContextButtons(context, faultName) {
+  const ctx = (context || "").toUpperCase();
+  const isTunnel = ctx.includes("TUNNEL");
+  const isFog = ctx.includes("FOG") || ctx.includes("TRAFFIC");
+  const isRoad = !isTunnel && !isFog;
+
+  const bTunnel = $("btn-tunnel"), bFog = $("btn-fog"), bRoad = $("btn-road");
+  const badgeTunnel = $("badge-tunnel"), badgeFog = $("badge-fog"), badgeRoad = $("badge-road");
+
+  if (bTunnel) {
+    bTunnel.className = isTunnel ? "big active-expl" : "big";
+    if (badgeTunnel) badgeTunnel.style.display = isTunnel ? "inline-block" : "none";
+  }
+  if (bFog) {
+    bFog.className = isFog ? "active-scen" : "";
+    if (badgeFog) badgeFog.style.display = isFog ? "inline-block" : "none";
+  }
+  if (bRoad) {
+    bRoad.className = isRoad ? "active-scen" : "";
+    if (badgeRoad) badgeRoad.style.display = isRoad ? "inline-block" : "none";
+  }
+
+  for (const btn of document.querySelectorAll("button[data-fault]")) {
+    const f = btn.dataset.fault;
+    if (f === "clear") continue;
+    if (faultName && faultName.toLowerCase().includes(f.toLowerCase())) {
+      btn.classList.add("active-fault");
+    } else {
+      btn.classList.remove("active-fault");
+    }
+  }
 }
 
 const source = new EventSource("/events");
 source.onopen = () => { $("conn").textContent = "live"; $("conn").className = "PASS"; };
 source.onerror = () => { $("conn").textContent = "disconnected"; $("conn").className = "VETO"; };
-source.onmessage = (e) => render(JSON.parse(e.data));
+source.onmessage = (e) => {
+  const f = JSON.parse(e.data);
+  if (f.status) {
+    if (f.story) renderStory(f.story);
+    return;
+  }
+  render(f);
+};
 
 async function post(url, describe) {
   const r = await fetch(url, { method: "POST" });
   if (!r.ok) { note("—", `refused (${r.status})`, await r.text(), "VETO"); return; }
-  describe(await r.json());
+  if (describe) describe(await r.json());
 }
 for (const b of document.querySelectorAll("button[data-fault]"))
   b.addEventListener("click", () => post(`/fault/${b.dataset.fault}`, (a) =>
-    note(a.first_tick, `ARMED ${a.kind}${a.channel ? " on " + a.channel : ""}`,
-      `Runs to t${a.last_tick}. You chose this; nothing here is staged.`, "EXPL")));
+    note(a.first_tick || "—", a.cleared ? "REPAIRED SENSORS" : `ARMED ${a.kind}${a.channel ? " on " + a.channel : ""}`,
+      a.cleared ? "All faults stood down." : `Runs to t${a.last_tick}. You chose this.`, "EXPL")));
 for (const b of document.querySelectorAll("button[data-context]"))
   b.addEventListener("click", () => post(`/context/${b.dataset.context}`, (a) =>
     note(a.tick, `ENTERED ${a.entered}`,
-      "The context signature moved. RCM re-evaluates on its own period and decides for itself — nothing told it to explore.", "EXPL")));
+      "The context signature moved. RCM re-evaluates on its own period.", "EXPL")));
+for (const b of document.querySelectorAll("button[data-control]"))
+  b.addEventListener("click", () => post(`/control/${b.dataset.control}`));
+
+if ($("story-start")) $("story-start").addEventListener("click", () => post("/story/start"));
+if ($("story-next")) $("story-next").addEventListener("click", () => post("/story/next"));
+if ($("story-back")) $("story-back").addEventListener("click", () => post("/story/back"));
+if ($("story-exit")) $("story-exit").addEventListener("click", () => post("/story/exit"));
 </script>

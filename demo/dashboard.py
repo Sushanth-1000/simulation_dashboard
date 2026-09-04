@@ -100,10 +100,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 from astra.config.loader import load_settings
+from astra.kernel.enums import SensorModality
 from astra.kernel.units import Probability
 from astra.layers.l4_proposer.learned import LearnedPolicy
 from astra.runtime.pipeline import ColdPathContext
 from training.closed_loop import (
+    DEFAULT_CHANNEL_SIGMAS,
+    RedundantSensing,
     CHANNEL_SIGMAS,
     CORPUS,
     ENVIRONMENT,
@@ -181,15 +184,10 @@ assumed: on these values RCM reaches **SHADOW_EXECUTION** with a trust score of
 
 TUNNEL = (0.05, 0.7, 0.95)
 """``(visibility, traffic dynamicity, road complexity)`` of a tunnel, which **no profile covers**.
+"""
 
-Withheld deliberately, and the `ContextClass` enum says so in as many words: a
-tunnel class is absent *so that this path gets exercised rather than assumed*.
-Low visibility, high road complexity -- far enough from every certified centroid
-that the mandatory gate finds no admissible candidate and RCM has to decide what
-to do with a context it does not recognise.
-
-This is the scene that most distinguishes the architecture: the systems in its
-prior-art table stop here.
+FOG = (0.2, 0.95, 0.85)
+"""``(visibility, traffic dynamicity, road complexity)`` of heavy fog and dense traffic.
 """
 
 FAULT_WINDOW_TICKS = 400
@@ -392,12 +390,31 @@ class Frame:
         return ("truth_y", "truth_speed", "fault_active")
 
 
+#: Faults that reach the estimator through the redundant sensing path rather
+#: than through ``FaultInjector``. This split is not cosmetic. ``FaultInjector``
+#: corrupts the shared payload *before* ``_publish_state`` regenerates the
+#: position channel per modality from ``plant._state[1]``, so a POSITION_Y fault
+#: armed on the injector is overwritten with ground truth and reaches nothing.
+#: That defect made POSITION_Y inert for seventeen days before an audit caught
+#: it (E17-Position, Control C). The fix is to inject where the regeneration
+#: happens: ``RedundantSensing.offset``.
+POSITION_FAULTS: frozenset[str] = frozenset({"position_bias", "position_drift"})
+
+#: Magnitudes matching ``benchmarks.e18_evaluate.SEVERITIES`` at the ``medium``
+#: level, so what the audience sees is comparable with the recorded experiments.
+POSITION_MAGNITUDE: dict[str, float] = {"position_bias": 1.0, "position_drift": 2.0}
+
+
 def build_injector(kind: str, *, tick: int, seed: int) -> FaultSpec:
     """Return the fault an audience just asked for.
 
+    Only for faults that travel through :class:`FaultInjector`. The two position
+    faults are armed on the sensing path instead -- see :data:`POSITION_FAULTS`
+    and :meth:`FrameStream.arm`.
+
     Args:
-        kind: One of ``dropout``, ``position_bias``, ``position_drift``,
-            ``speed_stuck`` or ``lateral_noise``.
+        kind: One of ``dropout``, ``speed_stuck``, ``speed_bias`` or
+            ``lateral_noise``.
         tick: The tick it should open on -- normally the current one, so the
             audience sees it start.
         seed: Unused; present so the signature does not change if a future
@@ -414,12 +431,10 @@ def build_injector(kind: str, *, tick: int, seed: int) -> FaultSpec:
     match kind:
         case "dropout":
             return dropout(first_tick=tick, last_tick=last)
-        case "position_bias":
-            return bias(FaultChannel.POSITION_Y, first_tick=tick, last_tick=last, offset=1.0)
-        case "position_drift":
-            return drift(FaultChannel.POSITION_Y, first_tick=tick, last_tick=last, final=2.0)
         case "speed_stuck":
             return stuck_at(FaultChannel.SPEED, first_tick=tick, last_tick=last)
+        case "speed_bias":
+            return bias(FaultChannel.SPEED, first_tick=tick, last_tick=last, offset=3.0)
         case "lateral_noise":
             return noise_burst(
                 FaultChannel.LATERAL_ACCELERATION,
@@ -455,6 +470,89 @@ def cold_path(where: tuple[float, float, float]) -> ColdPathContext:
     )
 
 
+#: The guided demonstration. Each beat pauses the run so the presenter can
+#: talk over a still frame, then ``next`` performs the beat's action and lets it
+#: run for ``hold`` ticks before pausing again.
+#:
+#: The order is deliberate. A panel has to see the monitor work before the
+#: failure means anything: a monitor that never fires is not evidence of a blind
+#: spot, it is evidence of a broken monitor. Beat 3 establishes it fires. Beat 5
+#: then shows the same machinery silent while a sensor is failing.
+STORY: tuple[dict[str, object], ...] = (
+    {
+        "title": "A vehicle, driving",
+        "body": "The car is following a lane. Nothing is wrong. Every 50 ms the "
+                "nine layers on the right run once: the sensors are read, the "
+                "state is estimated, the learned controller proposes a steering "
+                "and acceleration, and the safety layers decide whether to allow "
+                "it. Watch the pipeline light up green, top to bottom.",
+        "action": None,
+        "hold": 60,
+    },
+    {
+        "title": "The proposal is not the command",
+        "body": "L4 is the learned controller -- the part nobody can formally "
+                "verify. It only ever *proposes*. Its proposal crosses a one-way "
+                "boundary into the safety domain, where L6 and L7 can veto it and "
+                "L9 decides what is actually sent to the actuator. The learned "
+                "controller never drives the car directly. That separation is the "
+                "architecture.",
+        "action": None,
+        "hold": 60,
+    },
+    {
+        "title": "Now we break a sensor -- and the monitor catches it",
+        "body": "We inject a 1 metre position bias. Two of the three position "
+                "channels start lying, so the median the estimator fuses follows "
+                "them. Watch the non-conformity score climb past the threshold and "
+                "L6 turn red. This is the system working: evidence of the fault "
+                "reaches the monitor, and the monitor fires.",
+        "action": {"fault": "position_bias"},
+        "hold": 140,
+    },
+    {
+        "title": "Clean slate",
+        "body": "Fault cleared. The score falls back under the threshold and the "
+                "pipeline returns to green. Everything you are about to see uses "
+                "the same monitor, the same threshold and the same vehicle.",
+        "action": {"clear": True},
+        "hold": 80,
+    },
+    {
+        "title": "The blind spot -- the IMU fails and the monitor stays quiet",
+        "body": "Now we drop the IMU out entirely and leave it broken. The sensor "
+                "is genuinely failing: L1 shows the channel degraded and L2's "
+                "innovation moves, so the evidence is there. But watch L6 -- it "
+                "keeps saying PASS. No veto, no fallback. The monitor is quieter "
+                "than it is on a healthy car, while a sensor is failing.",
+        "action": {"fault": "dropout"},
+        "hold": 200,
+    },
+    {
+        "title": "It alarms only after the danger has passed",
+        "body": "We repair the sensor. Now the score jumps and L6 fires -- after "
+                "the fault is over. Detection arrived too late to be useful. In "
+                "our recorded experiments a sustained dropout produced a 0.2% "
+                "alarm rate across 160 seconds, below the 5% rate on a healthy "
+                "car, and the apparent detection was entirely this recovery "
+                "spike.",
+        "action": {"clear": True},
+        "hold": 140,
+    },
+    {
+        "title": "Why this matters",
+        "body": "A monitor that misses a fault is a problem. A monitor that goes "
+                "quieter than normal during a fault is worse, because its silence "
+                "reads as evidence that the car is healthy. That is why our next "
+                "stage measures whether a monitor can be trusted, not just whether "
+                "it fired. Everything you have just seen is the real pipeline -- "
+                "the same code the experiments ran.",
+        "action": None,
+        "hold": 0,
+    },
+)
+
+
 class FrameStream:
     """Runs the pipeline on a background thread and publishes frames.
 
@@ -464,22 +562,30 @@ class FrameStream:
     """
 
     __slots__ = (
+        "_gate",
+        "_hold_until",
         "_injector",
         "_lock",
         "_recorder",
+        "_sensing",
+        "_step_once",
         "_subscribers",
         "_tick",
         "dropped",
+        "fault_name",
+        "fault_path",
         "period_s",
         "pipeline",
         "replaying",
         "started",
+        "story_index",
     )
 
     def __init__(
         self,
         injector: FaultInjector,
         *,
+        sensing: RedundantSensing | None = None,
         recorder: object | None = None,
         period_s: float = TICK_PERIOD_S,
     ) -> None:
@@ -487,12 +593,18 @@ class FrameStream:
 
         Args:
             injector: The live injector, armed by the fault buttons.
+            sensing: The redundant sensing spec the run was started with. The
+                position faults are armed by mutating it, because that is the
+                only path a POSITION_Y fault can reach the estimator through.
             recorder: An open text file to write frames to, or ``None``.
             period_s: Wall-clock seconds to hold each tick for, so the screen
                 advances at the rate the vehicle does. Zero runs flat out.
         """
         self._injector = injector
+        self._sensing = sensing
         self._recorder = recorder
+        self.fault_name: str | None = None
+        self.fault_path: str | None = None
         self.period_s = period_s
         self.pipeline: object | None = None
         self._lock = threading.Lock()
@@ -501,6 +613,13 @@ class FrameStream:
         self.dropped = 0
         self.started = False
         self.replaying = False
+        # Transport. The gate is set when running; publish() blocks on it, so
+        # pausing stops the vehicle rather than merely freezing the screen.
+        self._gate = threading.Event()
+        self._gate.set()
+        self._step_once = False
+        self.story_index: int | None = None
+        self._hold_until: int | None = None
 
     @property
     def tick(self) -> int:
@@ -552,7 +671,11 @@ class FrameStream:
         # safety surface -- a worse trade than one narrow reach from a
         # module that ships no verdict.
         self.pipeline._context = cold_path(where)  # type: ignore[attr-defined]  # noqa: SLF001
-        return "tunnel" if where == TUNNEL else "certified road"
+        if where == TUNNEL:
+            return "tunnel"
+        if where == FOG:
+            return "heavy fog & traffic"
+        return "certified road"
 
     def arm(self, kind: str) -> FaultSpec:
         """Arm a fault from now, and return what was armed.
@@ -563,9 +686,210 @@ class FrameStream:
         Returns:
             The specification, so the page can echo exactly what it asked for.
         """
+        if kind in POSITION_FAULTS:
+            return self._arm_position(kind)
         spec = build_injector(kind, tick=self._tick + 1, seed=0)
         self._injector.arm(spec)
+        self.fault_name = kind
+        self.fault_path = "FaultInjector"
         return spec
+
+    def _arm_position(self, kind: str) -> FaultSpec:
+        """Arm a position fault by mutating the redundant sensing spec.
+
+        Two of three position channels are made to lie, so the median that L1
+        fuses follows them. Faulting one channel only would be out-voted, which
+        is the correct behaviour of redundancy and shows nothing.
+
+        Returns:
+            A descriptive spec so the page can echo what was armed. It is not
+            handed to the injector: nothing on the injector path can carry a
+            POSITION_Y fault past ``_publish_state``.
+
+        Raises:
+            RuntimeError: If the run was started without a sensing spec.
+        """
+        if self._sensing is None:
+            message = "this run has no redundant sensing spec, so position faults cannot be armed"
+            raise RuntimeError(message)
+        opens = self._tick + 1
+        magnitude = POSITION_MAGNITUDE[kind]
+        self._sensing.faulted = SensorModality.IMU
+        self._sensing.also_faulted = (SensorModality.GPS,)
+        self._sensing.opens_at = opens
+        if kind == "position_bias":
+            self._sensing.bias = magnitude
+            self._sensing.drift_per_tick = 0.0
+        else:
+            self._sensing.bias = 0.0
+            self._sensing.drift_per_tick = magnitude / float(FAULT_WINDOW_TICKS)
+        self.fault_name = kind
+        self.fault_path = "RedundantSensing"
+        return bias(
+            FaultChannel.POSITION_Y,
+            first_tick=opens,
+            last_tick=opens + FAULT_WINDOW_TICKS,
+            offset=magnitude,
+        )
+
+    def clear_fault(self) -> None:
+        """Stand every armed fault down.
+
+        Channel faults expire on their own window; the sensing path does not,
+        so it is reset explicitly.
+        """
+        if self._sensing is not None:
+            self._sensing.faulted = None
+            self._sensing.also_faulted = ()
+            self._sensing.bias = 0.0
+            self._sensing.drift_per_tick = 0.0
+        self._injector.stand_down()
+        self.fault_name = None
+        self.fault_path = None
+
+    @property
+    def paused(self) -> bool:
+        """Return whether the run is currently held."""
+        return not self._gate.is_set()
+
+    def resume(self) -> None:
+        """Let the vehicle run."""
+        self._hold_until = None
+        self._gate.set()
+
+    def pause(self) -> None:
+        """Hold the vehicle where it is."""
+        self._gate.clear()
+
+    def step(self) -> None:
+        """Advance exactly one tick, then hold again."""
+        self._step_once = True
+        self._gate.set()
+
+    def reset(self) -> None:
+        """Stand every fault down, return L8 to NOMINAL, and resume.
+
+        The vehicle is not returned to tick zero: the harness owns the run and
+        restarting it would drop every subscriber. Standing the faults down and
+        letting the pipeline recover is what an operator can actually do to a
+        moving vehicle, so it is what this button does.
+
+        The fail-safe machine is reset too, and it has to be. **HALT is terminal
+        by design** -- no run of clean ticks leaves it, because a fail-safe that
+        talked itself out of a controlled pull-over would not be one. So a
+        demonstration that reaches HALT is over unless something performs the
+        operator action, and :meth:`FailSafeStateMachine.reset` is exactly that
+        action. Without this, an audience that pressed one fault too many would
+        be looking at a stopped vehicle with no way back.
+        """
+        self.clear_fault()
+        self.story_index = None
+        self._reset_failsafe()
+        self.resume()
+
+    def _reset_failsafe(self) -> None:
+        """Perform the operator reset on L8, if the drive has started."""
+        if self.pipeline is None:
+            return
+        machine = getattr(self.pipeline, "_failsafe", None)  # noqa: SLF001
+        if machine is not None:
+            machine.reset()
+
+    # -- story mode --------------------------------------------------------
+
+    def story_start(self) -> dict[str, object]:
+        """Enter the guided demonstration at the first beat.
+
+        L8 is reset alongside the faults. Beat 1 says "nothing is wrong", and it
+        has to be true on screen: a walkthrough opened after an audience had
+        already driven the vehicle into HALT would narrate a healthy vehicle over
+        a stopped one, which is the one thing this demonstration must never do.
+        """
+        self.clear_fault()
+        self._reset_failsafe()
+        self.story_index = 0
+        return self._play(STORY[0])
+
+    def story_advance(self, delta: int) -> dict[str, object]:
+        """Move to the next or previous beat and perform its action.
+
+        Args:
+            delta: ``+1`` for next, ``-1`` for back.
+
+        Returns:
+            The beat now showing.
+        """
+        if self.story_index is None:
+            return self.story_start()
+        index = max(0, min(len(STORY) - 1, self.story_index + delta))
+        # Stepping back undoes whatever the beat we are leaving had armed;
+        # replaying a beat from a dirty state would show the wrong thing.
+        if delta < 0:
+            self.clear_fault()
+        self.story_index = index
+        return self._play(STORY[index])
+
+    def story_exit(self) -> None:
+        """Leave the guided demonstration and hand control back."""
+        self.story_index = None
+        self.clear_fault()
+        self.resume()
+
+    def _play(self, beat: dict[str, object]) -> dict[str, object]:
+        """Perform a beat's action and start its hold."""
+        action = beat.get("action")
+        if isinstance(action, dict):
+            if action.get("clear"):
+                self.clear_fault()
+            kind = action.get("fault")
+            if isinstance(kind, str):
+                self.arm(kind)
+        hold = int(beat.get("hold", 0) or 0)
+        self._hold_until = (self._tick + hold) if hold > 0 else None
+        self.resume() if hold > 0 else self.pause()
+        return self.story_state()
+
+    def story_state(self) -> dict[str, object]:
+        """Return what the caption panel should show."""
+        if self.story_index is None:
+            return {"active": False}
+        beat = STORY[self.story_index]
+        return {
+            "active": True,
+            "index": self.story_index,
+            "count": len(STORY),
+            "title": beat["title"],
+            "body": beat["body"],
+        }
+
+    def broadcast_status(self) -> None:
+        """Push transport and story state to every subscriber immediately.
+
+        While the run is held, :meth:`publish` is blocked and no frame is going
+        out, so a page that only learned about pausing from the next frame would
+        never learn about it at all. Control actions send this instead. It
+        carries no pipeline numbers, and the page renders it into the controls
+        only -- the traceability rule that every displayed measurement comes from
+        a live ``DecisionRecord`` is not weakened by it.
+        """
+        payload = json.dumps(
+            {
+                "status": True,
+                "paused": self.paused,
+                "tick": self._tick,
+                "fault_name": self.fault_name,
+                "fault_path": self.fault_path,
+                "story": self.story_state(),
+            },
+            separators=(",", ":"),
+        )
+        with self._lock:
+            subscribers = list(self._subscribers)
+        for outbox in subscribers:
+            try:
+                outbox.put_nowait(payload)
+            except queue.Full:
+                self.dropped += 1
 
     def publish(self, sample: TickSample) -> None:
         """Project a tick and fan it out.
@@ -574,7 +898,34 @@ class FrameStream:
             sample: The tick, from the harness's observer callback.
         """
         self._tick = sample.tick
-        payload = json.dumps(asdict(Frame.from_sample(sample)), separators=(",", ":"))
+        # A story beat runs for a fixed number of ticks and then holds, so the
+        # presenter gets a still frame to talk over without touching anything.
+        if self._hold_until is not None and sample.tick >= self._hold_until:
+            self._hold_until = None
+            self.pause()
+        self._gate.wait()
+        if self._step_once:
+            self._step_once = False
+            self._gate.clear()
+        frame = Frame.from_sample(sample)
+        # ``TickSample.fault_active`` is computed from the injector alone, so a
+        # position fault -- which travels the sensing path -- reads False there
+        # while it is very much acting on the vehicle. The page shades its fault
+        # band and opens its ticker entry from this field, so it is widened here
+        # rather than in ``Frame``: that projection is asserted field-by-field
+        # against the record and must keep meaning exactly what the record says.
+        engaged = bool(frame.fault_active or self.fault_name is not None)
+        payload = json.dumps(
+            {
+                **asdict(frame),
+                "fault_engaged": engaged,
+                "paused": self.paused,
+                "fault_name": self.fault_name,
+                "fault_path": self.fault_path,
+                "story": self.story_state(),
+            },
+            separators=(",", ":"),
+        )
         if self._recorder is not None:
             self._recorder.write(payload + "\n")  # type: ignore[attr-defined]
         with self._lock:
@@ -617,6 +968,17 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path.startswith("/context/"):
             self._enter_context()
             return
+        if self.path.startswith("/control/"):
+            self._control()
+            return
+        if self.path.startswith("/story/"):
+            self._story()
+            return
+        if self.path == "/fault/clear":
+            self.stream.clear_fault()
+            self.stream.broadcast_status()
+            self._send_json({"cleared": True, "tick": self.stream.tick})
+            return
         if not self.path.startswith("/fault/"):
             self.send_error(404)
             return
@@ -645,10 +1007,65 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _control(self) -> None:
+        """Start, pause, single-step or reset the run."""
+        action = self.path.removeprefix("/control/")
+        stream = self.stream
+        match action:
+            case "start":
+                stream.resume()
+            case "pause":
+                stream.pause()
+            case "step":
+                stream.step()
+            case "reset":
+                stream.reset()
+            case _:
+                self.send_error(400, f"{action!r} is not a transport control")
+                return
+        stream.broadcast_status()
+        self._send_json({"control": action, "paused": stream.paused, "tick": stream.tick})
+
+    def _story(self) -> None:
+        """Drive the guided demonstration."""
+        action = self.path.removeprefix("/story/")
+        stream = self.stream
+        if stream.replaying:
+            self.send_error(409, "this is a recording; it cannot be steered")
+            return
+        match action:
+            case "start":
+                state = stream.story_start()
+            case "next":
+                state = stream.story_advance(1)
+            case "back":
+                state = stream.story_advance(-1)
+            case "exit":
+                stream.story_exit()
+                state = stream.story_state()
+            case _:
+                self.send_error(400, f"{action!r} is not a story action")
+                return
+        stream.broadcast_status()
+        self._send_json({"story": state, "paused": stream.paused, "tick": stream.tick})
+
+    def _send_json(self, body: dict[str, object]) -> None:
+        """Send a JSON response.
+
+        Args:
+            body: The object to encode.
+        """
+        encoded = json.dumps(body).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
     def _enter_context(self) -> None:
         """Move the vehicle into a different operating context."""
         name = self.path.removeprefix("/context/")
-        where = {"tunnel": TUNNEL, "road": CERTIFIED}.get(name)
+        where = {"tunnel": TUNNEL, "road": CERTIFIED, "fog": FOG}.get(name)
         if where is None:
             self.send_error(400, f"{name!r} is not a context this demonstration offers")
             return
@@ -756,11 +1173,15 @@ def serve(
         Process exit status.
     """
     injector = FaultInjector((), seed=seed, sigmas=CHANNEL_SIGMAS)
+    # One object, shared: the stream mutates it when a position fault is armed
+    # and the harness reads it every tick. Two copies would look identical and
+    # inject nothing, which is precisely the defect this demo used to have.
+    sensing = RedundantSensing.build(sigmas=DEFAULT_CHANNEL_SIGMAS, seed=seed)
     handle = None if record is None else record.open("w", encoding="utf-8")
     if record is not None:
         record.parent.mkdir(parents=True, exist_ok=True)
         handle = record.open("w", encoding="utf-8")
-    stream = FrameStream(injector, recorder=handle, period_s=period_s)
+    stream = FrameStream(injector, sensing=sensing, recorder=handle, period_s=period_s)
     stream.replaying = recording is not None
     _Handler.stream = stream
 
@@ -774,6 +1195,7 @@ def serve(
             seed=seed,
             observer=stream.publish,
             fault=injector,
+            redundant=sensing,
             cold_path=cold_path(CERTIFIED),
             on_assembled=lambda built: setattr(stream, "pipeline", built.pipeline),
         )
