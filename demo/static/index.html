@@ -278,14 +278,18 @@ function renderGates(f) {
 
 function renderTrace() {
   const w = 900, h = 250, mid = h / 2, span = 3.5, scale = mid / span;
-  const count = Math.max(1, history.length);
+  const drawHistory = (history && history.length > 0) ? history : [
+    { fault_engaged: false, fault_active: false, estimate_y: 0.0, truth_y: 0.0 },
+    { fault_engaged: false, fault_active: false, estimate_y: 0.0, truth_y: 0.0 }
+  ];
+  const count = drawHistory.length;
   const step = count > 1 ? w / (count - 1) : w;
   const yPixel = (val) => mid - Math.max(-span, Math.min(span, val)) * scale;
 
   let decay = 0;
   let lastDiff = 0;
 
-  const points = history.map((f, i) => {
+  const points = drawHistory.map((f, i) => {
     let relT = 0.0; // 100% Merged Ground Truth baseline (0.0m)
     let relE = 0.0; // 100% Merged Estimate baseline (0.0m)
 
@@ -335,14 +339,14 @@ function renderTrace() {
 
   let bands = "";
   let i = 0;
-  while (i < history.length) {
-    const f = history[i];
+  while (i < drawHistory.length) {
+    const f = drawHistory[i];
     const isFault = !!(f.fault_engaged || f.fault_active);
     if (isFault || f.exploring) {
       const fill = isFault ? "var(--fault)" : "var(--explore)";
       const opacity = isFault ? "0.14" : "0.08";
       let j = i;
-      while (j < history.length && (isFault ? !!(history[j].fault_engaged || history[j].fault_active) : history[j].exploring)) {
+      while (j < drawHistory.length && (isFault ? !!(drawHistory[j].fault_engaged || drawHistory[j].fault_active) : drawHistory[j].exploring)) {
         j++;
       }
       const x = (i * step).toFixed(1);
