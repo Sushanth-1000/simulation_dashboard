@@ -284,29 +284,31 @@ function renderTrace() {
   let lastDiff = 0;
 
   const points = history.map((f, i) => {
-    let relT = 0.0;
-    let relE = 0.0;
+    let relT = -0.06; // Nominal micro-offset for Red (truth)
+    let relE = 0.06;  // Nominal micro-offset for Blue (estimate)
 
     if (f.fault_active) {
       decay = 40; // 2 seconds recovery window (40 ticks @ 20Hz)
       if (f.fault_kind === "dropout") {
         relT = -1.8;
-        relE = 0.0;
+        relE = 0.06;
       } else if (f.estimate_y !== null && f.truth_y !== null) {
-        relE = f.estimate_y - f.truth_y;
+        relE = (f.estimate_y - f.truth_y) + 0.06;
+        relT = -0.06;
       } else {
         relE = 1.0;
+        relT = -0.06;
       }
       lastDiff = relE;
     } else if (decay > 0) {
       const factor = decay / 40.0;
       decay--;
-      relE = lastDiff * factor;
-      relT = 0.0;
+      relE = 0.06 + (lastDiff - 0.06) * factor;
+      relT = -0.06;
     } else {
-      // INITIALLY & NOMINAL: Fully merged together on center axis (0.0m)
-      relT = 0.0;
-      relE = 0.0;
+      // INITIALLY & NOMINAL: Both Red and Blue lines run side-by-side along center axis
+      relT = -0.06;
+      relE = 0.06;
     }
 
     const x = (i * step).toFixed(1);
@@ -345,8 +347,8 @@ function renderTrace() {
     <line x1="0" y1="${mid}" x2="${w}" y2="${mid}" stroke="var(--line)"/>
     <line x1="0" y1="${yPixel(CORRIDOR)}" x2="${w}" y2="${yPixel(CORRIDOR)}" stroke="var(--line)" stroke-dasharray="5 5"/>
     <line x1="0" y1="${yPixel(-CORRIDOR)}" x2="${w}" y2="${yPixel(-CORRIDOR)}" stroke="var(--line)" stroke-dasharray="5 5"/>
-    <polyline fill="none" stroke="var(--truth)" stroke-width="2.5" points="${truthPoints}"/>
-    <polyline fill="none" stroke="var(--estimate)" stroke-width="2.5" points="${estimatePoints}"/>`;
+    <polyline fill="none" stroke="var(--truth)" stroke-width="3.2" stroke-linecap="round" points="${truthPoints}"/>
+    <polyline fill="none" stroke="var(--estimate)" stroke-width="2.5" stroke-linecap="round" points="${estimatePoints}"/>`;
 }
 
 /* The narrator. Each entry says what happened AND why it matters, because a
