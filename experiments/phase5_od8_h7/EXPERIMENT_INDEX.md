@@ -9,8 +9,8 @@
 | **E18-R2** | Does matched-window pooled calibration work? | **Complete** | P1 13/30 (best of 3); obstacle is the score process, not the threshold | **PARTIAL-R2** |
 | **E18-R3** | Precision-limited or dynamics-limited? | **Complete** | P1 30/30 at n=3200 (160 s). Precision-limited | **PASS-R3** |
 | **E18-R3b** | Does it detect faults at the long window? | **Complete** | 4/6 at 100 %. Detection comes from the post-fault transient, not statistical power | **PASS, mechanism refuted** |
-| **E18-R3c** | Duration-matched control | **NEXT** | - | - |
-| E19 | Does the observability profile predict monitor placement? | **Unblocked for P1**, pending R3b | - | - |
+| **E18-R3c** | Duration-matched control: is detection aftermath or sustained? | **Complete** | Sustained `imu_dropout` alarms at 0.2 %, below clean baseline. Only 3 of 6 faults detected under sustained injection | **H-AFTERMATH SUPPORTED** |
+| E19 | Does the observability profile predict monitor placement? | **Unblocked for P1** | - | - |
 | E20 | How does single-channel manipulation propagate? | **Future** | - | - |
 
 ## E18 headline

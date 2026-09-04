@@ -21,19 +21,23 @@ Permanent record of what may and may not be said. Every experiment updates this.
 | **OD-8 delivers per-run-stable clean-data behaviour on P1 at a 160-second evaluation window** | **Established** | E18-R3: 30/30 runs in band, frozen threshold, held-out seeds, no drift | **Yes, with the window stated** |
 | **The P1 instability was precision-limited, not dynamics-limited** | **Established** | E18-R3: FAR variability falls with window length; 12/30 → 30/30 | **Yes** |
 | **P3's residual failure is threshold bias, not instability** | **Supported** | E18-R3: variance collapses (slope −0.918) but median FAR converges to 1.16 %, below the 2.5 % floor | **Yes** |
-| **OD-8 detects 4 of 6 faults at a 160-second window on P1** | **Established** | E18-R3b: position_bias, position_drift, lateral_noise, imu_dropout all 100 % | **Yes, with the window stated** |
-| **A fault can be undetectable while active and strongly detectable after it ends** | **Established** | E18-R3b per-tick series: `imu_dropout` alarms on 0.4 % of ticks during the fault, 99.1 % immediately after | **Yes** |
-| **Alarm suppression is a property of the fault *while active*, not of the fault** | **Established** | E18-R3b: same fault, 0.4 % during vs 99.1 % after | **Yes** |
-| Longer windows improve detection by statistical power | **Refuted** | E18-R3b: the fault occupies 6 % of the window; detection comes from the post-fault transient | **No** |
-| Longer windows improve detection by covering the recovery transient | **Supported** | E18-R3b, phase-resolved scores; needs a duration-matched control | **Yes, as supported** |
-| `speed_bias` and `speed_stuck` are detectable at any window | **Rejected** | E18-R3b: 50 % and 10 %; scores flat in every phase | **No** |
+| ~~OD-8 detects 4 of 6 faults at a 160-second window on P1~~ | **SUPERSEDED** | E18-R3c: under *sustained* injection only 3 of 6 are detected. R3b's fourth (`imu_dropout`) was aftermath-only | **No — use the rows below** |
+| **OD-8 detects 3 of 6 faults on P1 under sustained fault at a 160-second window** | **Established** | E18-R3c: `position_bias` 100 %, `position_drift` 100 %, `lateral_noise` 100 %; `speed_stuck` 37 %, `speed_bias` 0 %, `imu_dropout` 0 % | **Yes, with window and injection mode stated** |
+| **A persistent sensor failure is invisible to the monitor for as long as it persists** | **Established** | E18-R3c: sustained `imu_dropout`, 160 s, 30 seeds, alarm rate 0.2 % — *below* the ~5 % clean baseline in every phase | **Yes — the safety-critical finding** |
+| **`imu_dropout` detection is aftermath-only** | **Established** | E18-R3b 99.1 % vs E18-R3c 0.2 % on identical seeds and threshold; the only difference is whether the fault ends | **Yes** |
+| **`lateral_noise` is genuinely sustained-detectable** | **Established** | E18-R3c late phases 0.977 / 1.000 / 1.000, exceeding R3b throughout | **Yes** |
+| **Alarm suppression under sustained failure** | **Established** | E18-R3c: fault alarm rate below clean baseline for 160 s continuously, 30 seeds, phase-resolved | **Yes** |
+| Longer windows improve detection by statistical power | **Refuted** | E18-R3b/R3c: no accumulation-driven detection observed under sustained fault | **No** |
+| Longer windows improve detection by covering the recovery transient | **Established** | E18-R3b vs R3c: aftermath 99.1 %, sustained 0.2 %, same fault | **Yes, restricted to faults that end** |
+| R3b's `position_drift` result was inflated by a drift-scaling defect | **Established** | `span` computed from the `TICKS=400` constant but applied over 3,400 ticks, reaching ~32 m instead of 2 m. R3c corrects it | **Yes, correction recorded** |
+| `speed_bias` and `speed_stuck` are detectable at any window in any injection mode | **Rejected** | E18-R3b and R3c: scores flat in every phase, neither transient nor sustained recovers them | **No** |
 | **P1's limit is within-run alarm clustering** | **Established** | lag-1 autocorr +0.359; 4.2x overdispersion; 11 effective ticks | **Yes** |
 | **P3's limit is between-run baseline variation** | **Established** | lag-1 autocorr ~0; 9.2x overdispersion; 2 effective ticks | **Yes** |
 | OD-8 is calibrated for P2 | **Rejected** | E18: 0/30 runs in band, drift/SD 1.28 | **No** |
 | **`D_s` does not predict operational detection** | **Established** | E18, 17/28 cells disagree; D_L6 rho +0.29 (p=0.14) | **Yes** |
 | **Higher sensor-level `D_L1` is associated with *lower* operational detection** | **Supported** | E18, Spearman rho = -0.480, p = 0.0088, n = 28 cells | **Yes, as an association** |
 | **Fault-induced alarm suppression** | **Supported** | E18, 11/28 cells on valid policies, all p < 0.05 | **Yes, as observed** |
-| ~~`speed_stuck` and `imu_dropout` are undetectable by OD-8 at any tested severity~~ | **SUPERSEDED for `imu_dropout`** | E18-R3b: 100 % at a 160 s window, via the post-fault transient. `speed_stuck` stands at 10 % | **No — split the two** |
+| `speed_stuck` and `imu_dropout` are undetectable by OD-8 under sustained fault | **Established** | E18-R3c: `imu_dropout` 0 %, `speed_stuck` 37 %, both below the 90 % criterion. R3b's `imu_dropout` 100 % was aftermath, not sustained detection | **Yes, with injection mode stated** |
 | General L2a absorption | **Withdrawn** | E17 + E17-Position | **No** |
 | Position faults are absorbed at L2a | **Withdrawn** | E17-Position, 0 of 12 cells | **No** |
 | "Information is destroyed at L2a" | **Withdrawn** | the L6 statistic recovers part of it | **No** |
@@ -64,3 +68,6 @@ Permanent record of what may and may not be said. Every experiment updates this.
 - **Detection must be reported phase-resolved** — during-fault and post-fault separately. E18-R3b
   showed a fault that is undetectable during its own duration and near-certain afterwards;
   a window-aggregate detection rate hides that completely and would be misleading.
+- **Detection claims must state the injection mode** — transient (fault ends) or sustained
+  (fault persists). E18-R3c showed the same fault at 99.1 % transient and 0.2 % sustained.
+  A detection rate without the mode is not interpretable.
