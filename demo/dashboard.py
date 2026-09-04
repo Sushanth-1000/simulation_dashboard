@@ -190,11 +190,8 @@ FOG = (0.2, 0.95, 0.85)
 """``(visibility, traffic dynamicity, road complexity)`` of heavy fog and dense traffic.
 """
 
-FAULT_WINDOW_TICKS = 400
-"""How long an armed fault lasts. Twenty seconds at 20 Hz.
-
-Long enough for the `imu_dropout` divergence to develop -- it took 73 ticks to
-leave the corridor in E-46 -- and short enough that an audience sees it recover.
+FAULT_WINDOW_TICKS = 100
+"""How long an armed fault lasts. Five seconds at 20 Hz.
 """
 
 
