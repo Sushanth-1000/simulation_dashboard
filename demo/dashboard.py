@@ -574,6 +574,7 @@ class FrameStream:
         "fault_path",
         "period_s",
         "pipeline",
+        "plant",
         "replaying",
         "started",
         "story_index",
@@ -606,6 +607,7 @@ class FrameStream:
         self.context_name: str = "certified road"
         self.period_s = period_s
         self.pipeline: object | None = None
+        self.plant: object | None = None
         self._lock = threading.Lock()
         self._subscribers: list[queue.Queue[str]] = []
         self._tick = 0
@@ -924,6 +926,7 @@ class FrameStream:
         if self._step_once:
             self._step_once = False
             self._gate.clear()
+        frame = Frame.from_sample(sample)
         position_active = bool(
             self._sensing is not None
             and self._sensing.closes_at > 0
@@ -1229,9 +1232,9 @@ def serve(
             fault=injector,
             redundant=sensing,
             cold_path=cold_path(CERTIFIED),
-            on_assembled=lambda built: (
+            on_assembled=lambda built, plant=None: (
                 setattr(stream, "pipeline", built.pipeline),
-                setattr(stream, "plant", built.plant),
+                setattr(stream, "plant", plant),
             ),
         )
         if handle is not None:

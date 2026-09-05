@@ -31,6 +31,7 @@ generates the data and another fitted to the same equations judges it.
 
 from __future__ import annotations
 
+import inspect
 import random
 import tempfile
 import time
@@ -803,7 +804,24 @@ def drive_closed_loop(
     )
 
     if on_assembled is not None:
-        on_assembled(built)
+        # The plant is offered as a second argument, because a caller that wants
+        # to reset a run needs the thing holding the state -- and it is not on
+        # AssembledPipeline, which carries only the pieces the pipeline itself
+        # exposes.
+        #
+        # The arity is read from the signature rather than discovered by calling
+        # and catching TypeError. A TypeError raised *inside* the callback is
+        # indistinguishable from one raised by the call itself, so the catching
+        # form would silently invoke a side-effecting callback a second time and
+        # bury the original error.
+        try:
+            takes_plant = len(inspect.signature(on_assembled).parameters) >= 2
+        except (TypeError, ValueError):  # builtins and C callables have no signature
+            takes_plant = False
+        if takes_plant:
+            on_assembled(built, plant)
+        else:
+            on_assembled(built)
 
     period = Seconds(1.0 / settings.estimation.fast_rate_hz)
     result = ClosedLoopResult(ticks=ticks)
