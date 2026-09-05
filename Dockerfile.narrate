@@ -1,0 +1,44 @@
+# The tick-by-tick narrator, served as a read-only web terminal.
+#
+# This is a SEPARATE image from the dashboard's, and it needs its own service,
+# because Hugging Face Spaces, Render, Railway and Fly.io each route exactly one
+# port per service. Two views means two deployments.
+#
+# ttyd runs the narrator and streams the terminal to a browser. `-R` makes the
+# session read-only: a visitor watches, and cannot type into a shell running
+# inside your container. Do not remove that flag to "let them interact" -- the
+# process it wraps is a Python program with a real filesystem under it.
+
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ttyd \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY pyproject.toml README.md LICENSE NOTICE ./
+COPY src/ ./src/
+COPY demo/ ./demo/
+COPY training/ ./training/
+COPY config/ ./config/
+COPY var/policy/synthetic.pt ./var/policy/synthetic.pt
+COPY var/twin/ ./var/twin/
+COPY var/calibration/ ./var/calibration/
+
+RUN pip install --no-cache-dir --no-deps -e .
+
+ENV PORT=8000
+EXPOSE 8000
+
+# --pause 0.05 runs the trace at the vehicle's real 20 Hz, which is the rate an
+# audience can actually follow. Without it the whole run scrolls past in
+# seconds, because the harness drives far faster than real time.
+CMD ["sh", "-c", "ttyd -p ${PORT} -R -t fontSize=15 -t theme={\"background\":\"#0b0e13\"} python -m demo.narrate --explain --every 20 --pause 0.05 --ticks 100000"]
