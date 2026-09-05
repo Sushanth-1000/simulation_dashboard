@@ -90,6 +90,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import queue
 import sys
 import threading
@@ -1188,6 +1189,7 @@ def serve(
     seed: int,
     policy_path: Path,
     port: int,
+    host: str = "127.0.0.1",
     record: Path | None = None,
     recording: Path | None = None,
     period_s: float = TICK_PERIOD_S,
@@ -1199,6 +1201,10 @@ def serve(
         seed: The run seed.
         policy_path: The trained proposer.
         port: The port to listen on.
+        host: The interface to bind. Defaults to loopback, which is what a
+            demonstration on the presenter's own laptop wants. A container has
+            to bind ``0.0.0.0`` instead, or the platform's proxy cannot reach
+            it -- see ``--host`` and the ``HOST`` environment variable.
         period_s: Wall-clock seconds per tick. Defaults to real time.
         record: Where to write frames as they are produced, or ``None``.
         recording: A recording to replay instead of driving, or ``None``.
@@ -1240,9 +1246,10 @@ def serve(
         if handle is not None:
             handle.flush()
 
-    server = ThreadingHTTPServer(("127.0.0.1", port), _Handler)
+    server = ThreadingHTTPServer((host, port), _Handler)
     worker = threading.Thread(target=drive, name="astra-demo-drive", daemon=True)
-    print(f"  dashboard: http://127.0.0.1:{port}/")
+    shown = "127.0.0.1" if host in {"", "0.0.0.0"} else host  # noqa: S104
+    print(f"  dashboard: http://{shown}:{port}/")
     rate = "flat out" if period_s <= 0.0 else f"{1.0 / period_s:.0f} Hz, real time"
     print(f"  driving {ticks} ticks from seed {seed} at {rate}; Ctrl-C to stop")
     worker.start()
@@ -1269,7 +1276,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--ticks", "-n", type=int, default=_DEFAULT_TICKS)
     parser.add_argument("--seed", type=int, default=_DEFAULT_SEED)
     parser.add_argument("--policy", type=Path, default=_DEFAULT_POLICY)
-    parser.add_argument("--port", "-p", type=int, default=8000)
+    # A hosting platform assigns the port and expects the process to read it
+    # from the environment, so PORT and HOST are defaults rather than
+    # overrides -- an explicit flag still wins.
+    parser.add_argument("--port", "-p", type=int, default=int(os.environ.get("PORT", "8000")))
+    parser.add_argument(
+        "--host",
+        default=os.environ.get("HOST", "127.0.0.1"),
+        help="interface to bind; use 0.0.0.0 in a container",
+    )
     parser.add_argument("--record", type=Path, default=None)
     parser.add_argument("--replay", type=Path, default=None)
     parser.add_argument(
@@ -1294,6 +1309,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         seed=arguments.seed,
         policy_path=arguments.policy,
         port=arguments.port,
+        host=arguments.host,
         record=arguments.record,
         recording=arguments.replay,
         period_s=0.0 if arguments.rate <= 0.0 else TICK_PERIOD_S / arguments.rate,

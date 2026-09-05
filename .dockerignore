@@ -1,0 +1,29 @@
+# Keep the build context small and keep unpublished material out of the image.
+# The Dockerfile copies only what the dashboard runs; this stops everything else
+# being sent to the daemon in the first place.
+.git
+.venv
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# Research and evidence. Not needed to serve the demonstration.
+A-Z/
+research/
+experiments/
+benchmarks/
+results/
+docs/
+tests/
+tools/
+
+# Recordings, logs and every model except the three the dashboard loads.
+var/*
+!var/policy/
+var/policy/*
+!var/policy/synthetic.pt
+!var/twin/
+!var/calibration/

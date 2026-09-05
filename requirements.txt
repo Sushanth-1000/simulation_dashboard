@@ -1,5 +1,16 @@
-streamlit
-numpy
-scipy
-torch
-gymnasium
+# Runtime dependencies for the hosted dashboard, and nothing else.
+#
+# Measured rather than guessed: importing demo.dashboard pulls exactly
+# gymnasium, numpy, pydantic, pydantic-settings and torch.
+#
+# Deliberately absent:
+#   scipy               -- nothing in src/ imports it; it came in behind
+#                          FilterPy, which was removed on 10 August 2026.
+#   stable-baselines3   -- trains the proposer; the dashboard only loads the
+#                          saved weights, so it is a training dependency.
+#   streamlit           -- see the Dockerfile header.
+numpy>=2.0
+torch>=2.2
+gymnasium>=1.0
+pydantic>=2.9,<3
+pydantic-settings>=2.6,<3
